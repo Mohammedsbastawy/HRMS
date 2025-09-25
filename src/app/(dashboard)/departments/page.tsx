@@ -29,8 +29,8 @@ export default function DepartmentsPage() {
 
   const allJobTitles: JobTitle[] = (() => {
     try {
-        const stmt = db.prepare('SELECT * FROM job_titles');
-        return stmt.all() as JobTitle[];
+        const stmt = db.prepare('SELECT jt.*, d.name_ar as department_name_ar FROM job_titles jt JOIN departments d ON jt.department_id = d.id');
+        return stmt.all() as any[];
     } catch (error) {
         console.error(error);
         return [];
@@ -128,7 +128,7 @@ export default function DepartmentsPage() {
                             <TableRow key={jt.id}>
                                 <TableCell className="font-medium">{jt.title_ar}</TableCell>
                                 <TableCell>{jt.title_en}</TableCell>
-                                <TableCell>{dept?.name_ar || 'غير محدد'}</TableCell>
+                                <TableCell>{(jt as any).department_name_ar || 'غير محدد'}</TableCell>
                                 <TableCell className="flex justify-end gap-2">
                                      <Button variant="ghost" size="icon">
                                         <Edit className="h-4 w-4" />
@@ -157,3 +157,5 @@ export default function DepartmentsPage() {
     </div>
   );
 }
+
+    

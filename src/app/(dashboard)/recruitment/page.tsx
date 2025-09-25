@@ -1,4 +1,5 @@
 
+'use client'
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import type { Applicant, Job, Department } from '@/lib/types';
-import db from '@/lib/db';
+import { useState } from 'react';
+
 
 const stages = ['Applied', 'Screening', 'Interview', 'Offer', 'Hired', 'Rejected'];
 const stageLabels: { [key: string]: string } = {
@@ -64,18 +66,10 @@ const ApplicantCard = ({ applicant }: { applicant: Applicant }) => (
   </Card>
 );
 
-export default function RecruitmentPage() {
-    
-    const jobs: Job[] = db.prepare('SELECT * FROM jobs').all() as Job[];
-    const applicants: Applicant[] = db.prepare('SELECT * FROM applicants').all() as Applicant[];
-    const departments: Department[] = db.prepare('SELECT id, name_ar FROM departments').all() as Department[];
-
-    // Map departments to jobs
-    const jobsWithDept = jobs.map(job => ({
-        ...job,
-        department: departments.find(d => d.id === job.department_id)
-    }))
-
+const RecruitmentPageClient = ({ jobs: initialJobs, applicants: initialApplicants }: { jobs: any[], applicants: Applicant[] }) => {
+  const [jobs, setJobs] = useState(initialJobs);
+  const [applicants, setApplicants] = useState(initialApplicants);
+  
   const getStatusVariant = (status: 'Open' | 'Closed' | 'On-Hold' | undefined) => {
     switch (status) {
       case 'Open':
@@ -102,7 +96,7 @@ export default function RecruitmentPage() {
   };
 
   return (
-    <div className="flex flex-col gap-8">
+     <div className="flex flex-col gap-8">
       <Card>
         <CardHeader>
         <div className="flex items-center justify-between">
@@ -141,11 +135,11 @@ export default function RecruitmentPage() {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {jobsWithDept.map(job => (
+                    {jobs.map(job => (
                         <TableRow key={job.id}>
                             <TableCell>{job.id}</TableCell>
                             <TableCell className="font-medium">{job.title}</TableCell>
-                            <TableCell>{job.department?.name_ar || 'غير محدد'}</TableCell>
+                            <TableCell>{job.department_name_ar || 'غير محدد'}</TableCell>
                             <TableCell>
                                <Badge 
                                  variant={getStatusVariant(job.status)}
@@ -202,5 +196,22 @@ export default function RecruitmentPage() {
         </div>
       </div>
     </div>
-  );
+  )
 }
+
+import db from '@/lib/db';
+
+export default function RecruitmentPage() {
+    
+    const jobs: any[] = db.prepare(`
+        SELECT j.*, d.name_ar as department_name_ar 
+        FROM jobs j
+        LEFT JOIN departments d ON j.department_id = d.id
+    `).all();
+    
+    const applicants: Applicant[] = db.prepare('SELECT * FROM applicants').all() as Applicant[];
+
+    return <RecruitmentPageClient jobs={jobs} applicants={applicants} />
+}
+
+    

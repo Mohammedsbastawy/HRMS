@@ -20,9 +20,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 
-// This is a server component now, so we can't use useState directly at the top level.
-// We'll pass the initial data as props.
-const EmployeesPageWrapper = ({ initialEmployees }: { initialEmployees: Employee[] }) => {
+// This is now a client component responsible for UI and interactivity
+const EmployeesPageClient = ({ initialEmployees }: { initialEmployees: Employee[] }) => {
   const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
@@ -196,6 +195,8 @@ const EmployeesPageWrapper = ({ initialEmployees }: { initialEmployees: Employee
   );
 }
 
+
+// This is the main page component, now a Server Component
 import db from '@/lib/db';
 
 export default function EmployeesDataPage() {
@@ -246,5 +247,7 @@ export default function EmployeesDataPage() {
     }));
 
 
-    return <EmployeesPageWrapper initialEmployees={formattedEmployees} />
+    return <EmployeesPageClient initialEmployees={formattedEmployees} />
 }
+
+    
