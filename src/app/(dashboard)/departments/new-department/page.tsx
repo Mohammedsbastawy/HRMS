@@ -28,6 +28,10 @@ import { useToast } from "@/components/ui/use-toast";
 const departmentFormSchema = z.object({
   name_ar: z.string().min(2, { message: "الاسم بالعربية مطلوب." }),
   name_en: z.string().min(2, { message: "الاسم بالإنجليزية مطلوب." }),
+  code: z.string().optional(),
+  location: z.string().optional(),
+  email: z.string().email({ message: "بريد إلكتروني غير صالح." }).optional().or(z.literal('')),
+  budget: z.coerce.number().min(0).optional(),
   description: z.string().optional(),
 });
 
@@ -41,6 +45,10 @@ export default function NewDepartmentPage() {
     defaultValues: {
       name_ar: "",
       name_en: "",
+      code: "",
+      location: "",
+      email: "",
+      budget: 0,
       description: "",
     }
   });
@@ -59,7 +67,7 @@ export default function NewDepartmentPage() {
   }
 
   return (
-    <Card className="max-w-2xl mx-auto">
+    <Card className="max-w-4xl mx-auto">
       <CardHeader>
         <CardTitle>إضافة قسم جديد</CardTitle>
         <CardDescription>
@@ -91,6 +99,58 @@ export default function NewDepartmentPage() {
                     <FormLabel>اسم القسم (بالإنجليزية)</FormLabel>
                     <FormControl>
                       <Input placeholder="e.g., Information Technology" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>رمز القسم (اختياري)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="IT" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>الموقع (اختياري)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="الرياض، الطابق الثاني" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>البريد الإلكتروني للقسم (اختياري)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="it.dept@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="budget"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>الميزانية السنوية (اختياري)</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="500000" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
