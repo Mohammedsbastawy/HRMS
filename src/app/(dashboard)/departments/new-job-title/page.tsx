@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { departments } from "@/lib/data";
+import { departments } from "@/lib/data"; // Will be empty, that's expected
 
 const jobTitleFormSchema = z.object({
   departmentId: z.string({ required_error: "يجب اختيار القسم." }),
@@ -46,7 +46,8 @@ export default function NewJobTitlePage() {
     resolver: zodResolver(jobTitleFormSchema),
   });
 
-  function onSubmit(data: JobTitleFormValues) {
+  async function onSubmit(data: JobTitleFormValues) {
+    // TODO: Send data to the server to be saved in the database
     console.log(data);
     toast({
       title: "تم إرسال النموذج بنجاح!",
@@ -82,9 +83,13 @@ export default function NewJobTitlePage() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {departments.map(dept => (
-                        <SelectItem key={dept.id} value={String(dept.id)}>{dept.name}</SelectItem>
-                      ))}
+                      {departments.length > 0 ? (
+                        departments.map(dept => (
+                          <SelectItem key={dept.id} value={String(dept.id)}>{dept.name}</SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="-" disabled>لا توجد أقسام متاحة</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                   <FormMessage />
