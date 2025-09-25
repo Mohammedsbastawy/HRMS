@@ -1,9 +1,10 @@
 
 'use client'
 
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, PlusCircle, Search, Eye, Edit, Trash2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Search, Eye, Edit, Trash2, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -23,7 +24,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import type { Applicant, Job } from '@/lib/types';
-import { useState } from 'react';
+import { useToast } from '@/components/ui/use-toast';
 
 
 const stages = ['Applied', 'Screening', 'Interview', 'Offer', 'Hired', 'Rejected'];
@@ -66,9 +67,33 @@ const ApplicantCard = ({ applicant }: { applicant: Applicant }) => (
   </Card>
 );
 
-export function RecruitmentPageClient({ jobs: initialJobs, applicants: initialApplicants }: { jobs: any[], applicants: Applicant[] }) {
-  const [jobs] = useState(initialJobs);
-  const [applicants] = useState(initialApplicants);
+export function RecruitmentPageClient() {
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [applicants, setApplicants] = useState<Applicant[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    async function fetchData() {
+        setIsLoading(true);
+        try {
+            const res = await fetch('/api/recruitment');
+            if(!res.ok) throw new Error('فشل في جلب بيانات التوظيف');
+            const data = await res.json();
+            setJobs(data.jobs);
+            setApplicants(data.applicants);
+        } catch (error: any) {
+            toast({
+                variant: 'destructive',
+                title: 'خطأ',
+                description: error.message
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    }
+    fetchData();
+  }, [toast]);
   
   const getStatusVariant = (status: 'Open' | 'Closed' | 'On-Hold' | undefined) => {
     switch (status) {
@@ -135,37 +160,51 @@ export function RecruitmentPageClient({ jobs: initialJobs, applicants: initialAp
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {jobs.map(job => (
-                        <TableRow key={job.id}>
-                            <TableCell>{job.id}</TableCell>
-                            <TableCell className="font-medium">{job.title}</TableCell>
-                            <TableCell>{job.department_name_ar || 'غير محدد'}</TableCell>
-                            <TableCell>
-                               <Badge 
-                                 variant={getStatusVariant(job.status)}
-                                 className={
-                                    job.status === 'Open' ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200' 
-                                    : job.status === 'Closed' ? 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200' 
-                                    : 'bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200'
-                                  }
-                               >
-                                 {getStatusText(job.status)}
-                               </Badge>
-                            </TableCell>
-                            <TableCell>{job.created_at ? new Date(job.created_at).toLocaleDateString('ar-EG') : 'غير محدد'}</TableCell>
-                            <TableCell className="flex justify-end gap-2">
-                                <Button variant="ghost" size="icon">
-                                    <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon">
-                                    <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
+                    {isLoading ? (
+                        <TableRow>
+                            <TableCell colSpan={6} className="h-24 text-center">
+                                <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                             </TableCell>
                         </TableRow>
-                    ))}
+                    ) : jobs.length > 0 ? (
+                        jobs.map(job => (
+                            <TableRow key={job.id}>
+                                <TableCell>{job.id}</TableCell>
+                                <TableCell className="font-medium">{job.title}</TableCell>
+                                <TableCell>{job.department_name_ar || 'غير محدد'}</TableCell>
+                                <TableCell>
+                                <Badge 
+                                    variant={getStatusVariant(job.status)}
+                                    className={
+                                        job.status === 'Open' ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200' 
+                                        : job.status === 'Closed' ? 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200' 
+                                        : 'bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200'
+                                    }
+                                >
+                                    {getStatusText(job.status)}
+                                </Badge>
+                                </TableCell>
+                                <TableCell>{job.created_at ? new Date(job.created_at).toLocaleDateString('ar-EG') : 'غير محدد'}</TableCell>
+                                <TableCell className="flex justify-end gap-2">
+                                    <Button variant="ghost" size="icon">
+                                        <Eye className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon">
+                                        <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                        ))
+                    ) : (
+                        <TableRow>
+                            <TableCell colSpan={6} className="h-24 text-center">
+                                لا توجد وظائف شاغرة حاليًا.
+                            </TableCell>
+                        </TableRow>
+                    )}
                 </TableBody>
             </Table>
         </CardContent>

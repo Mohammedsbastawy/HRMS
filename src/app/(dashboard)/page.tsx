@@ -1,4 +1,6 @@
 
+'use client';
+
 import {
   Card,
   CardContent,
@@ -20,59 +22,66 @@ import {
   CalendarCheck,
   Briefcase,
   Star,
+  Loader2
 } from 'lucide-react';
 import type { Employee, LeaveRequest, PerformanceReview, Job } from '@/lib/types';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import db from '@/lib/db';
+import { useState, useEffect } from 'react';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function DashboardPage() {
+  const [stats, setStats] = useState<any[]>([]);
+  const [pendingLeaves, setPendingLeaves] = useState<LeaveRequest[]>([]);
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
-  const safeQuery = <T,>(query: () => T, defaultValue: T): T => {
-    try {
-      return query();
-    } catch (e) {
-      console.error(e);
-      return defaultValue;
+  useEffect(() => {
+    async function fetchDashboardData() {
+      setIsLoading(true);
+      try {
+        const response = await fetch('/api/dashboard');
+        if (!response.ok) {
+          throw new Error('فشل في جلب بيانات لوحة التحكم');
+        }
+        const data = await response.json();
+        
+        const averagePerformance = data.performanceReviews.length > 0 
+          ? (data.performanceReviews.reduce((acc: number, r: PerformanceReview) => acc + r.score, 0) / data.performanceReviews.length).toFixed(1) 
+          : "0";
+
+        setStats([
+          { title: 'إجمالي الموظفين', value: data.employees.length, icon: Users, change: `+${data.employees.filter((e: Employee) => e.hire_date && new Date(e.hire_date).getMonth() === new Date().getMonth()).length} هذا الشهر` },
+          { title: 'طلبات الإجازة المعلقة', value: data.leaveRequests.filter((l: LeaveRequest) => l.status === 'Pending').length, icon: CalendarCheck, change: `${data.leaveRequests.filter((l: LeaveRequest) => l.status === 'Approved').length} موافق عليها` },
+          { title: 'وظائف شاغرة', value: data.jobs.length, icon: Briefcase, change: `+${data.jobs.filter((j: Job) => j.created_at && new Date(j.created_at).getMonth() === new Date().getMonth()).length} جديدة` },
+          { title: 'متوسط تقييم الأداء', value: averagePerformance, icon: Star, change: 'مقارنة بالربع الماضي' },
+        ]);
+
+        setPendingLeaves(data.leaveRequests.filter((l: LeaveRequest) => l.status === 'Pending').slice(0, 5));
+        setRecentActivities(data.recentActivities);
+
+      } catch (error: any) {
+        toast({
+          variant: 'destructive',
+          title: 'خطأ',
+          description: error.message,
+        });
+      } finally {
+        setIsLoading(false);
+      }
     }
-  };
-
-  const employees: Employee[] = safeQuery(() => db.prepare('SELECT * FROM employees').all() as Employee[], []);
+    fetchDashboardData();
+  }, [toast]);
   
-  const leaveRequests: LeaveRequest[] = safeQuery(() => {
-    const data = db.prepare(`
-      SELECT lr.*, e.full_name, e.avatar 
-      FROM leave_requests lr 
-      JOIN employees e ON lr.employee_id = e.id
-    `).all();
-    return data.map(lr => ({ ...lr, employee: { id: (lr as any).employee_id, full_name: (lr as any).full_name, avatar: (lr as any).avatar } })) as any[];
-  }, []);
+  if (isLoading) {
+    return (
+        <div className="flex justify-center items-center h-screen">
+            <Loader2 className="h-16 w-16 animate-spin" />
+        </div>
+    );
+  }
 
-  const performanceReviews: PerformanceReview[] = safeQuery(() => db.prepare('SELECT * FROM performance_reviews').all() as PerformanceReview[], []);
-  
-  const jobs: Job[] = safeQuery(() => db.prepare("SELECT * FROM jobs WHERE status = 'Open'").all() as Job[], []);
-
-  const recentActivities: any[] = safeQuery(() => {
-    const logs = db.prepare('SELECT al.*, u.username FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id ORDER BY al.timestamp DESC LIMIT 5').all();
-    return logs.map(log => ({
-        text: `${(log as any).username || 'النظام'} قام بـ "${(log as any).action}"`,
-        time: new Date((log as any).timestamp).toLocaleString('ar-EG'),
-    }));
-  }, []);
-
-
-  const averagePerformance = performanceReviews.length > 0 
-    ? (performanceReviews.reduce((acc, r) => acc + r.score, 0) / performanceReviews.length).toFixed(1) 
-    : "0";
-
-  const stats = [
-    { title: 'إجمالي الموظفين', value: employees.length, icon: Users, change: `+${employees.filter(e => e.hire_date && new Date(e.hire_date).getMonth() === new Date().getMonth()).length} هذا الشهر` },
-    { title: 'طلبات الإجازة المعلقة', value: leaveRequests.filter(l => l.status === 'Pending').length, icon: CalendarCheck, change: `${leaveRequests.filter(l => l.status === 'Approved').length} موافق عليها` },
-    { title: 'وظائف شاغرة', value: jobs.length, icon: Briefcase, change: `+${jobs.filter(j => j.created_at && new Date(j.created_at).getMonth() === new Date().getMonth()).length} جديدة` },
-    { title: 'متوسط تقييم الأداء', value: averagePerformance, icon: Star, change: 'مقارنة بالربع الماضي' },
-  ];
-  const pendingLeaves = leaveRequests.filter(l => l.status === 'Pending').slice(0, 5);
-  
   return (
     <div className="flex min-h-screen w-full flex-col">
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
@@ -120,7 +129,7 @@ export default function DashboardPage() {
                             </Avatar>
                           </div>
                         </TableCell>
-                        <TableCell>{(leave as any).leave_type}</TableCell>
+                        <TableCell>{leave.leave_type}</TableCell>
                         <TableCell className="text-left">
                            <Button asChild size="sm" variant="outline">
                              <Link href="/leaves">مراجعة</Link>

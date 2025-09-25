@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
-import type { Location, Employee } from '@/lib/types';
+import type { Location } from '@/lib/types';
 
 export async function GET() {
   try {
@@ -23,7 +23,7 @@ export async function GET() {
       } : null
     }));
 
-    return NextResponse.json(formattedLocations);
+    return NextResponse.json({ locations: formattedLocations });
 
   } catch (error: any) {
     console.error('Failed to fetch locations:', error);

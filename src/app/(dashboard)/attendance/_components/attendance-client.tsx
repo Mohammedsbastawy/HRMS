@@ -24,8 +24,9 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 type ClientAttendanceRecord = Omit<Attendance, 'employee_id'> & { id: number };
 
 // The main component is now a client component
-export function AttendancePageClient({ employees }: { employees: Employee[] }) {
+export function AttendancePageClient() {
   const [attendance, setAttendance] = useState<ClientAttendanceRecord[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -37,6 +38,20 @@ export function AttendancePageClient({ employees }: { employees: Employee[] }) {
     if (savedConfig) {
       setZktConfig(JSON.parse(savedConfig));
     }
+    
+    // Fetch employees for processing attendance
+    async function fetchEmployees() {
+        try {
+            const res = await fetch('/api/employees');
+            const data = await res.json();
+            if(res.ok) {
+                setEmployees(data.employees);
+            }
+        } catch(e) {
+            console.error("Failed to fetch employees for attendance page", e);
+        }
+    }
+    fetchEmployees();
   }, []);
 
   const handleSync = async () => {
@@ -48,6 +63,11 @@ export function AttendancePageClient({ employees }: { employees: Employee[] }) {
       setSyncError('لم يتم تعيين عنوان IP للجهاز. يرجى الانتقال إلى صفحة الإعدادات وتكوينه أولاً.');
       setIsSyncing(false);
       return;
+    }
+    if(employees.length === 0) {
+        setSyncError('لم يتم تحميل بيانات الموظفين بعد، لا يمكن معالجة سجلات الحضور.');
+        setIsSyncing(false);
+        return;
     }
 
     try {

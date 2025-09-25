@@ -33,7 +33,7 @@ export default function LocationsPage() {
                     throw new Error('فشل في جلب المواقع');
                 }
                 const data = await response.json();
-                setLocations(data);
+                setLocations(data.locations);
             } catch (error: any) {
                 toast({
                     variant: 'destructive',

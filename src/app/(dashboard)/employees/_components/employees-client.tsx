@@ -38,7 +38,7 @@ export function EmployeesPageClient() {
           throw new Error('فشل في جلب بيانات الموظفين');
         }
         const data = await response.json();
-        setEmployees(data);
+        setEmployees(data.employees);
       } catch (error: any) {
         toast({
           variant: 'destructive',

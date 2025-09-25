@@ -1,4 +1,7 @@
 
+'use client';
+
+import { useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -9,9 +12,9 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { PlusCircle, Star } from 'lucide-react';
+import { PlusCircle, Star, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import db from '@/lib/db';
+import { useToast } from '@/components/ui/use-toast';
 
 const ScoreBadge = ({ score }: { score: number }) => {
   const colorClass = score >= 4.5 ? 'text-green-500' : score >= 3.5 ? 'text-yellow-500' : 'text-red-500';
@@ -22,17 +25,30 @@ const ScoreBadge = ({ score }: { score: number }) => {
 };
 
 export default function PerformancePage() {
-    const performanceReviews: any[] = (() => {
-        try {
-            return db.prepare(`
-                SELECT pr.*, e.full_name as employeeName 
-                FROM performance_reviews pr 
-                JOIN employees e ON pr.employee_id = e.id
-            `).all();
-        } catch(e) {
-            return [];
+    const [performanceReviews, setPerformanceReviews] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        async function fetchReviews() {
+            setIsLoading(true);
+            try {
+                const response = await fetch('/api/performance');
+                if(!response.ok) throw new Error('فشل في جلب تقييمات الأداء');
+                const data = await response.json();
+                setPerformanceReviews(data.performanceReviews);
+            } catch (error: any) {
+                toast({
+                    variant: 'destructive',
+                    title: 'خطأ',
+                    description: error.message
+                });
+            } finally {
+                setIsLoading(false);
+            }
         }
-    })();
+        fetchReviews();
+    }, [toast]);
 
   return (
     <Card>
@@ -59,19 +75,33 @@ export default function PerformancePage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {performanceReviews.map((review) => (
-              <TableRow key={review.id}>
-                <TableCell className="font-medium">{review.employeeName}</TableCell>
-                <TableCell>{new Date(review.review_date).toLocaleDateString('ar-EG')}</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2 justify-end">
-                    <span>({review.score})</span>
-                    <ScoreBadge score={review.score} />
-                  </div>
-                </TableCell>
-                <TableCell className="max-w-[300px] truncate">{review.comments}</TableCell>
-              </TableRow>
-            ))}
+            {isLoading ? (
+                 <TableRow>
+                    <TableCell colSpan={4} className="h-24 text-center">
+                        <Loader2 className="mx-auto h-8 w-8 animate-spin" />
+                    </TableCell>
+                </TableRow>
+            ) : performanceReviews.length > 0 ? (
+                performanceReviews.map((review) => (
+                <TableRow key={review.id}>
+                    <TableCell className="font-medium">{review.employeeName}</TableCell>
+                    <TableCell>{new Date(review.review_date).toLocaleDateString('ar-EG')}</TableCell>
+                    <TableCell>
+                    <div className="flex items-center gap-2 justify-end">
+                        <span>({review.score})</span>
+                        <ScoreBadge score={review.score} />
+                    </div>
+                    </TableCell>
+                    <TableCell className="max-w-[300px] truncate">{review.comments}</TableCell>
+                </TableRow>
+                ))
+            ) : (
+                <TableRow>
+                    <TableCell colSpan={4} className="h-24 text-center">
+                        لا توجد تقييمات أداء لعرضها.
+                    </TableCell>
+                </TableRow>
+            )}
           </TableBody>
         </Table>
       </CardContent>

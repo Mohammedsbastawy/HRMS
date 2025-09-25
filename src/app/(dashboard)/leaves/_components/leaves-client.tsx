@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useState, useEffect, startTransition } from 'react';
 import {
   Table,
   TableBody,
@@ -13,42 +14,82 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, CheckCircle, XCircle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import type { LeaveRequest } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
-import { approveLeaveRequest, rejectLeaveRequest } from '@/lib/actions';
 import { useToast } from '@/components/ui/use-toast';
-import { startTransition } from 'react';
 
-
-export function LeaveRequestClientPage({ leaveRequests }: { leaveRequests: LeaveRequest[] }) {
+export function LeaveRequestClientPage() {
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  const handleApprove = (id: number) => {
-    startTransition(() => {
-        approveLeaveRequest(id).then(result => {
-            toast({
-              title: result.success ? 'تمت الموافقة' : 'خطأ',
-              description: result.message,
-              variant: result.success ? 'default' : 'destructive',
-            });
+  const fetchLeaveRequests = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/leaves');
+      if (!res.ok) throw new Error('Failed to fetch leave requests');
+      const data = await res.json();
+      setLeaveRequests(data.leaveRequests);
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'خطأ',
+        description: error.message,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLeaveRequests();
+  }, []);
+
+  const handleAction = async (id: number, action: 'approve' | 'reject', notes?: string) => {
+    try {
+        const response = await fetch(`/api/leaves/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, notes }),
         });
-    });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.message || 'فشل في تحديث الطلب');
+        }
+
+        toast({
+            title: result.success ? (action === 'approve' ? 'تمت الموافقة' : 'تم الرفض') : 'خطأ',
+            description: result.message,
+            variant: result.success ? 'default' : 'destructive',
+        });
+        
+        // Refresh data
+        startTransition(() => {
+            fetchLeaveRequests();
+        });
+
+    } catch (error: any) {
+        toast({
+            title: 'حدث خطأ',
+            description: error.message,
+            variant: 'destructive',
+        });
+    }
+  };
+
+
+  const handleApprove = (id: number) => {
+    handleAction(id, 'approve');
   };
 
   const handleReject = (id: number) => {
     const notes = prompt('يرجى إدخال سبب الرفض:');
     if (notes !== null) { // prompt returns null if cancelled
-      startTransition(() => {
-        rejectLeaveRequest(id, notes).then(result => {
-            toast({
-                title: result.success ? 'تم الرفض' : 'خطأ',
-                description: result.message,
-                variant: result.success ? 'default' : 'destructive',
-            });
-        });
-      });
+      handleAction(id, 'reject', notes);
     }
   };
 
@@ -117,7 +158,13 @@ export function LeaveRequestClientPage({ leaveRequests }: { leaveRequests: Leave
             </TableRow>
           </TableHeader>
           <TableBody>
-            {leaveRequests.length > 0 ? (
+            {isLoading ? (
+                <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                        <Loader2 className="mx-auto h-8 w-8 animate-spin" />
+                    </TableCell>
+                </TableRow>
+            ) : leaveRequests.length > 0 ? (
               leaveRequests.map((request) => (
                 <TableRow key={request.id}>
                   <TableCell>
