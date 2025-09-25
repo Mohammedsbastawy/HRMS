@@ -1,10 +1,13 @@
+
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import sqlite3
+from werkzeug.security import generate_password_hash, check_password_hash
+import jwt
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -13,15 +16,42 @@ logging.basicConfig(level=logging.INFO)
 app = Flask(__name__)
 CORS(app) # Enable CORS for all routes
 
-# Configure Database
+# Configure Database & Secret Key
 basedir = os.path.abspath(os.path.dirname(__file__))
 db_path = os.path.join(basedir, 'hrms.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-fallback-secret-key-for-development')
+
 
 db = SQLAlchemy(app)
 
 # --- Database Models ---
+
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True)
+    username = db.Column(db.String, unique=True, nullable=False)
+    password_hash = db.Column(db.String, nullable=False)
+    role = db.Column(db.String, nullable=False, default='Employee')
+    account_status = db.Column(db.String, default='Active')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'role': self.role,
+            'account_status': self.account_status,
+            'employee_id': self.employee_id
+        }
 
 class Location(db.Model):
     __tablename__ = 'locations'
@@ -43,7 +73,6 @@ class Location(db.Model):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
         if include_manager and hasattr(self, 'manager') and self.manager:
             data['manager'] = {'full_name': self.manager.full_name}
-        # Format datetime objects
         if isinstance(data.get('created_at'), datetime):
             data['created_at'] = data['created_at'].isoformat()
         if isinstance(data.get('updated_at'), datetime):
@@ -164,7 +193,6 @@ class LeaveRequest(db.Model):
               'full_name': self.employee.full_name,
               'avatar': self.employee.avatar
           }
-      # Convert datetime objects to ISO format string
       created_at_val = getattr(self, 'created_at', None)
       if isinstance(created_at_val, datetime):
           data['created_at'] = created_at_val.isoformat()
@@ -292,7 +320,7 @@ class TrainingRecord(db.Model):
 class AuditLog(db.Model):
     __tablename__ = 'audit_logs'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer) # No foreign key to avoid complexity for now
+    user_id = db.Column(db.Integer) 
     username = db.Column(db.String, default='نظام')
     action = db.Column(db.String, nullable=False)
     details = db.Column(db.String)
@@ -308,21 +336,104 @@ class AuditLog(db.Model):
         }
 
 # --- Utility Functions ---
-def log_action(action, details, username="نظام"):
-    """Helper function to log an action to the audit log."""
+def log_action(action, details, username="نظام", user_id=None):
     try:
-        log = AuditLog(action=action, details=details, username=username)
+        log = AuditLog(action=action, details=details, username=username, user_id=user_id)
         db.session.add(log)
         db.session.commit()
     except Exception as e:
         app.logger.error(f"Failed to log action: {e}")
         db.session.rollback()
 
+def encode_auth_token(user_id, role):
+    try:
+        payload = {
+            'exp': datetime.utcnow() + timedelta(days=1),
+            'iat': datetime.utcnow(),
+            'sub': user_id,
+            'role': role
+        }
+        return jwt.encode(
+            payload,
+            app.config.get('SECRET_KEY'),
+            algorithm='HS256'
+        )
+    except Exception as e:
+        return e
+
 # --- API Routes ---
 
 @app.route("/api")
 def index():
     return jsonify({"message": "Python Flask backend for HRMS is running."})
+
+# --- Auth API ---
+@app.route("/api/login", methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+
+    user = User.query.filter_by(username=username).first()
+
+    if user and user.check_password(password):
+        if user.account_status != 'Active':
+            return jsonify({"message": "الحساب غير نشط"}), 403
+        
+        auth_token = encode_auth_token(user.id, user.role)
+        response = jsonify({
+            "message": "Login successful",
+            "token": auth_token,
+            "user": {
+                "username": user.username,
+                "role": user.role,
+            }
+        })
+        # Set cookie
+        response.set_cookie('authToken', auth_token, httponly=True, samesite='Lax', max_age=86400) # 1 day
+        log_action("تسجيل دخول", f"نجح المستخدم {username} في تسجيل الدخول.", username=username, user_id=user.id)
+        return response, 200
+
+    log_action("محاولة تسجيل دخول فاشلة", f"محاولة فاشلة للدخول باسم المستخدم {username}.", username=username)
+    return jsonify({"message": "اسم المستخدم أو كلمة المرور غير صحيحة"}), 401
+
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    response = jsonify({"message": "Successfully logged out"})
+    response.set_cookie('authToken', '', expires=0) # Clear cookie
+    return response
+
+# --- Users API ---
+@app.route("/api/users", methods=['GET', 'POST'])
+def handle_users():
+    # Simple token validation (can be improved with a decorator)
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({"message": "Missing or invalid token"}), 401
+    
+    if request.method == 'POST':
+        data = request.get_json()
+        if not data or not data.get('username') or not data.get('password') or not data.get('role'):
+            return jsonify({"message": "بيانات غير مكتملة"}), 400
+        
+        if User.query.filter_by(username=data['username']).first():
+            return jsonify({"message": "اسم المستخدم موجود بالفعل"}), 409
+
+        new_user = User(
+            username=data['username'],
+            role=data['role'],
+            employee_id=data.get('employee_id'),
+            account_status='Active'
+        )
+        new_user.set_password(data['password'])
+        db.session.add(new_user)
+        db.session.commit()
+        log_action("إضافة مستخدم", f"تمت إضافة مستخدم جديد: {new_user.username}")
+        return jsonify(new_user.to_dict()), 201
+
+    users = User.query.order_by(User.created_at.desc()).all()
+    return jsonify({"users": [u.to_dict() for u in users]})
+
 
 # --- Employees API ---
 @app.route("/api/employees", methods=['GET', 'POST'])
@@ -349,7 +460,8 @@ def handle_employees():
             return jsonify(new_employee.to_dict()), 201
         except Exception as e:
             db.session.rollback()
-            return jsonify({"message": str(e)}), 500
+            app.logger.error(f"Error adding employee: {e}")
+            return jsonify({"message": "حدث خطأ داخلي"}), 500
 
     is_manager = request.args.get('is_manager')
     if is_manager == 'true':
@@ -440,7 +552,7 @@ def update_leave(id):
 
     if action == 'approve':
         leave_request.status = 'Approved'
-        leave_request.approved_by = 1 # Placeholder for current user ID
+        leave_request.approved_by = 1 # Placeholder
         details = f"تمت الموافقة على طلب الإجازة للموظف {leave_request.employee.full_name}"
         log_action("الموافقة على إجازة", details)
         db.session.commit()
@@ -467,7 +579,7 @@ def get_dashboard_data():
 
     recent_activities = [{
         "text": f"{log.username or 'النظام'} قام بـ \"{log.action}\" - {log.details}",
-        "time": f"منذ {(datetime.utcnow() - log.timestamp).seconds // 60} دقائق"
+        "time": f"منذ {int((datetime.utcnow() - log.timestamp).total_seconds() / 60)} دقائق"
     } for log in logs]
 
     return jsonify({
@@ -520,73 +632,54 @@ def get_audit_logs():
 def sync_attendance_route():
     data = request.get_json()
     ip = data.get('ip')
-    # This is a placeholder for the actual zklib logic
-    # We'll return a mock response for now as we can't run the library itself here
     app.logger.info(f"Attempting to sync with ZKTeco device at {ip}")
     
-    # Simulating connection failure for demo purposes
-    if ip != "192.168.1.201": # A "magic" IP to simulate success
+    if ip != "192.168.1.201":
          return jsonify({
             "message": "فشل الاتصال. تحقق من عنوان IP أو الشبكة. عرض بيانات محاكاة.",
-            "records": [
-                { "userId": '1', "recordTime": datetime.now().replace(hour=9, minute=5).isoformat(), "attState": 0 },
-                { "userId": '2', "recordTime": datetime.now().replace(hour=9, minute=30).isoformat(), "attState": 0 },
-                { "userId": '1', "recordTime": datetime.now().replace(hour=17, minute=30).isoformat(), "attState": 1 },
-            ]
+            "success": False
         }), 400
-    
-    # Simulating a successful connection
-    mock_records = [
-        { "userId": '1', "recordTime": datetime.now().replace(hour=8, minute=55).isoformat(), "attState": 0 },
-        { "userId": '2', "recordTime": datetime.now().replace(hour=9, minute=2).isoformat(), "attState": 0 },
-        { "userId": '3', "recordTime": datetime.now().replace(hour=9, minute=45).isoformat(), "attState": 0 },
-        { "userId": '1', "recordTime": datetime.now().replace(hour=18, minute=1).isoformat(), "attState": 1 },
-        { "userId": '2', "recordTime": datetime.now().replace(hour=18, minute=10).isoformat(), "attState": 1 },
-    ]
     
     if data.get('test'):
          return jsonify({"success": True, "message": "تم الاتصال بالجهاز بنجاح!"})
 
+    mock_records = [
+        { "userId": '1', "recordTime": datetime.now().isoformat(), "attState": 0 },
+    ]
     return jsonify({"message": f"تمت مزامنة {len(mock_records)} سجلات بنجاح.", "records": mock_records})
 
+def create_initial_admin_user():
+    with app.app_context():
+        # Check if any user exists
+        if User.query.first() is None:
+            app.logger.info("No users found. Creating initial admin user...")
+            admin_user = User(
+                username='admin',
+                role='Admin',
+                account_status='Active'
+            )
+            admin_user.set_password('admin')
+            db.session.add(admin_user)
+            db.session.commit()
+            app.logger.info("Initial admin user created with username 'admin' and password 'admin'.")
 
 # --- App Context and DB Initialization ---
 def init_db():
-    """Initializes the database from schema.sql."""
     with app.app_context():
-        # Check if the database file exists
         if not os.path.exists(db_path):
-            app.logger.info("Database not found, creating it from schema...")
+            app.logger.info("Database not found, creating it...")
             try:
-                # This ensures the directory exists
-                os.makedirs(os.path.dirname(db_path), exist_ok=True)
-                
-                # Connect to the database (it will be created if it doesn't exist)
-                conn = sqlite3.connect(db_path)
-                cursor = conn.cursor()
-                
-                # Read the schema file and execute it
-                schema_path = os.path.join(basedir, 'schema.sql')
-                with open(schema_path, 'r') as f:
-                    cursor.executescript(f.read())
-                
-                conn.commit()
-                conn.close()
-                app.logger.info("Database created and schema applied successfully.")
-                
-                # Now that the schema is applied, we can create all tables with SQLAlchemy
-                # This aligns SQLAlchemy's metadata with the existing schema
                 db.create_all()
-
+                app.logger.info("Database and tables created successfully.")
             except Exception as e:
-                app.logger.error(f"Error initializing database: {e}")
+                app.logger.error(f"Error creating database: {e}")
         else:
             app.logger.info("Database already exists.")
-            # Ensure tables are created if they are missing for some reason
-            db.create_all()
+            db.create_all() # Ensure all tables exist
+        
+        create_initial_admin_user()
 
 
-# Initialize the database when the app starts
 init_db()
 
 if __name__ == '__main__':
