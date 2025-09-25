@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -31,7 +30,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { employees } from "@/lib/data"; // Will be empty, that's expected
+import type { Employee } from "@/lib/types"; // Import the type
+
+const employees: Employee[] = []; // Data is now empty
 
 const locationFormSchema = z.object({
   name: z.string().min(2, { message: "اسم الموقع مطلوب." }),
@@ -120,7 +121,7 @@ export default function NewLocationPage() {
                 name="address"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>العنوان</FormLabel>
+                    <FormLabel>العنوان (اختياري)</FormLabel>
                     <FormControl>
                       <Input placeholder="123 شارع النيل، الجيزة" {...field} />
                     </FormControl>
@@ -133,7 +134,7 @@ export default function NewLocationPage() {
                 name="city"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>المدينة</FormLabel>
+                    <FormLabel>المدينة (اختياري)</FormLabel>
                     <FormControl>
                       <Input placeholder="القاهرة" {...field} />
                     </FormControl>
@@ -146,7 +147,7 @@ export default function NewLocationPage() {
                 name="country"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>الدولة</FormLabel>
+                    <FormLabel>الدولة (اختياري)</FormLabel>
                     <FormControl>
                       <Input placeholder="مصر" {...field} />
                     </FormControl>
@@ -159,7 +160,7 @@ export default function NewLocationPage() {
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>رقم الهاتف</FormLabel>
+                    <FormLabel>رقم الهاتف (اختياري)</FormLabel>
                     <FormControl>
                       <Input placeholder="+20123456789" {...field} />
                     </FormControl>
@@ -172,7 +173,7 @@ export default function NewLocationPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>البريد الإلكتروني</FormLabel>
+                    <FormLabel>البريد الإلكتروني (اختياري)</FormLabel>
                     <FormControl>
                       <Input placeholder="info@example.com" {...field} />
                     </FormControl>
@@ -185,7 +186,7 @@ export default function NewLocationPage() {
                 name="manager_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>المدير المسؤول</FormLabel>
+                    <FormLabel>المدير المسؤول (اختياري)</FormLabel>
                      <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
@@ -198,7 +199,7 @@ export default function NewLocationPage() {
                             <SelectItem key={emp.id} value={String(emp.id)}>{emp.full_name}</SelectItem>
                           ))
                         ) : (
-                          <SelectItem value="-" disabled>لا يوجد موظفين متاحين</SelectItem>
+                          <SelectItem value="-" disabled>لا يوجد موظفين متاحين لإسنادهم كمدراء</SelectItem>
                         )}
                       </SelectContent>
                     </Select>

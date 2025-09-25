@@ -10,14 +10,14 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Edit, Trash2, Eye } from 'lucide-react';
-import { employees } from '@/lib/data';
 import Link from 'next/link';
-import type { Location } from '@/lib/types';
+import type { Location, Employee } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
 
 
-const locations: Location[] = []; // Will be empty, that's expected
+const locations: Location[] = []; // Data is now empty
+const employees: Employee[] = []; // Data is now empty
 
 export default function LocationsPage() {
 
@@ -37,11 +37,11 @@ export default function LocationsPage() {
           </div>
             <div className="flex items-center gap-2">
                  <div className="relative">
-                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                     <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                      <Input
                         type="search"
                         placeholder="بحث عن موقع..."
-                        className="w-full appearance-none bg-background pl-8"
+                        className="w-full appearance-none bg-background pr-8"
                      />
                 </div>
                 <Button asChild size="sm" className="gap-1">
@@ -65,36 +65,39 @@ export default function LocationsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {locations.map((loc) => (
-                <TableRow key={loc.id}>
-                  <TableCell>{loc.code}</TableCell>
-                  <TableCell className="font-medium">{loc.name}</TableCell>
-                  <TableCell>{loc.city}</TableCell>
-                  <TableCell>{loc.country}</TableCell>
-                  <TableCell>{getManagerName(loc.manager_id)}</TableCell>
-                  <TableCell className="flex justify-end gap-2">
-                    <Button variant="ghost" size="icon">
-                        <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon">
-                        <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
+              {locations.length > 0 ? (
+                locations.map((loc) => (
+                    <TableRow key={loc.id}>
+                    <TableCell>{loc.code}</TableCell>
+                    <TableCell className="font-medium">{loc.name}</TableCell>
+                    <TableCell>{loc.city}</TableCell>
+                    <TableCell>{loc.country}</TableCell>
+                    <TableCell>{getManagerName(loc.manager_id)}</TableCell>
+                    <TableCell className="flex justify-end gap-2">
+                        <Button variant="ghost" size="icon">
+                            <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon">
+                            <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                    </TableCell>
+                    </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                    <TableCell colSpan={6} className="h-24 text-center">
+                        لا توجد مواقع مسجلة حتى الآن.
+                        <Button variant="link" asChild className="mt-2 block">
+                           <Link href="/locations/new">ابدأ بإضافة موقع جديد</Link>
+                        </Button>
+                    </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
-           {locations.length === 0 && (
-            <div className="text-center py-10 text-muted-foreground">
-                <p>لا توجد مواقع مسجلة حتى الآن.</p>
-                <Button variant="link" asChild className="mt-2">
-                    <Link href="/locations/new">ابدأ بإضافة موقع جديد</Link>
-                </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

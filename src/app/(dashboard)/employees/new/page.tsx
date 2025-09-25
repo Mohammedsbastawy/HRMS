@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { departments, jobTitles } from "@/lib/data";
+import { departments, jobTitles, locations } from "@/lib/data";
 import { useState } from "react";
 
 const employeeFormSchema = z.object({
@@ -38,6 +38,7 @@ const employeeFormSchema = z.object({
   email: z.string().email({ message: "بريد إلكتروني غير صالح." }),
   department: z.string({ required_error: "القسم مطلوب." }),
   jobTitle: z.string({ required_error: "المسمى الوظيفي مطلوب." }),
+  location: z.string({ required_error: "الموقع مطلوب." }),
   hireDate: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "تاريخ التعيين غير صالح."}),
   baseSalary: z.coerce.number().min(0, { message: "الراتب يجب أن يكون رقمًا موجبًا." }),
 });
@@ -132,7 +133,7 @@ export default function NewEmployeePage() {
                       </FormControl>
                       <SelectContent>
                         {departments.map(dept => (
-                          <SelectItem key={dept.id} value={String(dept.id)}>{dept.name}</SelectItem>
+                          <SelectItem key={dept.id} value={String(dept.id)}>{dept.name_ar}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -154,7 +155,7 @@ export default function NewEmployeePage() {
                       </FormControl>
                       <SelectContent>
                         {filteredJobTitles.map(jt => (
-                          <SelectItem key={jt.id} value={String(jt.id)}>{jt.title}</SelectItem>
+                          <SelectItem key={jt.id} value={String(jt.id)}>{jt.title_ar}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -162,6 +163,32 @@ export default function NewEmployeePage() {
                   </FormItem>
                 )}
               />
+               <FormField
+                  control={form.control}
+                  name="location"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>الموقع/الفرع</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="اختر موقع عمل الموظف" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {locations.length > 0 ? (
+                            locations.map(loc => (
+                              <SelectItem key={loc.id} value={String(loc.id)}>{loc.name}</SelectItem>
+                            ))
+                          ) : (
+                             <SelectItem value="-" disabled>لا توجد مواقع متاحة</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                <FormField
                 control={form.control}
                 name="hireDate"

@@ -1,9 +1,10 @@
-
-import type { Employee, Attendance, LeaveRequest, Payroll, PerformanceReview, Applicant, TrainingCourse, TrainingRecord, AuditLog, Job, Department, JobTitle } from './types';
+import type { Employee, Attendance, LeaveRequest, Payroll, PerformanceReview, Applicant, TrainingCourse, TrainingRecord, AuditLog, Job, Department, JobTitle, Location } from './types';
 
 export const departments: Department[] = [];
 
 export const jobTitles: JobTitle[] = [];
+
+export const locations: Location[] = [];
 
 export const employees: Employee[] = [];
 
@@ -24,6 +25,3 @@ export const trainingCourses: TrainingCourse[] = [];
 export const trainingRecords: TrainingRecord[] = [];
 
 export const auditLogs: AuditLog[] = [];
-
-
-
