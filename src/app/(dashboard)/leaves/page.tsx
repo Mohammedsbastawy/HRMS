@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -17,10 +16,35 @@ import { MoreHorizontal, PlusCircle, CheckCircle, XCircle } from 'lucide-react';
 import type { LeaveRequest } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
+import { approveLeaveRequest, rejectLeaveRequest } from '@/lib/actions';
+import { useToast } from '@/components/ui/use-toast';
 
-const leaveRequests: LeaveRequest[] = []; // Data is now empty
 
-export default function LeavesPage() {
+const LeaveRequestClientPage = ({ leaveRequests }: { leaveRequests: LeaveRequest[] }) => {
+  const { toast } = useToast();
+
+  const handleApprove = async (id: number) => {
+    const result = await approveLeaveRequest(id);
+    toast({
+      title: result.success ? 'تمت الموافقة' : 'خطأ',
+      description: result.message,
+      variant: result.success ? 'default' : 'destructive',
+    });
+  };
+
+  const handleReject = async (id: number) => {
+    // For simplicity, we'll use a prompt. A modal would be better for a real app.
+    const notes = prompt('يرجى إدخال سبب الرفض:');
+    if (notes !== null) { // prompt returns null if cancelled
+      const result = await rejectLeaveRequest(id, notes);
+      toast({
+        title: result.success ? 'تم الرفض' : 'خطأ',
+        description: result.message,
+        variant: result.success ? 'default' : 'destructive',
+      });
+    }
+  };
+
   const getStatusVariant = (status: 'Pending' | 'Approved' | 'Rejected') => {
     switch (status) {
       case 'Approved':
@@ -90,30 +114,28 @@ export default function LeavesPage() {
                   <TableCell>
                     <div className="flex items-center gap-3 justify-end">
                       <div className='text-right'>
-                        <div className="font-medium">{request.employee?.full_name}</div>
+                        <div className="font-medium">{request.employee.full_name}</div>
                         <div className="text-sm text-muted-foreground">{request.employee_id}</div>
                       </div>
                       <Avatar>
-                        <AvatarImage src={request.employee?.avatar} alt={request.employee?.full_name} />
-                        <AvatarFallback>{request.employee?.full_name.charAt(0)}</AvatarFallback>
+                        <AvatarImage src={request.employee.avatar || undefined} alt={request.employee.full_name} />
+                        <AvatarFallback>{request.employee.full_name.charAt(0)}</AvatarFallback>
                       </Avatar>
                     </div>
                   </TableCell>
-                  <TableCell>{request.leave_type ? getLeaveTypeText(request.leave_type) : 'N/A'}</TableCell>
-                  <TableCell>{request.start_date && request.end_date ? `${new Date(request.start_date).toLocaleDateString('ar-EG')} - ${new Date(request.end_date).toLocaleDateString('ar-EG')}` : 'N/A'}</TableCell>
+                  <TableCell>{getLeaveTypeText(request.leave_type)}</TableCell>
+                  <TableCell>{`${new Date(request.start_date).toLocaleDateString('ar-EG')} - ${new Date(request.end_date).toLocaleDateString('ar-EG')}`}</TableCell>
                   <TableCell>
-                    {request.status && (
-                      <Badge 
-                        variant={getStatusVariant(request.status)}
-                        className={
-                            request.status === 'Approved' ? 'bg-green-100 text-green-800 border-green-200' 
-                          : request.status === 'Rejected' ? 'bg-red-100 text-red-800 border-red-200'
-                          : ''
-                        }
-                      >
-                        {getStatusText(request.status)}
-                      </Badge>
-                    )}
+                    <Badge 
+                      variant={getStatusVariant(request.status)}
+                      className={
+                          request.status === 'Approved' ? 'bg-green-100 text-green-800 border-green-200' 
+                        : request.status === 'Rejected' ? 'bg-red-100 text-red-800 border-red-200'
+                        : ''
+                      }
+                    >
+                      {getStatusText(request.status)}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
@@ -125,11 +147,18 @@ export default function LeavesPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
-                        <DropdownMenuItem disabled={request.status !== 'Pending'}>
+                        <DropdownMenuItem 
+                          onClick={() => handleApprove(request.id)}
+                          disabled={request.status !== 'Pending'}
+                        >
                           <CheckCircle className="ml-2 h-4 w-4 text-green-500" />
                           موافقة
                         </DropdownMenuItem>
-                        <DropdownMenuItem disabled={request.status !== 'Pending'} className="text-destructive focus:text-destructive">
+                        <DropdownMenuItem 
+                          onClick={() => handleReject(request.id)}
+                          disabled={request.status !== 'Pending'} 
+                          className="text-destructive focus:text-destructive"
+                        >
                           <XCircle className="ml-2 h-4 w-4" />
                           رفض
                         </DropdownMenuItem>
@@ -152,4 +181,31 @@ export default function LeavesPage() {
   );
 }
 
+import db from '@/lib/db';
+import type { Employee } from '@/lib/types';
+
+// This is the main Server Component page
+export default function LeavesPage() {
     
+    const leaveRequestsData: any[] = db.prepare(`
+        SELECT * FROM leave_requests ORDER BY created_at DESC
+    `).all();
+
+    const employeeIds = [...new Set(leaveRequestsData.map(lr => lr.employee_id))];
+    let employees: Employee[] = [];
+    if (employeeIds.length > 0) {
+        const placeholders = employeeIds.map(() => '?').join(',');
+        employees = db.prepare(`SELECT id, full_name, avatar FROM employees WHERE id IN (${placeholders})`).all(employeeIds) as Employee[];
+    }
+    
+    const employeesMap = new Map(employees.map(e => [e.id, e]));
+
+    const formattedLeaveRequests: LeaveRequest[] = leaveRequestsData.map(lr => ({
+        ...lr,
+        start_date: lr.start_date,
+        end_date: lr.end_date,
+        employee: employeesMap.get(lr.employee_id) || { id: lr.employee_id, full_name: 'موظف غير معروف', email: '' }
+    })) as LeaveRequest[];
+
+    return <LeaveRequestClientPage leaveRequests={formattedLeaveRequests} />;
+}

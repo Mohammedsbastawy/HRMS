@@ -164,3 +164,48 @@ export async function createEmployee(formData: unknown) {
 
   permanentRedirect('/employees');
 }
+
+
+// --- Leave Actions ---
+
+export async function approveLeaveRequest(leaveId: number) {
+  try {
+    const stmt = db.prepare(`
+      UPDATE leave_requests
+      SET status = 'Approved', approved_by = 1 -- Placeholder for current user ID
+      WHERE id = @id AND status = 'Pending'
+    `);
+    
+    const result = stmt.run({ id: leaveId });
+
+    if (result.changes > 0) {
+      revalidatePath('/leaves');
+      return { success: true, message: 'تمت الموافقة على طلب الإجازة.' };
+    }
+    return { success: false, message: 'لم يتم العثور على الطلب أو تمت معالجته بالفعل.' };
+  } catch (error) {
+    console.error('Failed to approve leave request:', error);
+    return { success: false, message: 'حدث خطأ في قاعدة البيانات.' };
+  }
+}
+
+export async function rejectLeaveRequest(leaveId: number, notes: string) {
+  try {
+    const stmt = db.prepare(`
+      UPDATE leave_requests
+      SET status = 'Rejected', approved_by = 1, notes = @notes -- Placeholder for current user ID
+      WHERE id = @id AND status = 'Pending'
+    `);
+    
+    const result = stmt.run({ id: leaveId, notes });
+
+    if (result.changes > 0) {
+      revalidatePath('/leaves');
+      return { success: true, message: 'تم رفض طلب الإجازة.' };
+    }
+    return { success: false, message: 'لم يتم العثور على الطلب أو تمت معالجته بالفعل.' };
+  } catch (error) {
+    console.error('Failed to reject leave request:', error);
+    return { success: false, message: 'حدث خطأ في قاعدة البيانات.' };
+  }
+}

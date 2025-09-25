@@ -16,20 +16,20 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Fingerprint, Loader2 } from 'lucide-react';
-import type { Attendance } from '@/lib/types';
+import type { Attendance, Employee } from '@/lib/types';
 import Link from 'next/link';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Terminal } from 'lucide-react';
-import { employees } from '@/lib/data';
 
-// Mock data for initial display or fallback
-const initialAttendance: Attendance[] = [
-    // This will be populated dynamically
-];
+// This is a wrapper for the main page to fetch data on the server
+const AttendancePageWrapper = ({ employees }: { employees: Employee[] }) => {
+    return <AttendancePageClient employees={employees} />;
+}
 
 
-export default function AttendancePage() {
-  const [attendance, setAttendance] = useState<Attendance[]>(initialAttendance);
+// The main component is now a client component
+const AttendancePageClient = ({ employees }: { employees: Employee[] }) => {
+  const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -46,6 +46,7 @@ export default function AttendancePage() {
   const handleSync = async () => {
     setIsSyncing(true);
     setSyncError(null);
+    setAttendance([]);
     
     if (!zktConfig.ip) {
       setSyncError('لم يتم تعيين عنوان IP للجهاز. يرجى الانتقال إلى صفحة الإعدادات وتكوينه أولاً.');
@@ -62,16 +63,17 @@ export default function AttendancePage() {
 
       const result = await response.json();
       
-      if (response.ok || result.records) {
+      if (response.ok || (result.records && result.records.length > 0)) {
         toast({
-          title: response.ok ? 'نجاح المزامنة' : 'تحذير',
+          title: response.ok ? 'نجاح المزامنة' : 'عرض بيانات محاكاة',
           description: result.message || `تمت مزامنة ${result.records?.length || 0} سجل بنجاح.`,
           variant: response.ok ? 'default' : 'destructive'
         });
         
-        // In a real app, you would process result.records and update state
-        console.log('Synced Records:', result.records);
-        // For now, let's just log it. A proper implementation would update the state.
+        // Process records
+        const processed = processAttendanceRecords(result.records, employees);
+        setAttendance(processed);
+
       } else {
         throw new Error(result.message || 'فشل في بدء المزامنة');
       }
@@ -137,21 +139,21 @@ export default function AttendancePage() {
                         <div className="flex items-center justify-end gap-3">
                           <span>{record.employeeName}</span>
                           <Avatar>
-                            <AvatarImage src={record.employeeAvatar} alt={record.employeeName} />
+                            <AvatarImage src={record.employeeAvatar || undefined} alt={record.employeeName} />
                             <AvatarFallback>{record.employeeName.charAt(0)}</AvatarFallback>
                           </Avatar>
                         </div>
                       </TableCell>
                       <TableCell>
-                        {record.checkIn ? (
-                          <Badge variant="secondary">{record.checkIn}</Badge>
+                        {record.check_in ? (
+                          <Badge variant="secondary">{record.check_in}</Badge>
                         ) : (
                           <Badge variant="outline">غائب</Badge>
                         )}
                       </TableCell>
                       <TableCell>
-                        {record.checkOut ? (
-                          <Badge variant="secondary">{record.checkOut}</Badge>
+                        {record.check_out ? (
+                          <Badge variant="secondary">{record.check_out}</Badge>
                         ) : (
                           '-'
                         )}
@@ -162,7 +164,7 @@ export default function AttendancePage() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={4} className="h-24 text-center">
-                      لم يتم تسجيل أي حضور اليوم.
+                      لم يتم تسجيل أي حضور اليوم. اضغط على "مزامنة" لجلب البيانات.
                     </TableCell>
                   </TableRow>
                 )}
@@ -187,4 +189,78 @@ export default function AttendancePage() {
       </div>
     </div>
   );
+}
+
+// Helper function to process raw attendance logs
+function processAttendanceRecords(records: any[], employees: Employee[]): Attendance[] {
+    const attendanceMap = new Map<number, { check_in: string | null, check_out: string | null }>();
+
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date().toISOString().split('T')[0];
+
+    // First, initialize map for all employees
+    employees.forEach(emp => {
+        attendanceMap.set(emp.id, { check_in: null, check_out: null });
+    });
+
+    records.forEach(record => {
+        const employeeId = parseInt(record.userId, 10);
+        const recordDate = new Date(record.recordTime).toISOString().split('T')[0];
+
+        // Process only today's records
+        if (recordDate !== today) return;
+
+        const recordTime = new Date(record.recordTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+        const existing = attendanceMap.get(employeeId) || { check_in: null, check_out: null };
+
+        if (record.attState === 0) { // Check-in
+            if (!existing.check_in || recordTime < existing.check_in) {
+                existing.check_in = recordTime;
+            }
+        } else if (record.attState === 1) { // Check-out
+            if (!existing.check_out || recordTime > existing.check_out) {
+                existing.check_out = recordTime;
+            }
+        }
+        attendanceMap.set(employeeId, existing);
+    });
+    
+    const finalAttendance: Attendance[] = [];
+    attendanceMap.forEach((times, employeeId) => {
+        const employee = employees.find(e => e.id === employeeId);
+        if (employee) {
+            let status: 'Present' | 'Absent' | 'On Leave' | 'Late' = 'Absent';
+            if(times.check_in) {
+                status = 'Present';
+                // Example of late logic: if check-in is after 9:30 AM
+                const checkInDate = new Date(`${today}T${new Date(`1970-01-01 ${times.check_in}`).toTimeString().split(' ')[0]}`);
+                const lateTime = new Date(`${today}T09:30:00`);
+                if (checkInDate > lateTime) {
+                    status = 'Late';
+                }
+            }
+
+            finalAttendance.push({
+                id: employeeId,
+                employee_id: employeeId,
+                date: today,
+                employeeName: employee.full_name,
+                employeeAvatar: employee.avatar,
+                check_in: times.check_in,
+                check_out: times.check_out,
+                status: status,
+            });
+        }
+    });
+
+    return finalAttendance;
+}
+
+
+// The main server component that fetches employee data
+import db from '@/lib/db';
+export default function AttendanceDataPage() {
+    const employees: Employee[] = db.prepare('SELECT id, full_name, avatar FROM employees').all() as Employee[];
+    return <AttendancePageWrapper employees={employees} />;
 }
