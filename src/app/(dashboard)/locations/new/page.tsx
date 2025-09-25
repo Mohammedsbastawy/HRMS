@@ -40,8 +40,8 @@ const locationFormSchema = z.object({
   name_en: z.string().min(2, { message: "الاسم بالإنجليزية مطلوب." }),
   code: z
     .string()
-    .min(5, { message: "الرمز يجب أن يتكون من 5 أحرف." })
-    .max(5, { message: "الرمز يجب أن يتكون من 5 أحرف." })
+    .min(3, { message: "الرمز يجب أن يتكون من 3 إلى 5 أحرف." })
+    .max(5, { message: "الرمز يجب أن يتكون من 3 إلى 5 أحرف." })
     .regex(/^[A-Z]+$/, { message: "الرمز يجب أن يحتوي على أحرف إنجليزية كبيرة فقط." })
     .transform((val) => val.toUpperCase()),
   description: z.string().optional().or(z.literal('')),
@@ -134,7 +134,7 @@ export default function NewLocationPage() {
                       <Input placeholder="CAIHO" {...field} onChange={(e) => field.onChange(e.target.value.toUpperCase())} maxLength={5} />
                     </FormControl>
                      <FormDescription>
-                      يجب أن يتكون من 5 أحرف إنجليزية كبيرة.
+                      يجب أن يتكون من 3 إلى 5 أحرف إنجليزية كبيرة.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
