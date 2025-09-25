@@ -100,7 +100,7 @@ export default function NewJobPage() {
                     </FormControl>
                     <SelectContent>
                       {departments.map(dept => (
-                        <SelectItem key={dept.id} value={String(dept.id)}>{dept.name}</SelectItem>
+                        <SelectItem key={dept.id} value={String(dept.id)}>{dept.name_ar}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -123,7 +123,7 @@ export default function NewJobPage() {
                     </FormControl>
                     <SelectContent>
                       {filteredJobTitles.map(jt => (
-                        <SelectItem key={jt.id} value={String(jt.id)}>{jt.title}</SelectItem>
+                        <SelectItem key={jt.id} value={String(jt.id)}>{jt.title_ar}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

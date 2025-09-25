@@ -132,9 +132,13 @@ export default function NewEmployeePage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {departments.map(dept => (
-                          <SelectItem key={dept.id} value={String(dept.id)}>{dept.name_ar}</SelectItem>
-                        ))}
+                        {departments.length > 0 ? (
+                          departments.map(dept => (
+                            <SelectItem key={dept.id} value={String(dept.id)}>{dept.name_ar}</SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="-" disabled>لا توجد أقسام متاحة</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -178,7 +182,7 @@ export default function NewEmployeePage() {
                         <SelectContent>
                           {locations.length > 0 ? (
                             locations.map(loc => (
-                              <SelectItem key={loc.id} value={String(loc.id)}>{loc.name}</SelectItem>
+                              <SelectItem key={loc.id} value={String(loc.id)}>{loc.name_ar}</SelectItem>
                             ))
                           ) : (
                              <SelectItem value="-" disabled>لا توجد مواقع متاحة</SelectItem>

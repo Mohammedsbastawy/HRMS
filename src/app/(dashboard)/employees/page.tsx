@@ -110,14 +110,14 @@ export default function EmployeesPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="text-right text-destructive">الرقم</TableHead>
-              <TableHead className="text-right text-destructive">الاسم</TableHead>
-              <TableHead className="text-right text-destructive">البريد الإلكتروني</TableHead>
-              <TableHead className="text-right text-destructive">القسم</TableHead>
-              <TableHead className="text-right text-destructive">الوظيفة</TableHead>
-              <TableHead className="text-right text-destructive">تاريخ التعيين</TableHead>
-              <TableHead className="text-right text-destructive">الحالة</TableHead>
-              <TableHead className="text-destructive">
+              <TableHead className="text-right">الرقم</TableHead>
+              <TableHead className="text-right">الاسم</TableHead>
+              <TableHead className="text-right">البريد الإلكتروني</TableHead>
+              <TableHead className="text-right">القسم</TableHead>
+              <TableHead className="text-right">الوظيفة</TableHead>
+              <TableHead className="text-right">تاريخ التعيين</TableHead>
+              <TableHead className="text-right">الحالة</TableHead>
+              <TableHead>
                 <span className="sr-only">الإجراءات</span>
               </TableHead>
             </TableRow>
@@ -128,12 +128,12 @@ export default function EmployeesPage() {
                 <TableRow key={employee.id}>
                   <TableCell className="font-medium">{employee.id}</TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-end gap-3">
+                      <span>{employee.full_name}</span>
                       <Avatar>
                         <AvatarImage src={employee.avatar} alt={employee.full_name} />
                         <AvatarFallback>{employee.full_name.charAt(0)}</AvatarFallback>
                       </Avatar>
-                      <span>{employee.full_name}</span>
                     </div>
                   </TableCell>
                   <TableCell>{employee.email}</TableCell>
@@ -144,7 +144,7 @@ export default function EmployeesPage() {
                     {employee.status && (
                       <Badge 
                         variant={employee.status === 'Active' ? 'default' : 'destructive'}
-                        className={employee.status === 'Active' ? 'bg-green-500/20 text-green-700' : ''}
+                        className={employee.status === 'Active' ? 'bg-green-100 text-green-700' : ''}
                       >
                         {statusTranslations[employee.status] || employee.status}
                       </Badge>
@@ -193,5 +193,3 @@ export default function EmployeesPage() {
     </Card>
   );
 }
-
-    
