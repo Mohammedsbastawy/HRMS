@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import {
   Table,
   TableBody,
@@ -7,19 +10,70 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { attendance } from '@/lib/data';
+import { attendance as initialAttendance } from '@/lib/data';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
+import { Fingerprint, Loader2 } from 'lucide-react';
+import type { Attendance } from '@/lib/types';
 
 export default function AttendancePage() {
+  const [attendance, setAttendance] = useState<Attendance[]>(initialAttendance);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const { toast } = useToast();
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await fetch('/api/attendance/sync', {
+        method: 'POST',
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        toast({
+          title: 'نجاح المزامنة',
+          description: result.message,
+        });
+        // Here you would typically refresh the data from your database.
+        // For this demo, we'll just log the fetched records.
+        console.log('Synced Records:', result.records);
+      } else {
+        throw new Error(result.message || 'فشل في بدء المزامنة');
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'خطأ في المزامنة',
+        description: error.message,
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <div className="grid gap-4 md:grid-cols-3 md:gap-8">
       <div className="md:col-span-2">
         <Card>
-          <CardHeader>
-            <CardTitle>سجل الحضور اليومي</CardTitle>
-            <CardDescription>عرض سجلات الحضور لليوم المحدد.</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>سجل الحضور اليومي</CardTitle>
+              <CardDescription>عرض سجلات الحضور لليوم المحدد.</CardDescription>
+            </div>
+            <Button onClick={handleSync} disabled={isSyncing} size="sm" className="gap-1">
+              {isSyncing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Fingerprint className="h-3.5 w-3.5" />
+              )}
+              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                {isSyncing ? 'جاري المزامنة...' : 'مزامنة من الجهاز'}
+              </span>
+            </Button>
           </CardHeader>
           <CardContent>
             <Table>
@@ -35,12 +89,12 @@ export default function AttendancePage() {
                 {attendance.map((record) => (
                   <TableRow key={record.id}>
                     <TableCell>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-end gap-3">
+                        <span>{record.employeeName}</span>
                         <Avatar>
                           <AvatarImage src={record.employeeAvatar} alt={record.employeeName} />
                           <AvatarFallback>{record.employeeName.charAt(0)}</AvatarFallback>
                         </Avatar>
-                        <span>{record.employeeName}</span>
                       </div>
                     </TableCell>
                     <TableCell>
