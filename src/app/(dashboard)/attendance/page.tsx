@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -27,13 +27,31 @@ export default function AttendancePage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const { toast } = useToast();
+  const [zktConfig, setZktConfig] = useState<{ ip?: string; user?: string; pass?: string }>({});
+
+  useEffect(() => {
+    // Load config from localStorage on the client
+    const savedConfig = localStorage.getItem('zktConfig');
+    if (savedConfig) {
+      setZktConfig(JSON.parse(savedConfig));
+    }
+  }, []);
 
   const handleSync = async () => {
     setIsSyncing(true);
     setSyncError(null);
+    
+    if (!zktConfig.ip) {
+      setSyncError('لم يتم تعيين عنوان IP للجهاز. يرجى الانتقال إلى صفحة الإعدادات وتكوينه أولاً.');
+      setIsSyncing(false);
+      return;
+    }
+
     try {
       const response = await fetch('/api/attendance/sync', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(zktConfig),
       });
 
       const result = await response.json();

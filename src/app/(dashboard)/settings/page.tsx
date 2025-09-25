@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -10,17 +10,30 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Terminal, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 export default function SettingsPage() {
-  const [ipAddress, setIpAddress] = useState(process.env.NEXT_PUBLIC_ZKTECO_IP || '');
+  const [ipAddress, setIpAddress] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const { toast } = useToast();
 
+  useEffect(() => {
+    // Load config from localStorage on the client
+    const savedConfig = localStorage.getItem('zktConfig');
+    if (savedConfig) {
+      const config = JSON.parse(savedConfig);
+      setIpAddress(config.ip || '');
+      setUsername(config.user || '');
+      setPassword(config.pass || '');
+    }
+  }, []);
+
   const handleSave = () => {
+    const config = { ip: ipAddress, user: username, pass: password };
+    localStorage.setItem('zktConfig', JSON.stringify(config));
     toast({
-      title: 'تم الحفظ (محاكاة)',
-      description: `تم حفظ الإعدادات. يرجى تعيينها كمتغيرات بيئة للتشغيل الفعلي.`,
+      title: 'تم الحفظ بنجاح',
+      description: `تم حفظ إعدادات جهاز البصمة في المتصفح.`,
     });
   };
 
@@ -28,16 +41,19 @@ export default function SettingsPage() {
     setIsTesting(true);
     setTestResult(null);
     try {
-      // This is a placeholder for an API call to a backend that would test the connection.
-      // In a real app, you'd have an API route like '/api/zkt/test-connection'
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
+      const response = await fetch('/api/attendance/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip: ipAddress, user: username, pass: password, test: true }), // Add a test flag
+      });
 
-      if (ipAddress === '192.168.1.201') {
-        setTestResult({ success: true, message: 'تم الاتصال بالجهاز بنجاح!' });
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setTestResult({ success: true, message: result.message || 'تم الاتصال بالجهاز بنجاح!' });
       } else {
-        throw new Error('فشل الاتصال. تحقق من عنوان IP أو الشبكة.');
+        throw new Error(result.message || 'فشل الاتصال. تحقق من عنوان IP أو الشبكة.');
       }
-
     } catch (error: any) {
        setTestResult({ success: false, message: error.message || 'حدث خطأ غير متوقع.' });
     } finally {
@@ -45,14 +61,13 @@ export default function SettingsPage() {
     }
   };
 
-
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>إعدادات جهاز البصمة (ZKTeco)</CardTitle>
           <CardDescription>
-            تكوين إعدادات الاتصال بجهاز الحضور والانصراف.
+            تكوين إعدادات الاتصال بجهاز الحضور والانصراف. سيتم حفظ هذه الإعدادات في متصفحك.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -95,19 +110,6 @@ export default function SettingsPage() {
               </AlertDescription>
             </Alert>
           )}
-
-          <Alert>
-            <Terminal className="h-4 w-4" />
-            <AlertTitle>ملاحظة هامة للمطور</AlertTitle>
-            <AlertDescription>
-              <p>للتشغيل الفعلي، يجب تعيين هذه القيم كمتغيرات بيئة في ملف <code>.env</code>:</p>
-              <ul className="list-disc pr-5 mt-2 font-mono text-xs">
-                <li><code>ZKTECO_IP={ipAddress || '192.168.1.201'}</code></li>
-                <li><code>ZKTECO_USER={username || ''}</code></li>
-                <li><code>ZKTECO_PASS={password || ''}</code></li>
-              </ul>
-            </AlertDescription>
-          </Alert>
         </CardContent>
         <CardFooter className="border-t px-6 py-4 flex justify-between">
           <Button onClick={handleSave}>حفظ الإعدادات</Button>
