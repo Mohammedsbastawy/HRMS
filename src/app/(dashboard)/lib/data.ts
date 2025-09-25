@@ -1,5 +1,5 @@
 
-import type { Employee, Attendance, LeaveRequest, Payroll, PerformanceReview, Applicant, TrainingCourse, TrainingRecord, AuditLog, Job, Department, JobTitle, Location } from './types';
+import type { Employee, LeaveRequest, Payroll, PerformanceReview, Applicant, TrainingCourse, TrainingRecord, AuditLog, Job, Department, JobTitle, Location } from './types';
 
 // All data arrays are intentionally left empty.
 // The application will be populated via the UI and a database connection.
@@ -11,8 +11,6 @@ export const jobTitles: JobTitle[] = [];
 export const locations: Location[] = [];
 
 export const employees: Employee[] = [];
-
-export const attendance: Attendance[] = [];
 
 export const leaveRequests: LeaveRequest[] = [];
 
