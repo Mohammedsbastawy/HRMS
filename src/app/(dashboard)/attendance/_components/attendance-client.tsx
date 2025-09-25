@@ -153,7 +153,18 @@ export function AttendancePageClient({ employees }: { employees: Employee[] }) {
                           '-'
                         )}
                       </TableCell>
-                      <TableCell className="font-medium text-right">{record.status}</TableCell>
+                      <TableCell>
+                         <Badge variant={
+                           record.status === 'Present' ? 'default' :
+                           record.status === 'Late' ? 'secondary' :
+                           'destructive'
+                         } className={
+                            record.status === 'Present' ? 'bg-green-100 text-green-700' :
+                            record.status === 'Late' ? 'bg-yellow-100 text-yellow-700' : ''
+                         }>
+                          {record.status === 'Present' ? 'حاضر' : record.status === 'Late' ? 'متأخر' : 'غائب'}
+                        </Badge>
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : (
@@ -200,6 +211,8 @@ function processAttendanceRecords(records: any[], employees: Employee[]): Attend
 
     records.forEach(record => {
         const employeeId = parseInt(record.userId, 10);
+        if (isNaN(employeeId)) return;
+
         const recordDate = new Date(record.recordTime).toISOString().split('T')[0];
 
         // Process only today's records
