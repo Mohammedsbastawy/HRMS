@@ -1,3 +1,4 @@
+
 // src/ai/flows/generate-development-recommendations.ts
 'use server';
 
@@ -13,8 +14,8 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const DevelopmentRecommendationsInputSchema = z.object({
-  trainingRecords: z.string().describe('The employee\'s training records.'),
-  performanceReview: z.string().describe('The employee\'s performance review.'),
+  trainingRecords: z.string().describe("The employee's training records."),
+  performanceReview: z.string().describe("The employee's performance review."),
 });
 export type DevelopmentRecommendationsInput = z.infer<typeof DevelopmentRecommendationsInputSchema>;
 

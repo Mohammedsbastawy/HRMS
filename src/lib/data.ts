@@ -1,3 +1,4 @@
+
 import type { Employee, Attendance, LeaveRequest, Payroll, PerformanceReview, Applicant, TrainingCourse, TrainingRecord, AuditLog, Job, Department, JobTitle } from './types';
 
 export const departments: Department[] = [
