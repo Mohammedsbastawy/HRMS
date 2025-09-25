@@ -9,7 +9,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { trainingRecords, employees, performanceReviews } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
-import { TrainingAnalysis } from '@/components/dashboard/training-analysis';
 
 export default function TrainingPage() {
   const getStatusVariant = (status: 'Completed' | 'In Progress' | 'Not Started') => {
@@ -75,7 +74,6 @@ export default function TrainingPage() {
               <TableHead>الدورة التدريبية</TableHead>
               <TableHead>الحالة</TableHead>
               <TableHead>النتيجة</TableHead>
-              <TableHead>الإجراء</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -93,11 +91,6 @@ export default function TrainingPage() {
                   </TableCell>
                   <TableCell>
                     <Badge variant={getOutcomeVariant(record.outcome)}>{getOutcomeText(record.outcome)}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {record.status === 'Completed' && (
-                       <TrainingAnalysis record={record} employee={employee} performanceReviewComments={review.comments} />
-                    )}
                   </TableCell>
                 </TableRow>
               );
