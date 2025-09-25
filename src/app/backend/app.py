@@ -3,6 +3,10 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 import os
 from datetime import datetime
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 # Initialize Flask App
 app = Flask(__name__)
@@ -10,7 +14,8 @@ CORS(app) # Enable CORS for all routes
 
 # Configure Database
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'hrms.db')
+db_path = os.path.join(basedir, 'hrms.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -35,8 +40,13 @@ class Location(db.Model):
     
     def to_dict(self, include_manager=False):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
-        if include_manager and self.manager:
+        if include_manager and hasattr(self, 'manager') and self.manager:
             data['manager'] = {'full_name': self.manager.full_name}
+        # Format datetime objects
+        if isinstance(data.get('created_at'), datetime):
+            data['created_at'] = data['created_at'].isoformat()
+        if isinstance(data.get('updated_at'), datetime):
+            data['updated_at'] = data['updated_at'].isoformat()
         return data
 
 class Department(db.Model):
@@ -58,7 +68,13 @@ class Department(db.Model):
     job_titles = db.relationship('JobTitle', backref='department', lazy=True, cascade="all, delete-orphan")
 
     def to_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        d = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        d['headcount'] = Employee.query.filter_by(department_id=self.id).count()
+        if isinstance(d.get('created_at'), datetime):
+            d['created_at'] = d['created_at'].isoformat()
+        if isinstance(d.get('updated_at'), datetime):
+            d['updated_at'] = d['updated_at'].isoformat()
+        return d
 
 class JobTitle(db.Model):
     __tablename__ = 'job_titles'
@@ -73,6 +89,10 @@ class JobTitle(db.Model):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
         if include_department and self.department:
             data['department_name_ar'] = self.department.name_ar
+        if isinstance(data.get('created_at'), datetime):
+            data['created_at'] = data['created_at'].isoformat()
+        if isinstance(data.get('updated_at'), datetime):
+            data['updated_at'] = data['updated_at'].isoformat()
         return data
 
 class Employee(db.Model):
@@ -102,7 +122,7 @@ class Employee(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    department = db.relationship('Department', foreign_keys=[department_id], backref='employees', lazy=True)
+    department = db.relationship('Department', foreign_keys=[department_id], backref=db.backref('dept_employees', lazy='dynamic'))
     job_title = db.relationship('JobTitle', backref='employees', lazy=True)
     location = db.relationship('Location', foreign_keys=[location_id], backref='employees', lazy=True)
     
@@ -140,9 +160,12 @@ class LeaveRequest(db.Model):
       data = {c.name: getattr(self, c.name) for c in self.__table__.columns if c.name not in ['created_at', 'updated_at']}
       if self.employee:
           data['employee'] = {
+              'id': self.employee.id,
               'full_name': self.employee.full_name,
               'avatar': self.employee.avatar
           }
+      if isinstance(data.get('created_at'), datetime):
+          data['created_at'] = data['created_at'].isoformat()
       return data
 
 class Job(db.Model):
@@ -151,7 +174,6 @@ class Job(db.Model):
     title = db.Column(db.String, nullable=False)
     description = db.Column(db.String)
     department_id = db.Column(db.Integer, db.ForeignKey('departments.id'))
-    job_title_id = db.Column(db.Integer, db.ForeignKey('job_titles.id'))
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
     status = db.Column(db.String, default='Open')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -162,6 +184,8 @@ class Job(db.Model):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
         if self.department:
             data['department_name_ar'] = self.department.name_ar
+        if isinstance(data.get('created_at'), datetime):
+            data['created_at'] = data['created_at'].isoformat()
         return data
 
 class Applicant(db.Model):
@@ -182,6 +206,8 @@ class Applicant(db.Model):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
         if self.job:
             data['job'] = {'title': self.job.title}
+        if isinstance(data.get('applied_at'), datetime):
+            data['applied_at'] = data['applied_at'].isoformat()
         return data
         
 class PerformanceReview(db.Model):
@@ -198,6 +224,7 @@ class PerformanceReview(db.Model):
     def to_dict(self):
       return {
           'id': self.id,
+          'employee_id': self.employee_id,
           'employeeName': self.employee.full_name if self.employee else None,
           'review_date': self.review_date,
           'score': self.score,
@@ -263,26 +290,32 @@ class TrainingRecord(db.Model):
 class AuditLog(db.Model):
     __tablename__ = 'audit_logs'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer) # No foreign key to avoid complexity
+    user_id = db.Column(db.Integer) # No foreign key to avoid complexity for now
+    username = db.Column(db.String, default='نظام')
     action = db.Column(db.String, nullable=False)
     details = db.Column(db.String)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     
     def to_dict(self):
-        # A simple username lookup. In a real app, this would be a relationship.
-        username = 'نظام'
-        if self.user_id:
-            user = User.query.get(self.user_id)
-            if user:
-                username = user.username
         return {
             'id': self.id,
-            'username': username,
+            'username': self.username,
             'action': self.action,
             'details': self.details,
             'timestamp': self.timestamp.isoformat()
         }
-        
+
+# --- Utility Functions ---
+def log_action(action, details, username="نظام"):
+    """Helper function to log an action to the audit log."""
+    try:
+        log = AuditLog(action=action, details=details, username=username)
+        db.session.add(log)
+        db.session.commit()
+    except Exception as e:
+        app.logger.error(f"Failed to log action: {e}")
+        db.session.rollback()
+
 # --- API Routes ---
 
 @app.route("/api")
@@ -294,25 +327,32 @@ def index():
 def handle_employees():
     if request.method == 'POST':
         data = request.get_json()
-        new_employee = Employee(
-            full_name=data['full_name'],
-            email=data['email'],
-            department_id=int(data['department_id']),
-            job_title_id=int(data['job_title_id']),
-            location_id=int(data['location_id']),
-            hire_date=data['hire_date'],
-            base_salary=float(data['base_salary']),
-            manager_id=int(data['manager_id']) if data.get('manager_id') else None,
-            status=data['status']
-        )
-        db.session.add(new_employee)
-        db.session.commit()
-        return jsonify(new_employee.to_dict()), 201
+        if not data:
+            return jsonify({"message": "No input data provided"}), 400
+        try:
+            new_employee = Employee(
+                full_name=data['full_name'],
+                email=data['email'],
+                department_id=int(data['department_id']),
+                job_title_id=int(data['job_title_id']),
+                location_id=int(data['location_id']),
+                hire_date=data['hire_date'],
+                base_salary=float(data['base_salary']),
+                manager_id=int(data['manager_id']) if data.get('manager_id') else None,
+                status=data['status']
+            )
+            db.session.add(new_employee)
+            db.session.commit()
+            log_action("إضافة موظف", f"تمت إضافة موظف جديد: {new_employee.full_name}")
+            return jsonify(new_employee.to_dict()), 201
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"message": str(e)}), 500
 
     is_manager = request.args.get('is_manager')
     if is_manager == 'true':
         managers = Employee.query.filter(Employee.id.in_(db.session.query(Employee.manager_id).distinct())).all()
-        return jsonify({"employees": [e.to_dict() for e in managers]})
+        return jsonify({"employees": [{'id': e.id, 'full_name': e.full_name} for e in managers]})
 
     employees = Employee.query.order_by(Employee.created_at.desc()).all()
     return jsonify({"employees": [e.to_dict() for e in employees]})
@@ -327,20 +367,16 @@ def handle_departments():
             name_en=data['name_en'],
             code=data.get('code'),
             email=data.get('email'),
-            budget=data.get('budget'),
+            budget=float(data['budget']) if data.get('budget') else None,
             description=data.get('description'),
         )
         db.session.add(new_dept)
         db.session.commit()
+        log_action("إضافة قسم", f"تمت إضافة قسم جديد: {new_dept.name_ar}")
         return jsonify(new_dept.to_dict()), 201
     
-    departments = Department.query.order_by(Department.created_at.desc()).all()
-    job_titles = JobTitle.query.join(Department).order_by(JobTitle.created_at.desc()).all()
-
-    return jsonify({
-        "departments": [d.to_dict() for d in departments],
-        "jobTitles": [jt.to_dict(include_department=True) for jt in job_titles]
-    })
+    departments = Department.query.order_by(Department.name_ar).all()
+    return jsonify({"departments": [d.to_dict() for d in departments]})
     
 # --- Job Titles API ---
 @app.route("/api/job-titles", methods=['GET', 'POST'])
@@ -354,10 +390,11 @@ def handle_job_titles():
         )
         db.session.add(new_jt)
         db.session.commit()
+        log_action("إضافة مسمى وظيفي", f"تمت إضافة مسمى وظيفي جديد: {new_jt.title_ar}")
         return jsonify(new_jt.to_dict()), 201
 
-    job_titles = JobTitle.query.all()
-    return jsonify([jt.to_dict() for jt in job_titles])
+    job_titles = JobTitle.query.join(Department).order_by(JobTitle.created_at.desc()).all()
+    return jsonify([jt.to_dict(include_department=True) for jt in job_titles])
 
 # --- Locations API ---
 @app.route("/api/locations", methods=['GET', 'POST'])
@@ -374,10 +411,11 @@ def handle_locations():
             country=data.get('country'),
             phone=data.get('phone'),
             email=data.get('email'),
-            manager_id=int(data['manager_id']) if data.get('manager_id') else None
+            manager_id=int(data['manager_id']) if data.get('manager_id') and data['manager_id'].isdigit() else None
         )
         db.session.add(new_loc)
         db.session.commit()
+        log_action("إضافة موقع", f"تمت إضافة موقع جديد: {new_loc.name_ar}")
         return jsonify(new_loc.to_dict()), 201
         
     locations = Location.query.options(db.joinedload(Location.manager)).order_by(Location.created_at.desc()).all()
@@ -401,12 +439,16 @@ def update_leave(id):
     if action == 'approve':
         leave_request.status = 'Approved'
         leave_request.approved_by = 1 # Placeholder for current user ID
+        details = f"تمت الموافقة على طلب الإجازة للموظف {leave_request.employee.full_name}"
+        log_action("الموافقة على إجازة", details)
         db.session.commit()
         return jsonify({"success": True, "message": "تمت الموافقة على طلب الإجازة."})
     elif action == 'reject':
         leave_request.status = 'Rejected'
         leave_request.approved_by = 1 # Placeholder
         leave_request.notes = data.get('notes', '')
+        details = f"تم رفض طلب الإجازة للموظف {leave_request.employee.full_name} بسبب: {leave_request.notes}"
+        log_action("رفض إجازة", details)
         db.session.commit()
         return jsonify({"success": True, "message": "تم رفض طلب الإجازة."})
     else:
@@ -422,8 +464,8 @@ def get_dashboard_data():
     logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(5).all()
 
     recent_activities = [{
-        "text": f"{log.username or 'النظام'} قام بـ \"{log.action}\"",
-        "time": log.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+        "text": f"{log.username or 'النظام'} قام بـ \"{log.action}\" - {log.details}",
+        "time": f"منذ {(datetime.utcnow() - log.timestamp).seconds // 60} دقائق"
     } for log in logs]
 
     return jsonify({
@@ -471,10 +513,53 @@ def get_audit_logs():
     logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).all()
     return jsonify({"auditLogs": [log.to_dict() for log in logs]})
 
+# --- ZKTeco Sync Simulation ---
+@app.route("/api/attendance/sync", methods=['POST'])
+def sync_attendance_route():
+    data = request.get_json()
+    ip = data.get('ip')
+    # This is a placeholder for the actual zklib logic
+    # We'll return a mock response for now as we can't run the library itself here
+    app.logger.info(f"Attempting to sync with ZKTeco device at {ip}")
+    
+    # Simulating connection failure for demo purposes
+    if ip != "192.168.1.201": # A "magic" IP to simulate success
+         return jsonify({
+            "message": "فشل الاتصال. تحقق من عنوان IP أو الشبكة. عرض بيانات محاكاة.",
+            "records": [
+                { "userId": '1', "recordTime": datetime.now().replace(hour=9, minute=5).isoformat(), "attState": 0 },
+                { "userId": '2', "recordTime": datetime.now().replace(hour=9, minute=30).isoformat(), "attState": 0 },
+                { "userId": '1', "recordTime": datetime.now().replace(hour=17, minute=30).isoformat(), "attState": 1 },
+            ]
+        }), 400
+    
+    # Simulating a successful connection
+    mock_records = [
+        { "userId": '1', "recordTime": datetime.now().replace(hour=8, minute=55).isoformat(), "attState": 0 },
+        { "userId": '2', "recordTime": datetime.now().replace(hour=9, minute=2).isoformat(), "attState": 0 },
+        { "userId": '3', "recordTime": datetime.now().replace(hour=9, minute=45).isoformat(), "attState": 0 },
+        { "userId": '1', "recordTime": datetime.now().replace(hour=18, minute=1).isoformat(), "attState": 1 },
+        { "userId": '2', "recordTime": datetime.now().replace(hour=18, minute=10).isoformat(), "attState": 1 },
+    ]
+    
+    if data.get('test'):
+         return jsonify({"success": True, "message": "تم الاتصال بالجهاز بنجاح!"})
+
+    return jsonify({"message": f"تمت مزامنة {len(mock_records)} سجلات بنجاح.", "records": mock_records})
+
+
 # --- App Context ---
 with app.app_context():
     # This will create the database file and tables if they don't exist
-    db.create_all()
+    if not os.path.exists(db_path):
+        app.logger.info("Database not found, creating it...")
+        db.create_all()
+        app.logger.info("Database created successfully.")
+    else:
+        app.logger.info("Database already exists.")
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    

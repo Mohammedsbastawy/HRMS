@@ -27,13 +27,19 @@ export default function DepartmentsPage() {
     async function fetchData() {
       try {
         setIsLoading(true);
-        const response = await fetch('/api/departments');
-        if (!response.ok) {
+        const [deptsResponse, jobsResponse] = await Promise.all([
+          fetch('/api/departments'),
+          fetch('/api/job-titles')
+        ]);
+        
+        if (!deptsResponse.ok || !jobsResponse.ok) {
           throw new Error('فشل في جلب البيانات');
         }
-        const data = await response.json();
-        setDepartments(data.departments);
-        setJobTitles(data.jobTitles);
+        const deptsData = await deptsResponse.json();
+        const jobsData = await jobsResponse.json();
+        
+        setDepartments(deptsData.departments);
+        setJobTitles(jobsData);
       } catch (error: any) {
         toast({
           variant: 'destructive',
@@ -177,3 +183,5 @@ export default function DepartmentsPage() {
     </div>
   );
 }
+
+    

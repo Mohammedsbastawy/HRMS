@@ -7,3 +7,5 @@ import { AttendancePageClient } from './_components/attendance-client';
 export default function AttendanceDataPage() {
     return <AttendancePageClient />;
 }
+
+    
