@@ -1,4 +1,5 @@
 
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal, PlusCircle, Search, Eye, Edit, Trash2 } from 'lucide-react';
@@ -189,3 +190,4 @@ export default function RecruitmentPage() {
     </div>
   );
 }
+

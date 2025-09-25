@@ -98,3 +98,4 @@ export const auditLogs: AuditLog[] = [
   { id: 'log3', user: 'أحمد خان', action: 'Updated Employee', timestamp: '2024-07-24 03:20 PM', details: 'Updated job title for نورة عبدالله (ID: 1)' },
   { id: 'log4', user: 'علي حسن', action: 'Added Applicant', timestamp: '2024-07-23 11:00 AM', details: 'Added new applicant خالد الغامدي' },
 ];
+

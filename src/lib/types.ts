@@ -107,3 +107,4 @@ export type AuditLog = {
   timestamp: string;
   details: string;
 };
+
