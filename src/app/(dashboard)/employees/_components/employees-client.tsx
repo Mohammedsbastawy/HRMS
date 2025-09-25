@@ -20,7 +20,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 
-// This is now a client component responsible for UI and interactivity
+// This is a Client Component. It receives data as props and handles all user interactions.
+// It does NOT import `db` or any other server-side code.
 export function EmployeesPageClient({ initialEmployees }: { initialEmployees: Employee[] }) {
   const [employees] = useState<Employee[]>(initialEmployees);
   const [searchTerm, setSearchTerm] = useState('');

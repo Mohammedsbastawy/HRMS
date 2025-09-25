@@ -3,7 +3,8 @@ import db from '@/lib/db';
 import type { Employee } from '@/lib/types';
 import { EmployeesPageClient } from './_components/employees-client';
 
-// This is the main page component, a Server Component
+// This is the main page component, now a Server Component.
+// Its only job is to fetch data.
 export default function EmployeesDataPage() {
     const employeesData: any[] = (() => {
         try {
@@ -39,14 +40,16 @@ export default function EmployeesDataPage() {
         status: emp.status,
         avatar: emp.avatar,
         department: {
+            id: emp.department_id,
             name_ar: emp.department_name_ar,
             name_en: emp.department_name_en,
         },
         jobTitle: {
+            id: emp.job_title_id,
             title_ar: emp.job_title_ar,
         }
     }));
 
-
-    return <EmployeesPageClient initialEmployees={formattedEmployees} />
+    // The Server Component renders the Client Component and passes data to it.
+    return <EmployeesPageClient initialEmployees={formattedEmployees} />;
 }
