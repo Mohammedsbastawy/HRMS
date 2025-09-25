@@ -1,108 +1,168 @@
 
+// Base types derived from the SQLite schema
+
 export type Department = {
-  id: string;
+  id: number;
   name: string;
-  description?: string;
+  description?: string | null;
 };
 
 export type JobTitle = {
-  id:string;
+  id: number;
+  department_id: number;
   title: string;
-  departmentId: string;
-}
+};
 
 export type Employee = {
-  id: string;
-  name: string;
-  avatar: string;
+  id: number;
+  full_name: string;
   email: string;
-  jobTitleId: string;
-  departmentId: string;
-  status: 'Active' | 'On Leave' | 'Terminated';
-  hireDate: string;
-  salary: number;
+  phone?: string | null;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  address?: string | null;
+  marital_status?: string | null;
+  national_id?: string | null;
+  department_id?: number | null;
+  job_title_id?: number | null;
+  contract_type?: string | null; // Full-time / Part-time / Temporary / Intern
+  hire_date?: string | null;
+  manager_id?: number | null;
+  base_salary?: number | null;
+  allowances?: number | null;
+  bank_account_number?: string | null;
+  tax_number?: string | null;
+  social_insurance_number?: string | null;
+  status?: 'Active' | 'Resigned' | 'Terminated';
+  avatar?: string; // Not in schema, but useful for UI
+};
+
+export type User = {
+  id: number;
+  employee_id?: number | null;
+  username: string;
+  password_hash: string;
+  role: 'Admin' | 'HR' | 'Manager' | 'Employee';
+  account_status?: 'Active' | 'Inactive';
+};
+
+export type Document = {
+  id: number;
+  employee_id: number;
+  file_path: string;
+  type: 'Contract' | 'Identity' | 'Certificate' | 'CV';
+  uploaded_at?: string;
 };
 
 export type Attendance = {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  employeeAvatar: string;
+  id: number;
+  employee_id: number;
   date: string;
-  checkIn: string | null;
-  checkOut: string | null;
-  workedHours: number;
+  check_in?: string | null;
+  check_out?: string | null;
+  hours_worked?: number | null;
+  status?: 'Present' | 'Absent' | 'On Leave' | 'Late';
+  employeeName?: string; // For UI display
+  employeeAvatar?: string; // For UI display
+  workedHours?: number; // For UI consistency
 };
 
 export type LeaveRequest = {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  employeeAvatar: string;
-  leaveType: 'Annual' | 'Sick' | 'Unpaid' | 'Maternity';
-  startDate: string;
-  endDate: string;
-  status: 'Pending' | 'Approved' | 'Rejected';
+  id: number;
+  employee_id: number;
+  leave_type?: 'Annual' | 'Sick' | 'Maternity' | 'Unpaid';
+  start_date?: string;
+  end_date?: string;
+  status?: 'Pending' | 'Approved' | 'Rejected';
+  approved_by?: number | null;
+  notes?: string | null;
+  employeeName?: string; // For UI display
+  employeeAvatar?: string; // For UI display
 };
 
 export type Payroll = {
-  id: string;
-  employeeId: string;
-  employeeName:string;
-  period: string;
-  baseSalary: number;
-  bonus: number;
-  deductions: number;
-  netSalary: number;
+  id: number;
+  employee_id: number;
+  month: string;
+  base_salary: number;
+  overtime?: number;
+  deductions?: number;
+  tax?: number;
+  insurance?: number;
+  net_salary: number;
+  generated_at?: string;
+  employeeName?: string; // For UI display
+  bonus?: number; // For UI consistency
+  netSalary?: number; // For UI consistency
 };
 
 export type PerformanceReview = {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  reviewDate: string;
+  id: number;
+  employee_id: number;
+  review_date: string;
   score: number;
-  comments: string;
+  reviewer_id?: number | null;
+  comments?: string | null;
+  employeeName?: string; // For UI display
 };
 
 export type Job = {
-    id: string;
-    title: string;
-    department: string;
-    status: 'Open' | 'Closed' | 'On-Hold';
-    postedDate: string;
-    description: string;
-}
+  id: number;
+  title: string;
+  description?: string | null;
+  dept_id?: number | null;
+  status?: 'Open' | 'Closed' | 'On-Hold';
+  created_at?: string;
+  department?: string; // For UI display
+  postedDate?: string; // For UI display
+};
 
 export type Applicant = {
-  id: string;
+  id: number;
+  job_id: number;
   name: string;
-  avatar: string;
-  jobTitle: string;
-  stage: 'Applied' | 'Screening' | 'Interview' | 'Offer' | 'Hired' | 'Rejected';
+  email?: string | null;
+  phone?: string | null;
+  cv_path?: string | null;
+  stage?: 'Applied' | 'Screening' | 'Interview' | 'Offer' | 'Hired' | 'Rejected';
+  applied_at?: string;
+  notes?: string | null;
+  avatar?: string; // For UI display
+  jobTitle?: string; // For UI display
 };
 
 export type TrainingCourse = {
-  id: string;
+  id: number;
   title: string;
-  description: string;
-  duration: number; // in hours
+  provider?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
 };
 
 export type TrainingRecord = {
-  id: string;
-  employeeId: string;
-  courseId: string;
-  courseTitle: string;
-  enrollmentDate: string;
-  status: 'Completed' | 'In Progress' | 'Not Started';
-  outcome: 'Exceeded Expectations' | 'Met Expectations' | 'Did Not Meet Expectations' | 'N/A';
+  id: number;
+  employee_id: number;
+  course_id: number;
+  status?: 'Enrolled' | 'In Progress' | 'Completed' | 'Failed';
+  result?: string | null;
+  employeeName?: string; // For UI display
+  courseTitle?: string; // For UI display
+  outcome?: 'Exceeded Expectations' | 'Met Expectations' | 'Did Not Meet Expectations' | 'N/A'; // For UI
+};
+
+export type SystemSettings = {
+  id: number;
+  tax_rate?: number;
+  insurance_rate?: number;
+  other_deductions?: number;
+  effective_from?: string;
 };
 
 export type AuditLog = {
-  id: string;
-  user: string;
-  action: string;
-  timestamp: string;
-  details: string;
+  id: number;
+  user_id?: number | null;
+  action?: string | null;
+  timestamp?: string;
+  user?: string; // for UI display
+  details?: string; // for UI display
 };
