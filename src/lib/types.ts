@@ -16,6 +16,7 @@ export type Department = {
   parent_department_id?: number | null;
   created_at?: string;
   updated_at?: string;
+  location_id?: number | null; // Added
 };
 
 export type JobTitle = {
@@ -37,6 +38,7 @@ export type Employee = {
   national_id?: string | null;
   department_id?: number | null;
   job_title_id?: number | null;
+  location_id?: number | null; // Added
   contract_type?: string | null; // Full-time / Part-time / Temporary / Intern
   hire_date?: string | null;
   manager_id?: number | null;
@@ -177,4 +179,19 @@ export type AuditLog = {
   timestamp?: string;
   user?: string; // for UI display
   details?: string; // for UI display
+};
+
+export type Location = {
+  id: number;
+  code?: string | null;
+  name: string;
+  description?: string | null;
+  address?: string | null;
+  city?: string | null;
+  country?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  manager_id?: number | null;
+  created_at?: string;
+  updated_at?: string;
 };
