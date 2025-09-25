@@ -33,7 +33,8 @@ export default function DepartmentsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-right">اسم القسم</TableHead>
+                <TableHead className="text-right">اسم القسم (العربية)</TableHead>
+                <TableHead className="text-right">اسم القسم (الإنجليزية)</TableHead>
                 <TableHead className="text-right">الوصف</TableHead>
                 <TableHead className="text-right">عدد الوظائف</TableHead>
                 <TableHead className="text-right">إجراءات</TableHead>
@@ -42,9 +43,10 @@ export default function DepartmentsPage() {
             <TableBody>
               {departments.map((dept) => (
                 <TableRow key={dept.id}>
-                  <TableCell className="font-medium">{dept.name}</TableCell>
+                  <TableCell className="font-medium">{dept.name_ar}</TableCell>
+                  <TableCell>{dept.name_en}</TableCell>
                   <TableCell>{dept.description}</TableCell>
-                  <TableCell>{jobTitles.filter(jt => jt.departmentId === dept.id).length}</TableCell>
+                  <TableCell>{jobTitles.filter(jt => jt.department_id === dept.id).length}</TableCell>
                   <TableCell className="flex justify-end gap-2">
                     <Button variant="ghost" size="icon">
                         <Edit className="h-4 w-4" />
@@ -77,18 +79,20 @@ export default function DepartmentsPage() {
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead className="text-right">المسمى الوظيفي</TableHead>
+                        <TableHead className="text-right">المسمى الوظيفي (العربية)</TableHead>
+                        <TableHead className="text-right">المسمى الوظيفي (الإنجليزية)</TableHead>
                         <TableHead className="text-right">القسم</TableHead>
                         <TableHead className="text-right">إجراءات</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {jobTitles.map(jt => {
-                        const dept = departments.find(d => d.id === jt.departmentId);
+                        const dept = departments.find(d => d.id === jt.department_id);
                         return (
                             <TableRow key={jt.id}>
-                                <TableCell className="font-medium">{jt.title}</TableCell>
-                                <TableCell>{dept?.name}</TableCell>
+                                <TableCell className="font-medium">{jt.title_ar}</TableCell>
+                                <TableCell>{jt.title_en}</TableCell>
+                                <TableCell>{dept?.name_ar}</TableCell>
                                 <TableCell className="flex justify-end gap-2">
                                      <Button variant="ghost" size="icon">
                                         <Edit className="h-4 w-4" />

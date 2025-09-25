@@ -26,7 +26,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 
 const departmentFormSchema = z.object({
-  name: z.string().min(2, { message: "اسم القسم مطلوب." }),
+  name_ar: z.string().min(2, { message: "الاسم بالعربية مطلوب." }),
+  name_en: z.string().min(2, { message: "الاسم بالإنجليزية مطلوب." }),
   description: z.string().optional(),
 });
 
@@ -37,6 +38,11 @@ export default function NewDepartmentPage() {
   
   const form = useForm<DepartmentFormValues>({
     resolver: zodResolver(departmentFormSchema),
+    defaultValues: {
+      name_ar: "",
+      name_en: "",
+      description: "",
+    }
   });
 
   async function onSubmit(data: DepartmentFormValues) {
@@ -63,19 +69,34 @@ export default function NewDepartmentPage() {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>اسم القسم</FormLabel>
-                  <FormControl>
-                    <Input placeholder="مثال: تقنية المعلومات" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <FormField
+                control={form.control}
+                name="name_ar"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>اسم القسم (بالعربية)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="مثال: تقنية المعلومات" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="name_en"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>اسم القسم (بالإنجليزية)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Information Technology" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}

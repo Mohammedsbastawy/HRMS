@@ -3,14 +3,16 @@
 
 export type Department = {
   id: number;
-  name: string;
+  name_ar: string;
+  name_en: string;
   description?: string | null;
 };
 
 export type JobTitle = {
   id: number;
   department_id: number;
-  title: string;
+  title_ar: string;
+  title_en: string;
 };
 
 export type Employee = {

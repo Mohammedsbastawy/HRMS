@@ -34,7 +34,8 @@ import { departments } from "@/lib/data"; // Will be empty, that's expected
 
 const jobTitleFormSchema = z.object({
   departmentId: z.string({ required_error: "يجب اختيار القسم." }),
-  title: z.string().min(2, { message: "اسم المسمى الوظيفي مطلوب." }),
+  title_ar: z.string().min(2, { message: "المسمى بالعربية مطلوب." }),
+  title_en: z.string().min(2, { message: "المسمى بالإنجليزية مطلوب." }),
 });
 
 type JobTitleFormValues = z.infer<typeof jobTitleFormSchema>;
@@ -85,7 +86,7 @@ export default function NewJobTitlePage() {
                     <SelectContent>
                       {departments.length > 0 ? (
                         departments.map(dept => (
-                          <SelectItem key={dept.id} value={String(dept.id)}>{dept.name}</SelectItem>
+                          <SelectItem key={dept.id} value={String(dept.id)}>{dept.name_ar}</SelectItem>
                         ))
                       ) : (
                         <SelectItem value="-" disabled>لا توجد أقسام متاحة</SelectItem>
@@ -97,19 +98,34 @@ export default function NewJobTitlePage() {
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>المسمى الوظيفي</FormLabel>
-                  <FormControl>
-                    <Input placeholder="مثال: مهندس برمجيات" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <FormField
+                control={form.control}
+                name="title_ar"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>المسمى الوظيفي (بالعربية)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="مثال: مهندس برمجيات" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="title_en"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>المسمى الوظيفي (بالإنجليزية)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Software Engineer" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             
             <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" asChild>
