@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -207,24 +208,23 @@ export default function NewLocationPage() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>الوصف (اختياري)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="أي تفاصيل إضافية عن الموقع."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
-
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem className="md:col-span-2">
-                  <FormLabel>الوصف (اختياري)</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="أي تفاصيل إضافية عن الموقع."
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
             
             <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" asChild>
