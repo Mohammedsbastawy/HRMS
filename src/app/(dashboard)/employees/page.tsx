@@ -20,8 +20,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 
-export default function EmployeesPage() {
-  const [employees, setEmployees] = useState<Employee[]>([]);
+// This is a server component now, so we can't use useState directly at the top level.
+// We'll pass the initial data as props.
+const EmployeesPageWrapper = ({ initialEmployees }: { initialEmployees: Employee[] }) => {
+  const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
@@ -42,7 +44,7 @@ export default function EmployeesPage() {
   
   const filteredEmployees = employees.filter(employee => {
     const matchesSearch = employee.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          employee.email.toLowerCase().includes(searchTerm.toLowerCase());
+                          (employee.email && employee.email.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = statusFilter.length === 0 || (employee.status && statusFilter.includes(employee.status));
     const matchesDepartment = departmentFilter.length === 0 || (employee.department?.name_en && departmentFilter.includes(employee.department.name_en));
     return matchesSearch && matchesStatus && matchesDepartment;
@@ -192,4 +194,57 @@ export default function EmployeesPage() {
       </CardContent>
     </Card>
   );
+}
+
+import db from '@/lib/db';
+
+export default function EmployeesDataPage() {
+    const employeesData: any[] = (() => {
+        try {
+            const query = `
+                SELECT 
+                    e.id,
+                    e.full_name,
+                    e.email,
+                    e.hire_date,
+                    e.status,
+                    e.avatar,
+                    d.name_ar as department_name_ar,
+                    d.name_en as department_name_en,
+                    jt.title_ar as job_title_ar
+                FROM employees e
+                LEFT JOIN departments d ON e.department_id = d.id
+                LEFT JOIN job_titles jt ON e.job_title_id = jt.id
+                ORDER BY e.created_at DESC
+            `;
+            const stmt = db.prepare(query);
+            return stmt.all();
+        } catch (error) {
+            console.error('Failed to fetch employees:', error);
+            return [];
+        }
+    })();
+
+    const formattedEmployees: Employee[] = employeesData.map(emp => ({
+        id: emp.id,
+        full_name: emp.full_name,
+        email: emp.email,
+        hire_date: emp.hire_date,
+        status: emp.status,
+        avatar: emp.avatar,
+        department: {
+            id: 0, // Placeholder
+            name_ar: emp.department_name_ar,
+            name_en: emp.department_name_en,
+        },
+        jobTitle: {
+            id: 0, // Placeholder
+            department_id: 0, // Placeholder
+            title_ar: emp.job_title_ar,
+            title_en: '' // Placeholder
+        }
+    }));
+
+
+    return <EmployeesPageWrapper initialEmployees={formattedEmployees} />
 }

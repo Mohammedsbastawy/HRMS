@@ -1,8 +1,10 @@
+
 'use server';
 
 import { z } from 'zod';
 import db from './db';
 import { revalidatePath } from 'next/cache';
+import { permanentRedirect } from 'next/navigation';
 
 // --- Department Actions ---
 
@@ -99,4 +101,66 @@ export async function createLocation(formData: unknown) {
         console.error('Failed to create location:', error);
         throw new Error('Database error');
     }
+}
+
+
+// --- Employee Actions ---
+
+const employeeFormSchema = z.object({
+  full_name: z.string().min(2, { message: "الاسم الكامل مطلوب." }),
+  email: z.string().email({ message: "بريد إلكتروني غير صالح." }),
+  department_id: z.string({ required_error: "القسم مطلوب." }),
+  job_title_id: z.string({ required_error: "المسمى الوظيفي مطلوب." }),
+  location_id: z.string({ required_error: "الموقع مطلوب." }),
+  hire_date: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "تاريخ التعيين غير صالح."}),
+  base_salary: z.coerce.number().min(0, { message: "الراتب يجب أن يكون رقمًا موجبًا." }),
+  manager_id: z.string().optional(),
+  status: z.enum(['Active', 'Resigned', 'Terminated']),
+});
+
+
+export async function createEmployee(formData: unknown) {
+  const validatedFields = employeeFormSchema.safeParse(formData);
+
+  if (!validatedFields.success) {
+    console.error('Validation Errors:', validatedFields.error.flatten().fieldErrors);
+    throw new Error('Invalid form data');
+  }
+
+  const { full_name, email, department_id, job_title_id, location_id, hire_date, base_salary, manager_id, status } = validatedFields.data;
+
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO employees (
+        full_name, email, department_id, job_title_id, location_id, 
+        hire_date, base_salary, manager_id, status
+      ) VALUES (
+        @full_name, @email, @department_id, @job_title_id, @location_id,
+        @hire_date, @base_salary, @manager_id, @status
+      )
+    `);
+
+    stmt.run({
+      full_name,
+      email,
+      department_id: parseInt(department_id),
+      job_title_id: parseInt(job_title_id),
+      location_id: parseInt(location_id),
+      hire_date,
+      base_salary,
+      manager_id: manager_id ? parseInt(manager_id) : null,
+      status
+    });
+
+    revalidatePath('/employees');
+    
+  } catch (error: any) {
+    console.error('Failed to create employee:', error);
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      throw new Error('An employee with this email already exists.');
+    }
+    throw new Error('Database error occurred while creating employee.');
+  }
+
+  permanentRedirect('/employees');
 }
