@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -167,6 +168,9 @@ export default function NewJobPage() {
                       <SelectItem value="On-Hold">معلقة</SelectItem>
                     </SelectContent>
                   </Select>
+                  <FormDescription>
+                    "مفتوحة" للتقديم، "مغلقة" بعد التعيين، "معلقة" للتجميد المؤقت.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
