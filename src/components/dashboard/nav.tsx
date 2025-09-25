@@ -31,19 +31,22 @@ type NavItem = {
   icon: LucideIcon;
 };
 
-type NavItemWithSeparator = NavItem & { separator?: boolean };
-
-const navItems: NavItemWithSeparator[] = [
+const navItems: (NavItem | { separator: true })[] = [
     { href: '/', label: 'نظرة عامة', icon: LayoutDashboard },
-    { href: '/employees', label: 'الموظفين', icon: Users, separator: true },
+    { href: '/employees', label: 'الموظفين', icon: Users },
+    { separator: true },
     { href: '/departments', label: 'الأقسام', icon: Building },
-    { href: '/locations', label: 'المواقع', icon: MapPin, separator: true },
+    { href: '/locations', label: 'المواقع', icon: MapPin },
+    { separator: true },
     { href: '/attendance', label: 'الحضور', icon: Clock },
-    { href: '/leaves', label: 'الإجازات', icon: Calendar, separator: true },
+    { href: '/leaves', label: 'الإجازات', icon: Calendar },
+    { separator: true },
     { href: '/payroll', label: 'الرواتب', icon: Wallet },
-    { href: '/performance', label: 'الأداء', icon: Star, separator: true },
+    { href: '/performance', label: 'الأداء', icon: Star },
+    { separator: true },
     { href: '/recruitment', label: 'التوظيف', icon: Briefcase },
-    { href: '/training', label: 'التدريب', icon: BookUser, separator: true },
+    { href: '/training', label: 'التدريب', icon: BookUser },
+    { separator: true },
     { href: '/audit-log', label: 'سجل التدقيق', icon: ShieldCheck },
     { href: '/settings', label: 'الإعدادات', icon: Settings },
 ];
@@ -54,9 +57,16 @@ export function Nav() {
 
   return (
     <SidebarMenu>
-      {navItems.map((item) => (
-        <React.Fragment key={item.href}>
-          <SidebarMenuItem>
+      {navItems.map((item, index) => {
+        if ('separator' in item) {
+          return (
+            <SidebarMenuItem key={`separator-${index}`} className="p-2 !h-auto">
+              <SidebarSeparator className="my-0" />
+            </SidebarMenuItem>
+          );
+        }
+        return (
+          <SidebarMenuItem key={item.href}>
             <SidebarMenuButton
               asChild
               isActive={pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/')}
@@ -68,9 +78,8 @@ export function Nav() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          {item.separator && <SidebarSeparator className="my-2" />}
-        </React.Fragment>
-      ))}
+        );
+      })}
     </SidebarMenu>
   );
 }
