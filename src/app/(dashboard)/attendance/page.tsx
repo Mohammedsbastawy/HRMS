@@ -18,14 +18,19 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Fingerprint, Loader2 } from 'lucide-react';
 import type { Attendance } from '@/lib/types';
+import Link from 'next/link';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Terminal } from 'lucide-react';
 
 export default function AttendancePage() {
   const [attendance, setAttendance] = useState<Attendance[]>(initialAttendance);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleSync = async () => {
     setIsSyncing(true);
+    setSyncError(null);
     try {
       const response = await fetch('/api/attendance/sync', {
         method: 'POST',
@@ -33,21 +38,22 @@ export default function AttendancePage() {
 
       const result = await response.json();
       
-      if (response.ok && result.success) {
+      if (response.ok) {
         toast({
           title: 'نجاح المزامنة',
-          description: `تمت مزامنة ${result.records?.length || 0} سجل بنجاح.`,
+          description: result.message || `تمت مزامنة ${result.records?.length || 0} سجل بنجاح.`,
         });
-        // In a real app, you would process result.records and update the state
+        // In a real app, you would process result.records and update state
         console.log('Synced Records:', result.records);
       } else {
-        throw new Error(result.error || result.message || 'فشل في بدء المزامنة');
+        throw new Error(result.message || 'فشل في بدء المزامنة');
       }
     } catch (error: any) {
+      setSyncError(error.message);
       toast({
         variant: 'destructive',
         title: 'خطأ في المزامنة',
-        description: error.message,
+        description: 'لم نتمكن من الاتصال بجهاز البصمة. يرجى التحقق من الإعدادات والمحاولة مرة أخرى.',
       });
     } finally {
       setIsSyncing(false);
@@ -75,6 +81,18 @@ export default function AttendancePage() {
             </Button>
           </CardHeader>
           <CardContent>
+            {syncError && (
+                 <Alert variant="destructive" className="mb-4">
+                    <Terminal className="h-4 w-4" />
+                    <AlertTitle>فشل الاتصال!</AlertTitle>
+                    <AlertDescription>
+                        <p>{syncError}</p>
+                        <Button variant="link" className="p-0 h-auto" asChild>
+                            <Link href="/settings">اذهب إلى الإعدادات للتحقق من عنوان IP.</Link>
+                        </Button>
+                    </AlertDescription>
+                </Alert>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
