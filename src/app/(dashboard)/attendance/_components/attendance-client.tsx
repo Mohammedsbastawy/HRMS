@@ -21,9 +21,11 @@ import type { Attendance, Employee } from '@/lib/types';
 import Link from 'next/link';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
+type ClientAttendanceRecord = Omit<Attendance, 'employee_id'> & { id: number };
+
 // The main component is now a client component
 export function AttendancePageClient({ employees }: { employees: Employee[] }) {
-  const [attendance, setAttendance] = useState<Attendance[]>([]);
+  const [attendance, setAttendance] = useState<ClientAttendanceRecord[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -197,7 +199,7 @@ export function AttendancePageClient({ employees }: { employees: Employee[] }) {
 }
 
 // Helper function to process raw attendance logs
-function processAttendanceRecords(records: any[], employees: Employee[]): Attendance[] {
+function processAttendanceRecords(records: any[], employees: Employee[]): ClientAttendanceRecord[] {
     const attendanceMap = new Map<number, { check_in: string | null, check_out: string | null }>();
 
     const today = new Date();
@@ -233,7 +235,7 @@ function processAttendanceRecords(records: any[], employees: Employee[]): Attend
         }
     });
     
-    const finalAttendance: Attendance[] = [];
+    const finalAttendance: ClientAttendanceRecord[] = [];
     attendanceMap.forEach((times, employeeId) => {
         const employee = employees.find(e => e.id === employeeId);
         if (employee) {
@@ -250,7 +252,6 @@ function processAttendanceRecords(records: any[], employees: Employee[]): Attend
 
             finalAttendance.push({
                 id: employeeId,
-                employee_id: employeeId,
                 date: today.toISOString().split('T')[0],
                 employeeName: employee.full_name,
                 employeeAvatar: employee.avatar,

@@ -1,3 +1,4 @@
+
 import {
   Table,
   TableBody,
@@ -11,8 +12,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { PlusCircle, Star } from 'lucide-react';
 import Link from 'next/link';
 import db from '@/lib/db';
-import type { PerformanceReview } from '@/lib/types';
-
 
 const ScoreBadge = ({ score }: { score: number }) => {
   const colorClass = score >= 4.5 ? 'text-green-500' : score >= 3.5 ? 'text-yellow-500' : 'text-red-500';

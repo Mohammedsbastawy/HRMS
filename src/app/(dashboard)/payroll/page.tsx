@@ -1,3 +1,4 @@
+
 import {
   Table,
   TableBody,
@@ -8,9 +9,8 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { MoreHorizontal, Download } from 'lucide-react';
+import { Download } from 'lucide-react';
 import db from '@/lib/db';
-import type { Payroll } from '@/lib/types';
 
 export default function PayrollPage() {
   const payrolls: any[] = (() => {

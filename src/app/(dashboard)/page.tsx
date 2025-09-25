@@ -21,7 +21,7 @@ import {
   Briefcase,
   Star,
 } from 'lucide-react';
-import type { Employee, LeaveRequest, Applicant, PerformanceReview, Job } from '@/lib/types';
+import type { Employee, LeaveRequest, PerformanceReview, Job } from '@/lib/types';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import db from '@/lib/db';
@@ -45,7 +45,7 @@ export default function DashboardPage() {
       FROM leave_requests lr 
       JOIN employees e ON lr.employee_id = e.id
     `).all();
-    return data.map(lr => ({ ...lr, employee: { id: (lr as any).employee_id, full_name: (lr as any).full_name, avatar: (lr as any).avatar } })) as LeaveRequest[];
+    return data.map(lr => ({ ...lr, employee: { id: (lr as any).employee_id, full_name: (lr as any).full_name, avatar: (lr as any).avatar } })) as any[];
   }, []);
 
   const performanceReviews: PerformanceReview[] = safeQuery(() => db.prepare('SELECT * FROM performance_reviews').all() as PerformanceReview[], []);
@@ -55,8 +55,8 @@ export default function DashboardPage() {
   const recentActivities: any[] = safeQuery(() => {
     const logs = db.prepare('SELECT al.*, u.username FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id ORDER BY al.timestamp DESC LIMIT 5').all();
     return logs.map(log => ({
-        text: `${(log as any).username || 'النظام'} قام بـ "${log.action}"`,
-        time: new Date(log.timestamp).toLocaleString('ar-EG'),
+        text: `${(log as any).username || 'النظام'} قام بـ "${(log as any).action}"`,
+        time: new Date((log as any).timestamp).toLocaleString('ar-EG'),
     }));
   }, []);
 
@@ -120,7 +120,7 @@ export default function DashboardPage() {
                             </Avatar>
                           </div>
                         </TableCell>
-                        <TableCell>{leave.leave_type}</TableCell>
+                        <TableCell>{(leave as any).leave_type}</TableCell>
                         <TableCell className="text-left">
                            <Button asChild size="sm" variant="outline">
                              <Link href="/leaves">مراجعة</Link>

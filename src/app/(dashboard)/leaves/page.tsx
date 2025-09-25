@@ -34,7 +34,7 @@ export default function LeavesPage() {
         start_date: lr.start_date,
         end_date: lr.end_date,
         employee: employeesMap.get(lr.employee_id) || { id: lr.employee_id, full_name: 'موظف غير معروف', email: '' }
-    })) as LeaveRequest[];
+    })) as any[];
 
     return <LeaveRequestClientPage leaveRequests={formattedLeaveRequests} />;
 }

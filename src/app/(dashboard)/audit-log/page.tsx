@@ -9,8 +9,6 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import db from '@/lib/db';
-import type { AuditLog } from '@/lib/types';
-
 
 export default function AuditLogPage() {
   const auditLogs: any[] = (() => {
