@@ -158,11 +158,11 @@ export default function RecruitmentPage() {
           <h2 className="font-headline text-2xl font-bold">مسار توظيف: <span className="font-body font-normal">مهندس برمجيات</span></h2>
           <p className="text-muted-foreground">إدارة المتقدمين للوظائف من البداية إلى النهاية.</p>
         </div>
-        <div className="flex-1 overflow-x-auto">
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 min-w-max">
+        <div className="overflow-x-auto pb-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 min-w-[1200px]">
             {stages.map((stage) => (
                 <div key={stage} className="flex flex-col gap-4">
-                <div className="rounded-lg bg-muted p-3">
+                <div className="rounded-lg bg-muted p-3 h-full">
                     <h3 className="font-semibold mb-4">{stageLabels[stage]}</h3>
                     <div className="space-y-4">
                     {applicants
