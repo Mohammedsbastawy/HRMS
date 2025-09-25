@@ -71,8 +71,8 @@ export default function DashboardPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>الموظف</TableHead>
-                    <TableHead>النوع</TableHead>
+                    <TableHead className="text-right">الموظف</TableHead>
+                    <TableHead className="text-right">النوع</TableHead>
                     <TableHead className="text-left">الإجراء</TableHead>
                   </TableRow>
                 </TableHeader>

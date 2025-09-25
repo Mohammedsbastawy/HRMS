@@ -70,10 +70,10 @@ export default function TrainingPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>الموظف</TableHead>
-              <TableHead>الدورة التدريبية</TableHead>
-              <TableHead>الحالة</TableHead>
-              <TableHead>النتيجة</TableHead>
+              <TableHead className="text-right">الموظف</TableHead>
+              <TableHead className="text-right">الدورة التدريبية</TableHead>
+              <TableHead className="text-right">الحالة</TableHead>
+              <TableHead className="text-right">النتيجة</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

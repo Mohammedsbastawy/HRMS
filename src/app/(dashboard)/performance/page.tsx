@@ -39,10 +39,10 @@ export default function PerformancePage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>الموظف</TableHead>
-              <TableHead>تاريخ التقييم</TableHead>
-              <TableHead>التقييم</TableHead>
-              <TableHead>التعليقات</TableHead>
+              <TableHead className="text-right">الموظف</TableHead>
+              <TableHead className="text-right">تاريخ التقييم</TableHead>
+              <TableHead className="text-right">التقييم</TableHead>
+              <TableHead className="text-right">التعليقات</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

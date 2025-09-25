@@ -56,10 +56,10 @@ export default function LeavesPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>الموظف</TableHead>
-              <TableHead>نوع الإجازة</TableHead>
-              <TableHead>التواريخ</TableHead>
-              <TableHead>الحالة</TableHead>
+              <TableHead className="text-right">الموظف</TableHead>
+              <TableHead className="text-right">نوع الإجازة</TableHead>
+              <TableHead className="text-right">التواريخ</TableHead>
+              <TableHead className="text-right">الحالة</TableHead>
               <TableHead>
                 <span className="sr-only">الإجراءات</span>
               </TableHead>

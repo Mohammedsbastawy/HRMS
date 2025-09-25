@@ -25,10 +25,10 @@ export default function AttendancePage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>الموظف</TableHead>
-                  <TableHead>تسجيل الدخول</TableHead>
-                  <TableHead>تسجيل الخروج</TableHead>
-                  <TableHead>ساعات العمل</TableHead>
+                  <TableHead className="text-right">الموظف</TableHead>
+                  <TableHead className="text-right">تسجيل الدخول</TableHead>
+                  <TableHead className="text-right">تسجيل الخروج</TableHead>
+                  <TableHead className="text-right">ساعات العمل</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

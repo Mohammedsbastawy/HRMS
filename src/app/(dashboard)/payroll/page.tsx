@@ -29,12 +29,12 @@ export default function PayrollPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>الموظف</TableHead>
-              <TableHead>الراتب الأساسي</TableHead>
-              <TableHead>المكافأة</TableHead>
-              <TableHead>الخصومات</TableHead>
-              <TableHead>صافي الراتب</TableHead>
-              <TableHead>الإجراء</TableHead>
+              <TableHead className="text-right">الموظف</TableHead>
+              <TableHead className="text-right">الراتب الأساسي</TableHead>
+              <TableHead className="text-right">المكافأة</TableHead>
+              <TableHead className="text-right">الخصومات</TableHead>
+              <TableHead className="text-right">صافي الراتب</TableHead>
+              <TableHead className="text-right">الإجراء</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

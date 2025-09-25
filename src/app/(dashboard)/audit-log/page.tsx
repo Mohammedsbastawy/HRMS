@@ -20,10 +20,10 @@ export default function AuditLogPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>الوقت</TableHead>
-              <TableHead>المستخدم</TableHead>
-              <TableHead>الإجراء</TableHead>
-              <TableHead>التفاصيل</TableHead>
+              <TableHead className="text-right">الوقت</TableHead>
+              <TableHead className="text-right">المستخدم</TableHead>
+              <TableHead className="text-right">الإجراء</TableHead>
+              <TableHead className="text-right">التفاصيل</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

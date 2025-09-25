@@ -34,11 +34,11 @@ export default function EmployeesPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>الاسم</TableHead>
-              <TableHead>الحالة</TableHead>
-              <TableHead>المنصب</TableHead>
-              <TableHead>الراتب السنوي</TableHead>
-              <TableHead>تاريخ التعيين</TableHead>
+              <TableHead className="text-right">الاسم</TableHead>
+              <TableHead className="text-right">الحالة</TableHead>
+              <TableHead className="text-right">المنصب</TableHead>
+              <TableHead className="text-right">الراتب السنوي</TableHead>
+              <TableHead className="text-right">تاريخ التعيين</TableHead>
               <TableHead>
                 <span className="sr-only">الإجراءات</span>
               </TableHead>
