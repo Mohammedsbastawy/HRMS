@@ -134,7 +134,11 @@ export default function RecruitmentPage() {
                             <TableCell>
                                <Badge 
                                  variant={getStatusVariant(job.status)}
-                                 className={job.status === 'Open' ? 'bg-green-500/20 text-green-700 border-green-500/30' : ''}
+                                 className={
+                                    job.status === 'Open' ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200' 
+                                    : job.status === 'Closed' ? 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200' 
+                                    : 'bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200'
+                                  }
                                >
                                  {getStatusText(job.status)}
                                </Badge>
