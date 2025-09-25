@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { departments, jobTitles } from "@/lib/data";
 import { useState } from "react";
 
@@ -59,7 +59,7 @@ export default function NewEmployeePage() {
   });
 
   const filteredJobTitles = selectedDepartment
-    ? jobTitles.filter(jt => jt.departmentId === selectedDepartment)
+    ? jobTitles.filter(jt => String(jt.department_id) === selectedDepartment)
     : [];
 
   function onSubmit(data: EmployeeFormValues) {
@@ -132,7 +132,7 @@ export default function NewEmployeePage() {
                       </FormControl>
                       <SelectContent>
                         {departments.map(dept => (
-                          <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                          <SelectItem key={dept.id} value={String(dept.id)}>{dept.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -154,7 +154,7 @@ export default function NewEmployeePage() {
                       </FormControl>
                       <SelectContent>
                         {filteredJobTitles.map(jt => (
-                          <SelectItem key={jt.id} value={jt.title}>{jt.title}</SelectItem>
+                          <SelectItem key={jt.id} value={String(jt.id)}>{jt.title}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

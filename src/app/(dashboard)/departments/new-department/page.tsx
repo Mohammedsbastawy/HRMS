@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 
 const departmentFormSchema = z.object({
   name: z.string().min(2, { message: "اسم القسم مطلوب." }),
@@ -39,7 +39,8 @@ export default function NewDepartmentPage() {
     resolver: zodResolver(departmentFormSchema),
   });
 
-  function onSubmit(data: DepartmentFormValues) {
+  async function onSubmit(data: DepartmentFormValues) {
+    // TODO: Send data to the server to be saved in the database
     console.log(data);
     toast({
       title: "تم إرسال النموذج بنجاح!",

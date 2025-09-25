@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { departments } from "@/lib/data";
 
 const jobTitleFormSchema = z.object({
@@ -83,7 +83,7 @@ export default function NewJobTitlePage() {
                     </FormControl>
                     <SelectContent>
                       {departments.map(dept => (
-                        <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                        <SelectItem key={dept.id} value={String(dept.id)}>{dept.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
