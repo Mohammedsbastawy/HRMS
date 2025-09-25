@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -13,9 +14,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, PlusCircle, CheckCircle, XCircle } from 'lucide-react';
-import { leaveRequests } from '@/lib/data';
+import type { LeaveRequest } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
+
+const leaveRequests: LeaveRequest[] = []; // Data is now empty
 
 export default function LeavesPage() {
   const getStatusVariant = (status: 'Pending' | 'Approved' | 'Rejected') => {
@@ -40,7 +43,7 @@ export default function LeavesPage() {
     }
   };
 
-  const getLeaveTypeText = (leaveType: 'Annual' | 'Sick' | 'Unpaid' | 'Maternity') => {
+  const getLeaveTypeText = (leaveType: 'Annual' | 'Sick' | 'Maternity' | 'Unpaid') => {
     switch (leaveType) {
       case 'Annual':
         return 'سنوية';
@@ -81,60 +84,72 @@ export default function LeavesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {leaveRequests.map((request) => (
-              <TableRow key={request.id}>
-                <TableCell>
-                  <div className="flex items-center gap-3 justify-end">
-                    <div className='text-right'>
-                      <div className="font-medium">{request.employeeName}</div>
-                      <div className="text-sm text-muted-foreground">{request.employeeId}</div>
+            {leaveRequests.length > 0 ? (
+              leaveRequests.map((request) => (
+                <TableRow key={request.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3 justify-end">
+                      <div className='text-right'>
+                        <div className="font-medium">{request.employee?.full_name}</div>
+                        <div className="text-sm text-muted-foreground">{request.employee_id}</div>
+                      </div>
+                      <Avatar>
+                        <AvatarImage src={request.employee?.avatar} alt={request.employee?.full_name} />
+                        <AvatarFallback>{request.employee?.full_name.charAt(0)}</AvatarFallback>
+                      </Avatar>
                     </div>
-                    <Avatar>
-                      <AvatarImage src={request.employeeAvatar} alt={request.employeeName} />
-                      <AvatarFallback>{request.employeeName.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                  </div>
-                </TableCell>
-                <TableCell>{getLeaveTypeText(request.leaveType)}</TableCell>
-                <TableCell>{`${new Date(request.startDate).toLocaleDateString('ar-EG')} - ${new Date(request.endDate).toLocaleDateString('ar-EG')}`}</TableCell>
-                <TableCell>
-                  <Badge 
-                    variant={getStatusVariant(request.status)}
-                    className={
-                        request.status === 'Approved' ? 'bg-green-100 text-green-800 border-green-200' 
-                      : request.status === 'Rejected' ? 'bg-red-100 text-red-800 border-red-200'
-                      : ''
-                    }
-                  >
-                    {getStatusText(request.status)}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button aria-haspopup="true" size="icon" variant="ghost">
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Toggle menu</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
-                      <DropdownMenuItem disabled={request.status !== 'Pending'}>
-                        <CheckCircle className="ml-2 h-4 w-4 text-green-500" />
-                        موافقة
-                      </DropdownMenuItem>
-                      <DropdownMenuItem disabled={request.status !== 'Pending'} className="text-destructive focus:text-destructive">
-                        <XCircle className="ml-2 h-4 w-4" />
-                        رفض
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  </TableCell>
+                  <TableCell>{request.leave_type ? getLeaveTypeText(request.leave_type) : 'N/A'}</TableCell>
+                  <TableCell>{request.start_date && request.end_date ? `${new Date(request.start_date).toLocaleDateString('ar-EG')} - ${new Date(request.end_date).toLocaleDateString('ar-EG')}` : 'N/A'}</TableCell>
+                  <TableCell>
+                    {request.status && (
+                      <Badge 
+                        variant={getStatusVariant(request.status)}
+                        className={
+                            request.status === 'Approved' ? 'bg-green-100 text-green-800 border-green-200' 
+                          : request.status === 'Rejected' ? 'bg-red-100 text-red-800 border-red-200'
+                          : ''
+                        }
+                      >
+                        {getStatusText(request.status)}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button aria-haspopup="true" size="icon" variant="ghost">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Toggle menu</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
+                        <DropdownMenuItem disabled={request.status !== 'Pending'}>
+                          <CheckCircle className="ml-2 h-4 w-4 text-green-500" />
+                          موافقة
+                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled={request.status !== 'Pending'} className="text-destructive focus:text-destructive">
+                          <XCircle className="ml-2 h-4 w-4" />
+                          رفض
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={5} className="h-24 text-center">
+                  لا توجد طلبات إجازة حاليًا.
                 </TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
       </CardContent>
     </Card>
   );
 }
+
+    

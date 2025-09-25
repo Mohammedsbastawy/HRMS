@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -14,24 +15,23 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, PlusCircle, Search, Trash2, Edit, Eye, ListFilter } from 'lucide-react';
-import { employees as initialEmployees } from '@/lib/data';
 import type { Employee } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 
 export default function EmployeesPage() {
-  const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
 
-  const departments = [...new Set(initialEmployees.map(e => e.department))];
-  const statuses = ['Active', 'On Leave', 'Terminated'];
+  const departments = [...new Set(employees.map(e => e.department?.name_en).filter(Boolean))];
+  const statuses = ['Active', 'Resigned', 'Terminated'];
   const statusTranslations: { [key: string]: string } = {
     Active: 'نشط',
-    'On Leave': 'في إجازة',
-    Terminated: 'معطل'
+    Resigned: 'مستقيل',
+    Terminated: 'منتهى خدمته'
   };
 
   const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<string[]>>) => (item: string) => {
@@ -41,10 +41,10 @@ export default function EmployeesPage() {
   };
   
   const filteredEmployees = employees.filter(employee => {
-    const matchesSearch = employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = employee.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           employee.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter.length === 0 || statusFilter.includes(employee.status);
-    const matchesDepartment = departmentFilter.length === 0 || departmentFilter.includes(employee.department);
+    const matchesStatus = statusFilter.length === 0 || (employee.status && statusFilter.includes(employee.status));
+    const matchesDepartment = departmentFilter.length === 0 || (employee.department?.name_en && departmentFilter.includes(employee.department.name_en));
     return matchesSearch && matchesStatus && matchesDepartment;
   });
 
@@ -123,60 +123,75 @@ export default function EmployeesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredEmployees.map((employee) => (
-              <TableRow key={employee.id}>
-                <TableCell className="font-medium">{employee.id}</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <Avatar>
-                      <AvatarImage src={employee.avatar} alt={employee.name} />
-                      <AvatarFallback>{employee.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <span>{employee.name}</span>
-                  </div>
-                </TableCell>
-                <TableCell>{employee.email}</TableCell>
-                <TableCell>{employee.department}</TableCell>
-                <TableCell>{employee.jobTitle}</TableCell>
-                <TableCell>{new Date(employee.hireDate).toLocaleDateString('ar-EG')}</TableCell>
-                <TableCell>
-                   <Badge 
-                    variant={employee.status === 'Active' ? 'default' : employee.status === 'On Leave' ? 'secondary' : 'destructive'}
-                    className={employee.status === 'Active' ? 'bg-green-500/20 text-green-700' : ''}
-                   >
-                    {statusTranslations[employee.status]}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button aria-haspopup="true" size="icon" variant="ghost">
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Toggle menu</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
-                      <DropdownMenuItem>
-                        <Eye className="ml-2 h-4 w-4" />
-                        عرض
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Edit className="ml-2 h-4 w-4" />
-                        تعديل
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive hover:!text-destructive">
-                        <Trash2 className="ml-2 h-4 w-4" />
-                        حذف
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+            {filteredEmployees.length > 0 ? (
+              filteredEmployees.map((employee) => (
+                <TableRow key={employee.id}>
+                  <TableCell className="font-medium">{employee.id}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar>
+                        <AvatarImage src={employee.avatar} alt={employee.full_name} />
+                        <AvatarFallback>{employee.full_name.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <span>{employee.full_name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>{employee.email}</TableCell>
+                  <TableCell>{employee.department?.name_ar || 'N/A'}</TableCell>
+                  <TableCell>{employee.jobTitle?.title_ar || 'N/A'}</TableCell>
+                  <TableCell>{employee.hire_date ? new Date(employee.hire_date).toLocaleDateString('ar-EG') : 'N/A'}</TableCell>
+                  <TableCell>
+                    {employee.status && (
+                      <Badge 
+                        variant={employee.status === 'Active' ? 'default' : 'destructive'}
+                        className={employee.status === 'Active' ? 'bg-green-500/20 text-green-700' : ''}
+                      >
+                        {statusTranslations[employee.status] || employee.status}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button aria-haspopup="true" size="icon" variant="ghost">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Toggle menu</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
+                        <DropdownMenuItem>
+                          <Eye className="ml-2 h-4 w-4" />
+                          عرض
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <Edit className="ml-2 h-4 w-4" />
+                          تعديل
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive hover:!text-destructive">
+                          <Trash2 className="ml-2 h-4 w-4" />
+                          حذف
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={8} className="h-24 text-center">
+                  لا يوجد موظفون حتى الآن.
+                  <Button variant="link" asChild className="mt-2 block">
+                    <Link href="/employees/new">ابدأ بإضافة موظف جديد</Link>
+                  </Button>
                 </TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
       </CardContent>
     </Card>
   );
 }
+
+    

@@ -1,3 +1,4 @@
+
 import {
   Card,
   CardContent,
@@ -13,33 +14,37 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  ArrowUpRight,
   Users,
   CalendarCheck,
   Briefcase,
   Star,
 } from 'lucide-react';
-import { employees, leaveRequests, applicants, performanceReviews } from '@/lib/data';
-import Image from 'next/image';
+import type { Employee, LeaveRequest, Applicant, PerformanceReview } from '@/lib/types';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
+const employees: Employee[] = [];
+const leaveRequests: LeaveRequest[] = [];
+const applicants: Applicant[] = [];
+const performanceReviews: PerformanceReview[] = [];
+
+const averagePerformance = performanceReviews.length > 0 
+  ? (performanceReviews.reduce((acc, r) => acc + r.score, 0) / performanceReviews.length).toFixed(1) 
+  : 0;
+
 const stats = [
-  { title: 'إجمالي الموظفين', value: employees.length, icon: Users, change: '+2 هذا الشهر' },
-  { title: 'طلبات الإجازة المعلقة', value: leaveRequests.filter(l => l.status === 'Pending').length, icon: CalendarCheck, change: '3 موافق عليها' },
-  { title: 'وظائف شاغرة', value: applicants.filter(a => a.stage !== 'Hired' && a.stage !== 'Rejected').length, icon: Briefcase, change: '+1 جديدة' },
-  { title: 'متوسط ​​تقييم الأداء', value: (performanceReviews.reduce((acc, r) => acc + r.score, 0) / performanceReviews.length).toFixed(1), icon: Star, change: '+0.1 عن الربع الماضي' },
+  { title: 'إجمالي الموظفين', value: employees.length, icon: Users, change: '+0 هذا الشهر' },
+  { title: 'طلبات الإجازة المعلقة', value: leaveRequests.filter(l => l.status === 'Pending').length, icon: CalendarCheck, change: '0 موافق عليها' },
+  { title: 'وظائف شاغرة', value: applicants.filter(a => a.stage !== 'Hired' && a.stage !== 'Rejected').length, icon: Briefcase, change: '+0 جديدة' },
+  { title: 'متوسط تقييم الأداء', value: averagePerformance, icon: Star, change: '+0.0 عن الربع الماضي' },
 ];
 
 export default function DashboardPage() {
   const pendingLeaves = leaveRequests.filter(l => l.status === 'Pending').slice(0, 5);
   const recentActivities = [
-    { text: 'تمت الموافقة على إجازة فاطمة محمد', time: 'منذ 5 دقائق' },
-    { text: 'تمت إضافة مرشح جديد "خالد الغامدي"', time: 'منذ ساعتين' },
-    { text: 'تم إنشاء كشف رواتب شهر يوليو', time: 'منذ يوم واحد' },
+    // This can be populated from a database later
   ];
 
   return (
@@ -77,25 +82,33 @@ export default function DashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pendingLeaves.map(leave => (
-                    <TableRow key={leave.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Avatar>
-                            <AvatarImage src={leave.employeeAvatar} alt={leave.employeeName} />
-                            <AvatarFallback>{leave.employeeName.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <div className="font-medium">{leave.employeeName}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{leave.leaveType}</TableCell>
-                      <TableCell className="text-left">
-                         <Button asChild size="sm" variant="outline">
-                           <Link href="/leaves">مراجعة</Link>
-                         </Button>
+                  {pendingLeaves.length > 0 ? (
+                    pendingLeaves.map(leave => (
+                      <TableRow key={leave.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Avatar>
+                              <AvatarImage src={leave.employee?.avatar} alt={leave.employee?.full_name} />
+                              <AvatarFallback>{leave.employee?.full_name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div className="font-medium">{leave.employee?.full_name}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{leave.leave_type}</TableCell>
+                        <TableCell className="text-left">
+                           <Button asChild size="sm" variant="outline">
+                             <Link href="/leaves">مراجعة</Link>
+                           </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={3} className="h-24 text-center">
+                        لا توجد طلبات إجازة معلقة.
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -108,14 +121,20 @@ export default function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-8">
-              {recentActivities.map((activity, index) => (
-                <div key={index} className="flex items-center gap-4">
-                  <div className="grid gap-1">
-                    <p className="text-sm font-medium leading-none">{activity.text}</p>
-                    <p className="text-sm text-muted-foreground">{activity.time}</p>
+              {recentActivities.length > 0 ? (
+                recentActivities.map((activity, index) => (
+                  <div key={index} className="flex items-center gap-4">
+                    <div className="grid gap-1">
+                      <p className="text-sm font-medium leading-none">{'text' in activity ? activity.text : ''}</p>
+                      <p className="text-sm text-muted-foreground">{'time' in activity ? activity.time : ''}</p>
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="text-center text-muted-foreground py-10">
+                  لا توجد أنشطة حديثة لعرضها.
                 </div>
-              ))}
+              )}
             </CardContent>
           </Card>
         </div>
@@ -123,3 +142,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    

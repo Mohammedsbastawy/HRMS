@@ -1,4 +1,5 @@
 
+
 import {
   Table,
   TableBody,
@@ -12,6 +13,10 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle, Edit, Trash2 } from 'lucide-react';
 import { departments, jobTitles } from '@/lib/data';
 import Link from 'next/link';
+import type { Department, JobTitle } from '@/lib/types';
+
+const allDepartments: Department[] = [];
+const allJobTitles: JobTitle[] = [];
 
 export default function DepartmentsPage() {
   return (
@@ -41,22 +46,33 @@ export default function DepartmentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {departments.map((dept) => (
-                <TableRow key={dept.id}>
-                  <TableCell className="font-medium">{dept.name_ar}</TableCell>
-                  <TableCell>{dept.name_en}</TableCell>
-                  <TableCell>{dept.description}</TableCell>
-                  <TableCell>{jobTitles.filter(jt => jt.department_id === dept.id).length}</TableCell>
-                  <TableCell className="flex justify-end gap-2">
-                    <Button variant="ghost" size="icon">
-                        <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
+              {allDepartments.length > 0 ? (
+                allDepartments.map((dept) => (
+                  <TableRow key={dept.id}>
+                    <TableCell className="font-medium">{dept.name_ar}</TableCell>
+                    <TableCell>{dept.name_en}</TableCell>
+                    <TableCell>{dept.description}</TableCell>
+                    <TableCell>{allJobTitles.filter(jt => jt.department_id === dept.id).length}</TableCell>
+                    <TableCell className="flex justify-end gap-2">
+                      <Button variant="ghost" size="icon">
+                          <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-24 text-center">
+                    لا توجد أقسام حتى الآن.
+                    <Button variant="link" asChild className="mt-2 block">
+                      <Link href="/departments/new-department">ابدأ بإضافة قسم جديد</Link>
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -86,8 +102,9 @@ export default function DepartmentsPage() {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {jobTitles.map(jt => {
-                        const dept = departments.find(d => d.id === jt.department_id);
+                  {allJobTitles.length > 0 ? (
+                    allJobTitles.map(jt => {
+                        const dept = allDepartments.find(d => d.id === jt.department_id);
                         return (
                             <TableRow key={jt.id}>
                                 <TableCell className="font-medium">{jt.title_ar}</TableCell>
@@ -103,7 +120,17 @@ export default function DepartmentsPage() {
                                 </TableCell>
                             </TableRow>
                         )
-                    })}
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={4} className="h-24 text-center">
+                        لا توجد مسميات وظيفية حتى الآن.
+                        <Button variant="link" asChild className="mt-2 block">
+                          <Link href="/departments/new-job-title">ابدأ بإضافة مسمى وظيفي جديد</Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
             </Table>
         </CardContent>
@@ -111,3 +138,5 @@ export default function DepartmentsPage() {
     </div>
   );
 }
+
+    
