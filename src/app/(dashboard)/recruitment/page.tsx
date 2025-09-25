@@ -132,7 +132,12 @@ export default function RecruitmentPage() {
                             <TableCell className="font-medium">{job.title}</TableCell>
                             <TableCell>{job.department}</TableCell>
                             <TableCell>
-                               <Badge variant={getStatusVariant(job.status)}>{getStatusText(job.status)}</Badge>
+                               <Badge 
+                                 variant={getStatusVariant(job.status)}
+                                 className={job.status === 'Open' ? 'bg-green-500/20 text-green-700 border-green-500/30' : ''}
+                               >
+                                 {getStatusText(job.status)}
+                               </Badge>
                             </TableCell>
                             <TableCell>{job.postedDate}</TableCell>
                             <TableCell className="flex justify-end gap-2">
