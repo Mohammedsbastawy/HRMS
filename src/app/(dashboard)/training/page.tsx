@@ -8,59 +8,76 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { trainingRecords, employees, performanceReviews } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
 import { TrainingAnalysis } from '@/components/dashboard/training-analysis';
+import db from '@/lib/db';
+import type { TrainingRecord, Employee, PerformanceReview } from '@/lib/types';
+
 
 export default function TrainingPage() {
-  const getStatusVariant = (status: 'Completed' | 'In Progress' | 'Not Started') => {
+  const trainingRecords: any[] = (() => {
+    try {
+        return db.prepare(`
+            SELECT tr.*, e.full_name as employeeName, tc.title as courseTitle
+            FROM training_records tr
+            JOIN employees e ON tr.employee_id = e.id
+            JOIN training_courses tc ON tr.course_id = tc.id
+        `).all();
+    } catch(e) {
+        return [];
+    }
+  })();
+  
+  const employees: Employee[] = (() => {
+    try {
+        return db.prepare('SELECT * FROM employees').all() as Employee[];
+    } catch(e) {
+        return [];
+    }
+  })();
+  
+  const performanceReviews: PerformanceReview[] = (() => {
+    try {
+        return db.prepare('SELECT * FROM performance_reviews').all() as PerformanceReview[];
+    } catch(e) {
+        return [];
+    }
+  })();
+
+
+  const getStatusVariant = (status: 'Enrolled' | 'In Progress' | 'Completed' | 'Failed') => {
     switch (status) {
       case 'Completed':
         return 'default';
       case 'In Progress':
         return 'secondary';
-      case 'Not Started':
+      default:
         return 'outline';
     }
   };
   
-  const getStatusText = (status: 'Completed' | 'In Progress' | 'Not Started') => {
+  const getStatusText = (status: 'Enrolled' | 'In Progress' | 'Completed' | 'Failed') => {
     switch (status) {
       case 'Completed':
         return 'مكتمل';
       case 'In Progress':
         return 'قيد التنفيذ';
-      case 'Not Started':
-        return 'لم يبدأ';
+      case 'Enrolled':
+        return 'مسجل';
+      case 'Failed':
+        return 'فشل';
     }
   };
   
-  const getOutcomeVariant = (outcome: 'Exceeded Expectations' | 'Met Expectations' | 'Did Not Meet Expectations' | 'N/A') => {
-    switch (outcome) {
-      case 'Exceeded Expectations':
-        return 'default';
-      case 'Met Expectations':
-        return 'secondary';
-      case 'Did Not Meet Expectations':
-        return 'destructive';
-      default:
-        return 'outline';
-    }
+  const getOutcomeVariant = (outcome: string | null) => {
+    // This is just an example. You can define your own logic.
+    if (!outcome) return 'outline';
+    const score = parseFloat(outcome);
+    if (score > 85) return 'default';
+    if (score > 60) return 'secondary';
+    return 'destructive';
   };
   
-  const getOutcomeText = (outcome: 'Exceeded Expectations' | 'Met Expectations' | 'Did Not Meet Expectations' | 'N/A') => {
-    switch (outcome) {
-      case 'Exceeded Expectations':
-        return 'تجاوز التوقعات';
-      case 'Met Expectations':
-        return 'حقق التوقعات';
-      case 'Did Not Meet Expectations':
-        return 'لم يحقق التوقعات';
-      default:
-        return 'N/A';
-    }
-  };
-
 
   return (
     <Card>
@@ -81,9 +98,9 @@ export default function TrainingPage() {
           </TableHeader>
           <TableBody>
             {trainingRecords.map((record) => {
-              const employee = employees.find(e => e.id === record.employeeId);
-              const review = performanceReviews.find(r => r.employeeId === record.employeeId);
-              if (!employee || !review) return null;
+              const employee = employees.find(e => e.id === record.employee_id);
+              const review = performanceReviews.find(r => r.employee_id === record.employee_id);
+              if (!employee) return null;
 
               return (
                 <TableRow key={record.id}>
@@ -93,13 +110,13 @@ export default function TrainingPage() {
                     <Badge variant={getStatusVariant(record.status)}>{getStatusText(record.status)}</Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={getOutcomeVariant(record.outcome)}>{getOutcomeText(record.outcome)}</Badge>
+                    {record.result && <Badge variant={getOutcomeVariant(record.result)}>{record.result}</Badge>}
                   </TableCell>
                   <TableCell>
                     <TrainingAnalysis 
                       record={record} 
                       employee={employee}
-                      performanceReviewComments={review.comments}
+                      performanceReviewComments={review?.comments || ''}
                     />
                   </TableCell>
                 </TableRow>

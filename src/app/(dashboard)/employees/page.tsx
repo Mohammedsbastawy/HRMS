@@ -1,4 +1,3 @@
-
 // This is the main page component, a Server Component
 import db from '@/lib/db';
 import type { Employee } from '@/lib/types';

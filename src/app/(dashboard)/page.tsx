@@ -24,28 +24,75 @@ import {
 import type { Employee, LeaveRequest, Applicant, PerformanceReview } from '@/lib/types';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-
-const employees: Employee[] = [];
-const leaveRequests: LeaveRequest[] = [];
-const applicants: Applicant[] = [];
-const performanceReviews: PerformanceReview[] = [];
-
-const averagePerformance = performanceReviews.length > 0 
-  ? (performanceReviews.reduce((acc, r) => acc + r.score, 0) / performanceReviews.length).toFixed(1) 
-  : 0;
-
-const stats = [
-  { title: 'إجمالي الموظفين', value: employees.length, icon: Users, change: '+0 هذا الشهر' },
-  { title: 'طلبات الإجازة المعلقة', value: leaveRequests.filter(l => l.status === 'Pending').length, icon: CalendarCheck, change: '0 موافق عليها' },
-  { title: 'وظائف شاغرة', value: applicants.filter(a => a.stage !== 'Hired' && a.stage !== 'Rejected').length, icon: Briefcase, change: '+0 جديدة' },
-  { title: 'متوسط تقييم الأداء', value: averagePerformance, icon: Star, change: '+0.0 عن الربع الماضي' },
-];
+import db from '@/lib/db';
 
 export default function DashboardPage() {
-  const pendingLeaves = leaveRequests.filter(l => l.status === 'Pending').slice(0, 5);
-  const recentActivities = [
-    // This can be populated from a database later
+
+  const employees: Employee[] = (() => {
+    try {
+      return db.prepare('SELECT * FROM employees').all() as Employee[];
+    } catch(e) {
+      return [];
+    }
+  })();
+  const leaveRequests: LeaveRequest[] = (() => {
+    try {
+      const data = db.prepare(`
+        SELECT lr.*, e.full_name, e.avatar 
+        FROM leave_requests lr 
+        JOIN employees e ON lr.employee_id = e.id
+      `).all();
+      return data.map(lr => ({ ...lr, employee: { full_name: (lr as any).full_name, avatar: (lr as any).avatar } })) as LeaveRequest[];
+    } catch(e) {
+      return [];
+    }
+  })();
+  const applicants: Applicant[] = (() => {
+    try {
+      return db.prepare('SELECT * FROM applicants').all() as Applicant[];
+    } catch(e) {
+      return [];
+    }
+  })();
+  const performanceReviews: PerformanceReview[] = (() => {
+    try {
+      return db.prepare('SELECT * FROM performance_reviews').all() as PerformanceReview[];
+    } catch(e) {
+      return [];
+    }
+  })();
+  const jobs: any[] = (() => {
+    try {
+      return db.prepare('SELECT * FROM jobs WHERE status = \'Open\'').all();
+    } catch(e) {
+      return [];
+    }
+  })();
+
+
+  const averagePerformance = performanceReviews.length > 0 
+    ? (performanceReviews.reduce((acc, r) => acc + r.score, 0) / performanceReviews.length).toFixed(1) 
+    : 0;
+
+  const stats = [
+    { title: 'إجمالي الموظفين', value: employees.length, icon: Users, change: `+${employees.filter(e => new Date(e.hire_date || 0).getMonth() === new Date().getMonth()).length} هذا الشهر` },
+    { title: 'طلبات الإجازة المعلقة', value: leaveRequests.filter(l => l.status === 'Pending').length, icon: CalendarCheck, change: `${leaveRequests.filter(l => l.status === 'Approved').length} موافق عليها` },
+    { title: 'وظائف شاغرة', value: jobs.length, icon: Briefcase, change: `+${jobs.filter(j => new Date(j.created_at || 0).getMonth() === new Date().getMonth()).length} جديدة` },
+    { title: 'متوسط تقييم الأداء', value: averagePerformance, icon: Star, change: 'مقارنة بالربع الماضي' },
   ];
+  const pendingLeaves = leaveRequests.filter(l => l.status === 'Pending').slice(0, 5);
+  
+  const recentActivities: any[] = (() => {
+      try {
+        const logs = db.prepare('SELECT al.*, u.username FROM audit_logs al JOIN users u ON al.user_id = u.id ORDER BY al.timestamp DESC LIMIT 5').all();
+        return logs.map(log => ({
+            text: `${(log as any).username} قام بـ ${log.action}`,
+            time: new Date(log.timestamp).toLocaleString('ar-EG'),
+        }));
+      } catch(e) {
+        return [];
+      }
+  })();
 
   return (
     <div className="flex min-h-screen w-full flex-col">
@@ -86,12 +133,12 @@ export default function DashboardPage() {
                     pendingLeaves.map(leave => (
                       <TableRow key={leave.id}>
                         <TableCell>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center justify-end gap-2">
+                            <span>{leave.employee?.full_name}</span>
                             <Avatar>
                               <AvatarImage src={leave.employee?.avatar} alt={leave.employee?.full_name} />
-                              <AvatarFallback>{leave.employee?.full_name.charAt(0)}</AvatarFallback>
+                              <AvatarFallback>{leave.employee?.full_name?.charAt(0)}</AvatarFallback>
                             </Avatar>
-                            <div className="font-medium">{leave.employee?.full_name}</div>
                           </div>
                         </TableCell>
                         <TableCell>{leave.leave_type}</TableCell>
@@ -125,8 +172,8 @@ export default function DashboardPage() {
                 recentActivities.map((activity, index) => (
                   <div key={index} className="flex items-center gap-4">
                     <div className="grid gap-1">
-                      <p className="text-sm font-medium leading-none">{'text' in activity ? activity.text : ''}</p>
-                      <p className="text-sm text-muted-foreground">{'time' in activity ? activity.time : ''}</p>
+                      <p className="text-sm font-medium leading-none">{activity.text}</p>
+                      <p className="text-sm text-muted-foreground">{activity.time}</p>
                     </div>
                   </div>
                 ))
@@ -142,5 +189,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    

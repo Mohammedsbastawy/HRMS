@@ -9,10 +9,22 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { MoreHorizontal, Download } from 'lucide-react';
-import { payrolls, employees } from '@/lib/data';
-import Link from 'next/link';
+import db from '@/lib/db';
+import type { Payroll } from '@/lib/types';
 
 export default function PayrollPage() {
+  const payrolls: any[] = (() => {
+    try {
+      return db.prepare(`
+        SELECT p.*, e.full_name as employeeName 
+        FROM payrolls p 
+        JOIN employees e ON p.employee_id = e.id
+      `).all();
+    } catch(e) {
+      return [];
+    }
+  })();
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -39,14 +51,21 @@ export default function PayrollPage() {
           </TableHeader>
           <TableBody>
             {payrolls.map((payroll) => {
-              const employee = employees.find(e => e.id === payroll.employeeId);
               return (
                 <TableRow key={payroll.id}>
                   <TableCell className="font-medium">{payroll.employeeName}</TableCell>
-                  <TableCell>${payroll.baseSalary.toLocaleString()}</TableCell>
-                  <TableCell className="text-green-600">+${payroll.bonus.toLocaleString()}</TableCell>
-                  <TableCell className="text-destructive">-${payroll.deductions.toLocaleString()}</TableCell>
-                  <TableCell className="font-semibold">${payroll.netSalary.toLocaleString()}</TableCell>
+                  <TableCell>
+                    {new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(payroll.base_salary)}
+                  </TableCell>
+                  <TableCell className="text-green-600">
+                    +{new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(payroll.overtime)}
+                  </TableCell>
+                  <TableCell className="text-destructive">
+                    -{new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(payroll.deductions)}
+                  </TableCell>
+                  <TableCell className="font-semibold">
+                    {new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(payroll.net_salary)}
+                  </TableCell>
                   <TableCell>
                     <Button variant="outline" size="sm">عرض القسيمة</Button>
                   </TableCell>

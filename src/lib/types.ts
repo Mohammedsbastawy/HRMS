@@ -1,5 +1,3 @@
-
-
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -49,8 +47,8 @@ export type Employee = {
   social_insurance_number?: string | null;
   status?: 'Active' | 'Resigned' | 'Terminated';
   avatar?: string;
-  department?: Department; // For UI display
-  jobTitle?: JobTitle; // For UI display
+  department?: Partial<Department>; // For UI display
+  jobTitle?: Partial<JobTitle>; // For UI display
 };
 
 export type User = {
@@ -90,13 +88,14 @@ export type LeaveRequest = {
   status: 'Pending' | 'Approved' | 'Rejected';
   approved_by?: number | null;
   notes?: string | null;
-  employee: Employee; // For UI display
+  employee: Partial<Employee>; // For UI display
 };
 
 export type Payroll = {
   id: number;
   employee_id: number;
   month: string;
+  year: number;
   base_salary: number;
   overtime?: number;
   deductions?: number;
@@ -104,7 +103,8 @@ export type Payroll = {
   insurance?: number;
   net_salary: number;
   generated_at?: string;
-  employee?: Employee; // For UI display
+  status?: string;
+  employee?: Partial<Employee>; // For UI display
 };
 
 export type PerformanceReview = {
@@ -114,7 +114,7 @@ export type PerformanceReview = {
   score: number;
   reviewer_id?: number | null;
   comments?: string | null;
-  employee?: Employee; // For UI display
+  employee?: Partial<Employee>; // For UI display
 };
 
 export type Job = {
@@ -124,7 +124,7 @@ export type Job = {
   department_id?: number | null;
   status?: 'Open' | 'Closed' | 'On-Hold';
   created_at?: string;
-  department?: Department; // For UI display
+  department?: Partial<Department>; // For UI display
 };
 
 export type Applicant = {
@@ -138,7 +138,7 @@ export type Applicant = {
   applied_at?: string;
   notes?: string | null;
   avatar?: string; // For UI display
-  job?: Job; // For UI display
+  job?: Partial<Job>; // For UI display
 };
 
 export type TrainingCourse = {
@@ -155,26 +155,22 @@ export type TrainingRecord = {
   course_id: number;
   status?: 'Enrolled' | 'In Progress' | 'Completed' | 'Failed';
   result?: string | null;
-  employee?: Employee; // For UI display
-  course?: TrainingCourse; // For UI display
-  outcome?: 'Exceeded Expectations' | 'Met Expectations' | 'Did Not Meet Expectations' | 'N/A'; // For UI
+  employee?: Partial<Employee>; // For UI display
+  course?: Partial<TrainingCourse>; // For UI display
 };
 
 export type SystemSettings = {
-  id: number;
-  tax_rate?: number;
-  insurance_rate?: number;
-  other_deductions?: number;
-  effective_from?: string;
+  key: string;
+  value: string;
 };
 
 export type AuditLog = {
   id: number;
   user_id?: number | null;
-  action?: string | null;
-  timestamp?: string;
-  user?: User; // for UI display
-  details?: string; // for UI display
+  action: string;
+  details?: string | null;
+  timestamp: string;
+  user?: Partial<User>; // for UI display
 };
 
 export type Location = {
@@ -191,5 +187,5 @@ export type Location = {
   manager_id?: number | null;
   created_at?: string;
   updated_at?: string;
-  manager?: Employee; // for UI display
+  manager?: Partial<Employee>; // for UI display
 };
