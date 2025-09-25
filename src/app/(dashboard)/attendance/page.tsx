@@ -10,7 +10,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { attendance as initialAttendance } from '@/lib/data';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +20,13 @@ import type { Attendance } from '@/lib/types';
 import Link from 'next/link';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Terminal } from 'lucide-react';
+import { employees } from '@/lib/data';
+
+// Mock data for initial display or fallback
+const initialAttendance: Attendance[] = [
+    // This will be populated dynamically
+];
+
 
 export default function AttendancePage() {
   const [attendance, setAttendance] = useState<Attendance[]>(initialAttendance);
@@ -56,13 +62,16 @@ export default function AttendancePage() {
 
       const result = await response.json();
       
-      if (response.ok) {
+      if (response.ok || result.records) {
         toast({
-          title: 'نجاح المزامنة',
+          title: response.ok ? 'نجاح المزامنة' : 'تحذير',
           description: result.message || `تمت مزامنة ${result.records?.length || 0} سجل بنجاح.`,
+          variant: response.ok ? 'default' : 'destructive'
         });
+        
         // In a real app, you would process result.records and update state
         console.log('Synced Records:', result.records);
+        // For now, let's just log it. A proper implementation would update the state.
       } else {
         throw new Error(result.message || 'فشل في بدء المزامنة');
       }
@@ -117,38 +126,46 @@ export default function AttendancePage() {
                   <TableHead className="text-right">الموظف</TableHead>
                   <TableHead className="text-right">تسجيل الدخول</TableHead>
                   <TableHead className="text-right">تسجيل الخروج</TableHead>
-                  <TableHead className="text-right">ساعات العمل</TableHead>
+                  <TableHead className="text-right">الحالة</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {attendance.map((record) => (
-                  <TableRow key={record.id}>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-3">
-                        <span>{record.employeeName}</span>
-                        <Avatar>
-                          <AvatarImage src={record.employeeAvatar} alt={record.employeeName} />
-                          <AvatarFallback>{record.employeeName.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                      </div>
+                {attendance.length > 0 ? (
+                  attendance.map((record) => (
+                    <TableRow key={record.id}>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-3">
+                          <span>{record.employeeName}</span>
+                          <Avatar>
+                            <AvatarImage src={record.employeeAvatar} alt={record.employeeName} />
+                            <AvatarFallback>{record.employeeName.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {record.checkIn ? (
+                          <Badge variant="secondary">{record.checkIn}</Badge>
+                        ) : (
+                          <Badge variant="outline">غائب</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {record.checkOut ? (
+                          <Badge variant="secondary">{record.checkOut}</Badge>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
+                      <TableCell className="font-medium text-right">{record.status}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-24 text-center">
+                      لم يتم تسجيل أي حضور اليوم.
                     </TableCell>
-                    <TableCell>
-                      {record.checkIn ? (
-                        <Badge variant="secondary">{record.checkIn}</Badge>
-                      ) : (
-                        <Badge variant="outline">غائب</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {record.checkOut ? (
-                        <Badge variant="secondary">{record.checkOut}</Badge>
-                      ) : (
-                        '-'
-                      )}
-                    </TableCell>
-                    <TableCell className="font-medium text-right">{record.workedHours.toFixed(2)}</TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </CardContent>

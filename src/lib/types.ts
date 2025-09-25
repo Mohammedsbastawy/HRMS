@@ -72,13 +72,11 @@ export type Document = {
 
 export type Attendance = {
   id: number;
-  employeeId: number;
-  date: string;
-  checkIn?: string;
-  checkOut?: string;
-  workedHours: number;
   employeeName: string;
   employeeAvatar: string;
+  checkIn: string | null;
+  checkOut: string | null;
+  status: 'Present' | 'Absent' | 'On Leave' | 'Late';
 };
 
 export type LeaveRequest = {
@@ -187,5 +185,3 @@ export type Location = {
   updated_at?: string;
   manager?: Employee; // for UI display
 };
-
-    
