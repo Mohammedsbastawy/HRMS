@@ -1,27 +1,26 @@
 
+export type Department = {
+  id: string;
+  name: string;
+  description?: string;
+};
+
+export type JobTitle = {
+  id:string;
+  title: string;
+  departmentId: string;
+}
+
 export type Employee = {
   id: string;
   name: string;
   avatar: string;
   email: string;
-  jobTitle: string;
-  department: string;
+  jobTitleId: string;
+  departmentId: string;
   status: 'Active' | 'On Leave' | 'Terminated';
   hireDate: string;
   salary: number;
-  performanceReviewScore: number;
-};
-
-export type Department = {
-  id: string;
-  name: string;
-  description: string;
-};
-
-export type JobTitle = {
-  id: string;
-  departmentId: string;
-  title: string;
 };
 
 export type Attendance = {
@@ -49,7 +48,7 @@ export type LeaveRequest = {
 export type Payroll = {
   id: string;
   employeeId: string;
-  employeeName: string;
+  employeeName:string;
   period: string;
   baseSalary: number;
   bonus: number;
@@ -107,5 +106,3 @@ export type AuditLog = {
   timestamp: string;
   details: string;
 };
-
-
