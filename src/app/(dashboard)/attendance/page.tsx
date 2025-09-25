@@ -21,12 +21,6 @@ import Link from 'next/link';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Terminal } from 'lucide-react';
 
-// This is a wrapper for the main page to fetch data on the server
-const AttendancePageWrapper = ({ employees }: { employees: Employee[] }) => {
-    return <AttendancePageClient employees={employees} />;
-}
-
-
 // The main component is now a client component
 const AttendancePageClient = ({ employees }: { employees: Employee[] }) => {
   const [attendance, setAttendance] = useState<Attendance[]>([]);
@@ -262,5 +256,5 @@ function processAttendanceRecords(records: any[], employees: Employee[]): Attend
 import db from '@/lib/db';
 export default function AttendanceDataPage() {
     const employees: Employee[] = db.prepare('SELECT id, full_name, avatar FROM employees').all() as Employee[];
-    return <AttendancePageWrapper employees={employees} />;
+    return <AttendancePageClient employees={employees} />;
 }
