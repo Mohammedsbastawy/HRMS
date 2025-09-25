@@ -105,7 +105,7 @@ export default function RecruitmentPage() {
                      />
                 </div>
                 <Button asChild size="sm" className="gap-1">
-                <Link href="#">
+                <Link href="/recruitment/new-job">
                     <PlusCircle className="h-3.5 w-3.5" />
                     <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">إضافة وظيفة</span>
                 </Link>
@@ -117,12 +117,12 @@ export default function RecruitmentPage() {
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead className="text-right">الرقم</TableHead>
-                        <TableHead className="text-right">المسمى الوظيفي</TableHead>
-                        <TableHead className="text-right">القسم</TableHead>
-                        <TableHead className="text-right">الحالة</TableHead>
-                        <TableHead className="text-right">تاريخ النشر</TableHead>
-                        <TableHead className="text-right">إجراءات</TableHead>
+                        <TableHead className="text-right text-destructive">الرقم</TableHead>
+                        <TableHead className="text-right text-destructive">المسمى الوظيفي</TableHead>
+                        <TableHead className="text-right text-destructive">القسم</TableHead>
+                        <TableHead className="text-right text-destructive">الحالة</TableHead>
+                        <TableHead className="text-right text-destructive">تاريخ النشر</TableHead>
+                        <TableHead className="text-right text-destructive">إجراءات</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
