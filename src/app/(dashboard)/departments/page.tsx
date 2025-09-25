@@ -1,3 +1,4 @@
+
 import {
   Table,
   TableBody,
@@ -8,10 +9,9 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2 } from 'lucide-react';
 import { departments, jobTitles } from '@/lib/data';
 import Link from 'next/link';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 export default function DepartmentsPage() {
   return (
@@ -23,7 +23,7 @@ export default function DepartmentsPage() {
             <CardDescription>عرض وتعديل أقسام الشركة.</CardDescription>
           </div>
           <Button asChild size="sm" className="gap-1">
-            <Link href="#">
+            <Link href="/departments/new-department">
               <PlusCircle className="h-3.5 w-3.5" />
               <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">إضافة قسم</span>
             </Link>
@@ -67,7 +67,7 @@ export default function DepartmentsPage() {
                 <CardDescription>عرض وتعديل المسميات الوظيفية لكل قسم.</CardDescription>
             </div>
              <Button asChild size="sm" className="gap-1">
-                <Link href="#">
+                <Link href="/departments/new-job-title">
                     <PlusCircle className="h-3.5 w-3.5" />
                     <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">إضافة مسمى وظيفي</span>
                 </Link>
