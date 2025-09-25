@@ -1,3 +1,4 @@
+
 import db from '@/lib/db';
 import type { Employee, LeaveRequest } from '@/lib/types';
 import { LeaveRequestClientPage } from './_components/leaves-client';
@@ -5,15 +6,25 @@ import { LeaveRequestClientPage } from './_components/leaves-client';
 // This is the main Server Component page
 export default function LeavesPage() {
     
-    const leaveRequestsData: any[] = db.prepare(`
-        SELECT * FROM leave_requests ORDER BY created_at DESC
-    `).all();
+    const leaveRequestsData: any[] = (() => {
+        try {
+            return db.prepare(`SELECT * FROM leave_requests ORDER BY created_at DESC`).all();
+        } catch (e) {
+            console.error(e);
+            return [];
+        }
+    })();
+    
 
     const employeeIds = [...new Set(leaveRequestsData.map(lr => lr.employee_id))];
     let employees: Employee[] = [];
     if (employeeIds.length > 0) {
-        const placeholders = employeeIds.map(() => '?').join(',');
-        employees = db.prepare(`SELECT id, full_name, avatar FROM employees WHERE id IN (${placeholders})`).all(employeeIds) as Employee[];
+        try {
+            const placeholders = employeeIds.map(() => '?').join(',');
+            employees = db.prepare(`SELECT id, full_name, avatar FROM employees WHERE id IN (${placeholders})`).all(employeeIds) as Employee[];
+        } catch (e) {
+            console.error(e);
+        }
     }
     
     const employeesMap = new Map(employees.map(e => [e.id, e]));

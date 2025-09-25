@@ -19,29 +19,35 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { approveLeaveRequest, rejectLeaveRequest } from '@/lib/actions';
 import { useToast } from '@/components/ui/use-toast';
+import { startTransition } from 'react';
 
 
 export function LeaveRequestClientPage({ leaveRequests }: { leaveRequests: LeaveRequest[] }) {
   const { toast } = useToast();
 
-  const handleApprove = async (id: number) => {
-    const result = await approveLeaveRequest(id);
-    toast({
-      title: result.success ? 'تمت الموافقة' : 'خطأ',
-      description: result.message,
-      variant: result.success ? 'default' : 'destructive',
+  const handleApprove = (id: number) => {
+    startTransition(() => {
+        approveLeaveRequest(id).then(result => {
+            toast({
+              title: result.success ? 'تمت الموافقة' : 'خطأ',
+              description: result.message,
+              variant: result.success ? 'default' : 'destructive',
+            });
+        });
     });
   };
 
-  const handleReject = async (id: number) => {
-    // For simplicity, we'll use a prompt. A modal would be better for a real app.
+  const handleReject = (id: number) => {
     const notes = prompt('يرجى إدخال سبب الرفض:');
     if (notes !== null) { // prompt returns null if cancelled
-      const result = await rejectLeaveRequest(id, notes);
-      toast({
-        title: result.success ? 'تم الرفض' : 'خطأ',
-        description: result.message,
-        variant: result.success ? 'default' : 'destructive',
+      startTransition(() => {
+        rejectLeaveRequest(id, notes).then(result => {
+            toast({
+                title: result.success ? 'تم الرفض' : 'خطأ',
+                description: result.message,
+                variant: result.success ? 'default' : 'destructive',
+            });
+        });
       });
     }
   };
@@ -68,7 +74,7 @@ export function LeaveRequestClientPage({ leaveRequests }: { leaveRequests: Leave
     }
   };
 
-  const getLeaveTypeText = (leaveType: 'Annual' | 'Sick' | 'Maternity' | 'Unpaid') => {
+  const getLeaveTypeText = (leaveType: string) => {
     switch (leaveType) {
       case 'Annual':
         return 'سنوية';
@@ -78,6 +84,8 @@ export function LeaveRequestClientPage({ leaveRequests }: { leaveRequests: Leave
         return 'غير مدفوعة';
       case 'Maternity':
         return 'أمومة';
+      default:
+        return leaveType;
     }
   };
 
@@ -116,11 +124,11 @@ export function LeaveRequestClientPage({ leaveRequests }: { leaveRequests: Leave
                     <div className="flex items-center gap-3 justify-end">
                       <div className='text-right'>
                         <div className="font-medium">{request.employee.full_name}</div>
-                        <div className="text-sm text-muted-foreground">{request.employee_id}</div>
+                        <div className="text-sm text-muted-foreground">{`#${request.employee_id}`}</div>
                       </div>
                       <Avatar>
-                        <AvatarImage src={request.employee.avatar || undefined} alt={request.employee.full_name} />
-                        <AvatarFallback>{request.employee.full_name.charAt(0)}</AvatarFallback>
+                        <AvatarImage src={request.employee.avatar || undefined} alt={request.employee.full_name || ''} />
+                        <AvatarFallback>{request.employee.full_name?.charAt(0)}</AvatarFallback>
                       </Avatar>
                     </div>
                   </TableCell>
@@ -139,32 +147,32 @@ export function LeaveRequestClientPage({ leaveRequests }: { leaveRequests: Leave
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button aria-haspopup="true" size="icon" variant="ghost">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Toggle menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
-                        <DropdownMenuItem 
-                          onClick={() => handleApprove(request.id)}
-                          disabled={request.status !== 'Pending'}
-                        >
-                          <CheckCircle className="ml-2 h-4 w-4 text-green-500" />
-                          موافقة
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleReject(request.id)}
-                          disabled={request.status !== 'Pending'} 
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <XCircle className="ml-2 h-4 w-4" />
-                          رفض
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {request.status === 'Pending' && (
+                        <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button aria-haspopup="true" size="icon" variant="ghost">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Toggle menu</span>
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
+                            <DropdownMenuItem 
+                            onClick={() => handleApprove(request.id)}
+                            >
+                            <CheckCircle className="ml-2 h-4 w-4 text-green-500" />
+                            موافقة
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                            onClick={() => handleReject(request.id)}
+                            className="text-destructive focus:text-destructive"
+                            >
+                            <XCircle className="ml-2 h-4 w-4" />
+                            رفض
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

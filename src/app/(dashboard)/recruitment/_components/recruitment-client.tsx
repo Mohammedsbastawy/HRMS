@@ -41,7 +41,7 @@ const ApplicantCard = ({ applicant }: { applicant: Applicant }) => (
     <CardContent className="p-4">
       <div className="flex items-start gap-4">
         <Avatar>
-          <AvatarImage src={applicant.avatar} alt={applicant.name} />
+          <AvatarImage src={applicant.avatar || undefined} alt={applicant.name} />
           <AvatarFallback>{applicant.name.charAt(0)}</AvatarFallback>
         </Avatar>
         <div className="flex-1">
@@ -67,8 +67,8 @@ const ApplicantCard = ({ applicant }: { applicant: Applicant }) => (
 );
 
 export function RecruitmentPageClient({ jobs: initialJobs, applicants: initialApplicants }: { jobs: any[], applicants: Applicant[] }) {
-  const [jobs, setJobs] = useState(initialJobs);
-  const [applicants, setApplicants] = useState(initialApplicants);
+  const [jobs] = useState(initialJobs);
+  const [applicants] = useState(initialApplicants);
   
   const getStatusVariant = (status: 'Open' | 'Closed' | 'On-Hold' | undefined) => {
     switch (status) {
@@ -180,7 +180,7 @@ export function RecruitmentPageClient({ jobs: initialJobs, applicants: initialAp
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 min-w-[1200px]">
             {stages.map((stage) => (
                 <div key={stage} className="flex flex-col gap-4">
-                <div className="rounded-lg bg-muted p-3 h-full">
+                <div className="rounded-lg bg-muted p-3 h-full min-h-[200px]">
                     <h3 className="font-semibold mb-4">{stageLabels[stage]}</h3>
                     <div className="space-y-4">
                     {applicants

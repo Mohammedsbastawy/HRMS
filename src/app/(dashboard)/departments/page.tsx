@@ -29,7 +29,7 @@ export default function DepartmentsPage() {
 
   const allJobTitles: JobTitle[] = (() => {
     try {
-        const stmt = db.prepare('SELECT jt.*, d.name_ar as department_name_ar FROM job_titles jt JOIN departments d ON jt.department_id = d.id');
+        const stmt = db.prepare('SELECT jt.*, d.name_ar as department_name_ar FROM job_titles jt JOIN departments d ON jt.department_id = d.id ORDER BY jt.created_at DESC');
         return stmt.all() as any[];
     } catch (error) {
         console.error(error);
@@ -70,7 +70,7 @@ export default function DepartmentsPage() {
                   <TableRow key={dept.id}>
                     <TableCell className="font-medium">{dept.name_ar}</TableCell>
                     <TableCell>{dept.name_en}</TableCell>
-                    <TableCell>{dept.description}</TableCell>
+                    <TableCell>{dept.description || '-'}</TableCell>
                     <TableCell>{dept.headcount ?? 0}</TableCell>
                     <TableCell className="flex justify-end gap-2">
                       <Button variant="ghost" size="icon">
@@ -123,7 +123,6 @@ export default function DepartmentsPage() {
                 <TableBody>
                   {allJobTitles.length > 0 ? (
                     allJobTitles.map(jt => {
-                        const dept = allDepartments.find(d => d.id === jt.department_id);
                         return (
                             <TableRow key={jt.id}>
                                 <TableCell className="font-medium">{jt.title_ar}</TableCell>

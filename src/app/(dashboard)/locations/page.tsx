@@ -29,20 +29,23 @@ export default function LocationsPage() {
         }
     })();
 
+    const managerIds = locations.map(l => l.manager_id).filter(Boolean);
     const employees: Employee[] = (() => {
+        if (managerIds.length === 0) return [];
         try {
-            const stmt = db.prepare('SELECT id, full_name FROM employees');
-            return stmt.all() as Employee[];
+            const placeholders = managerIds.map(() => '?').join(',');
+            const stmt = db.prepare(`SELECT id, full_name FROM employees WHERE id IN (${placeholders})`);
+            return stmt.all(managerIds) as Employee[];
         } catch (error) {
             console.error(error);
             return [];
         }
     })();
 
+    const employeeMap = new Map(employees.map(e => [e.id, e.full_name]));
     const getManagerName = (managerId: number | null | undefined) => {
         if (!managerId) return 'غير محدد';
-        const manager = employees.find(e => e.id === managerId);
-        return manager?.full_name || 'غير معروف';
+        return employeeMap.get(managerId) || 'غير معروف';
     };
 
   return (
@@ -86,10 +89,10 @@ export default function LocationsPage() {
               {locations.length > 0 ? (
                 locations.map((loc) => (
                     <TableRow key={loc.id}>
-                    <TableCell>{loc.code}</TableCell>
+                    <TableCell>{loc.code || '-'}</TableCell>
                     <TableCell className="font-medium">{loc.name_ar}</TableCell>
                     <TableCell>{loc.name_en}</TableCell>
-                    <TableCell>{loc.city}</TableCell>
+                    <TableCell>{loc.city || '-'}</TableCell>
                     <TableCell>{getManagerName(loc.manager_id)}</TableCell>
                     <TableCell className="flex justify-end gap-2">
                         <Button variant="ghost" size="icon">

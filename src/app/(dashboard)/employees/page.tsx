@@ -1,8 +1,9 @@
-// This is the main page component, a Server Component
+
 import db from '@/lib/db';
 import type { Employee } from '@/lib/types';
 import { EmployeesPageClient } from './_components/employees-client';
 
+// This is the main page component, a Server Component
 export default function EmployeesDataPage() {
     const employeesData: any[] = (() => {
         try {
@@ -38,15 +39,11 @@ export default function EmployeesDataPage() {
         status: emp.status,
         avatar: emp.avatar,
         department: {
-            id: 0, // Placeholder
             name_ar: emp.department_name_ar,
             name_en: emp.department_name_en,
         },
         jobTitle: {
-            id: 0, // Placeholder
-            department_id: 0, // Placeholder
             title_ar: emp.job_title_ar,
-            title_en: '' // Placeholder
         }
     }));
 

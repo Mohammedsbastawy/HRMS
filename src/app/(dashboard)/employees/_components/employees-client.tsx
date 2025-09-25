@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -12,7 +13,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, PlusCircle, Search, Trash2, Edit, Eye, ListFilter } from 'lucide-react';
 import type { Employee } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -21,12 +22,12 @@ import { Input } from '@/components/ui/input';
 
 // This is now a client component responsible for UI and interactivity
 export function EmployeesPageClient({ initialEmployees }: { initialEmployees: Employee[] }) {
-  const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
+  const [employees] = useState<Employee[]>(initialEmployees);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
 
-  const departments = [...new Set(employees.map(e => e.department?.name_en).filter(Boolean))];
+  const departments = [...new Set(employees.map(e => e.department?.name_en).filter(Boolean) as string[])];
   const statuses = ['Active', 'Resigned', 'Terminated'];
   const statusTranslations: { [key: string]: string } = {
     Active: 'نشط',
@@ -92,6 +93,7 @@ export function EmployeesPageClient({ initialEmployees }: { initialEmployees: Em
                         {dept}
                     </DropdownMenuCheckboxItem>
                 ))}
+                 <DropdownMenuSeparator />
                  <DropdownMenuLabel>الفلترة حسب الحالة</DropdownMenuLabel>
                  {statuses.map(status => (
                     <DropdownMenuCheckboxItem
@@ -131,7 +133,7 @@ export function EmployeesPageClient({ initialEmployees }: { initialEmployees: Em
                     <div className="flex items-center justify-end gap-3">
                       <span>{employee.full_name}</span>
                       <Avatar>
-                        <AvatarImage src={employee.avatar} alt={employee.full_name} />
+                        <AvatarImage src={employee.avatar || undefined} alt={employee.full_name} />
                         <AvatarFallback>{employee.full_name.charAt(0)}</AvatarFallback>
                       </Avatar>
                     </div>

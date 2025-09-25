@@ -21,79 +21,58 @@ import {
   Briefcase,
   Star,
 } from 'lucide-react';
-import type { Employee, LeaveRequest, Applicant, PerformanceReview } from '@/lib/types';
+import type { Employee, LeaveRequest, Applicant, PerformanceReview, Job } from '@/lib/types';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import db from '@/lib/db';
 
 export default function DashboardPage() {
 
-  const employees: Employee[] = (() => {
+  const safeQuery = <T,>(query: () => T, defaultValue: T): T => {
     try {
-      return db.prepare('SELECT * FROM employees').all() as Employee[];
-    } catch(e) {
-      return [];
+      return query();
+    } catch (e) {
+      console.error(e);
+      return defaultValue;
     }
-  })();
-  const leaveRequests: LeaveRequest[] = (() => {
-    try {
-      const data = db.prepare(`
-        SELECT lr.*, e.full_name, e.avatar 
-        FROM leave_requests lr 
-        JOIN employees e ON lr.employee_id = e.id
-      `).all();
-      return data.map(lr => ({ ...lr, employee: { full_name: (lr as any).full_name, avatar: (lr as any).avatar } })) as LeaveRequest[];
-    } catch(e) {
-      return [];
-    }
-  })();
-  const applicants: Applicant[] = (() => {
-    try {
-      return db.prepare('SELECT * FROM applicants').all() as Applicant[];
-    } catch(e) {
-      return [];
-    }
-  })();
-  const performanceReviews: PerformanceReview[] = (() => {
-    try {
-      return db.prepare('SELECT * FROM performance_reviews').all() as PerformanceReview[];
-    } catch(e) {
-      return [];
-    }
-  })();
-  const jobs: any[] = (() => {
-    try {
-      return db.prepare('SELECT * FROM jobs WHERE status = \'Open\'').all();
-    } catch(e) {
-      return [];
-    }
-  })();
+  };
+
+  const employees: Employee[] = safeQuery(() => db.prepare('SELECT * FROM employees').all() as Employee[], []);
+  
+  const leaveRequests: LeaveRequest[] = safeQuery(() => {
+    const data = db.prepare(`
+      SELECT lr.*, e.full_name, e.avatar 
+      FROM leave_requests lr 
+      JOIN employees e ON lr.employee_id = e.id
+    `).all();
+    return data.map(lr => ({ ...lr, employee: { id: (lr as any).employee_id, full_name: (lr as any).full_name, avatar: (lr as any).avatar } })) as LeaveRequest[];
+  }, []);
+
+  const performanceReviews: PerformanceReview[] = safeQuery(() => db.prepare('SELECT * FROM performance_reviews').all() as PerformanceReview[], []);
+  
+  const jobs: Job[] = safeQuery(() => db.prepare("SELECT * FROM jobs WHERE status = 'Open'").all() as Job[], []);
+
+  const recentActivities: any[] = safeQuery(() => {
+    const logs = db.prepare('SELECT al.*, u.username FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id ORDER BY al.timestamp DESC LIMIT 5').all();
+    return logs.map(log => ({
+        text: `${(log as any).username || 'النظام'} قام بـ "${log.action}"`,
+        time: new Date(log.timestamp).toLocaleString('ar-EG'),
+    }));
+  }, []);
 
 
   const averagePerformance = performanceReviews.length > 0 
     ? (performanceReviews.reduce((acc, r) => acc + r.score, 0) / performanceReviews.length).toFixed(1) 
-    : 0;
+    : "0";
 
   const stats = [
-    { title: 'إجمالي الموظفين', value: employees.length, icon: Users, change: `+${employees.filter(e => new Date(e.hire_date || 0).getMonth() === new Date().getMonth()).length} هذا الشهر` },
+    { title: 'إجمالي الموظفين', value: employees.length, icon: Users, change: `+${employees.filter(e => e.hire_date && new Date(e.hire_date).getMonth() === new Date().getMonth()).length} هذا الشهر` },
     { title: 'طلبات الإجازة المعلقة', value: leaveRequests.filter(l => l.status === 'Pending').length, icon: CalendarCheck, change: `${leaveRequests.filter(l => l.status === 'Approved').length} موافق عليها` },
-    { title: 'وظائف شاغرة', value: jobs.length, icon: Briefcase, change: `+${jobs.filter(j => new Date(j.created_at || 0).getMonth() === new Date().getMonth()).length} جديدة` },
+    { title: 'وظائف شاغرة', value: jobs.length, icon: Briefcase, change: `+${jobs.filter(j => j.created_at && new Date(j.created_at).getMonth() === new Date().getMonth()).length} جديدة` },
     { title: 'متوسط تقييم الأداء', value: averagePerformance, icon: Star, change: 'مقارنة بالربع الماضي' },
   ];
   const pendingLeaves = leaveRequests.filter(l => l.status === 'Pending').slice(0, 5);
   
-  const recentActivities: any[] = (() => {
-      try {
-        const logs = db.prepare('SELECT al.*, u.username FROM audit_logs al JOIN users u ON al.user_id = u.id ORDER BY al.timestamp DESC LIMIT 5').all();
-        return logs.map(log => ({
-            text: `${(log as any).username} قام بـ ${log.action}`,
-            time: new Date(log.timestamp).toLocaleString('ar-EG'),
-        }));
-      } catch(e) {
-        return [];
-      }
-  })();
-
   return (
     <div className="flex min-h-screen w-full flex-col">
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
@@ -136,7 +115,7 @@ export default function DashboardPage() {
                           <div className="flex items-center justify-end gap-2">
                             <span>{leave.employee?.full_name}</span>
                             <Avatar>
-                              <AvatarImage src={leave.employee?.avatar} alt={leave.employee?.full_name} />
+                              <AvatarImage src={leave.employee?.avatar || undefined} alt={leave.employee?.full_name || ''} />
                               <AvatarFallback>{leave.employee?.full_name?.charAt(0)}</AvatarFallback>
                             </Avatar>
                           </div>

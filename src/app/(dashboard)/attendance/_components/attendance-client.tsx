@@ -16,11 +16,10 @@ import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { Fingerprint, Loader2 } from 'lucide-react';
+import { Fingerprint, Loader2, Terminal } from 'lucide-react';
 import type { Attendance, Employee } from '@/lib/types';
 import Link from 'next/link';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Terminal } from 'lucide-react';
 
 // The main component is now a client component
 export function AttendancePageClient({ employees }: { employees: Employee[] }) {
@@ -58,20 +57,19 @@ export function AttendancePageClient({ employees }: { employees: Employee[] }) {
 
       const result = await response.json();
       
-      if (response.ok || (result.records && result.records.length > 0)) {
-        toast({
-          title: response.ok ? 'نجاح المزامنة' : 'عرض بيانات محاكاة',
-          description: result.message || `تمت مزامنة ${result.records?.length || 0} سجل بنجاح.`,
-          variant: response.ok ? 'default' : 'destructive'
-        });
-        
-        // Process records
-        const processed = processAttendanceRecords(result.records, employees);
-        setAttendance(processed);
-
-      } else {
+      if (!response.ok && !result.records) {
         throw new Error(result.message || 'فشل في بدء المزامنة');
       }
+
+      toast({
+        title: response.ok ? 'نجاح المزامنة' : 'عرض بيانات محاكاة',
+        description: result.message || `تمت مزامنة ${result.records?.length || 0} سجل بنجاح.`,
+        variant: response.ok ? 'default' : 'destructive'
+      });
+      
+      const processed = processAttendanceRecords(result.records || [], employees);
+      setAttendance(processed);
+
     } catch (error: any) {
       setSyncError(error.message);
       toast({
@@ -93,7 +91,7 @@ export function AttendancePageClient({ employees }: { employees: Employee[] }) {
               <CardTitle>سجل الحضور اليومي</CardTitle>
               <CardDescription>عرض سجلات الحضور لليوم المحدد.</CardDescription>
             </div>
-            <Button onClick={handleSync} disabled={isSyncing} size="sm" className="gap-1">
+            <Button onClick={handleSync} disabled={isSyncing || !zktConfig.ip} size="sm" className="gap-1">
               {isSyncing ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
@@ -188,6 +186,7 @@ export function AttendancePageClient({ employees }: { employees: Employee[] }) {
             <Calendar
               mode="single"
               selected={new Date()}
+              onSelect={() => {}} // Dummy onSelect to avoid uncontrolled component warning
               className="rounded-md border"
             />
           </CardContent>
@@ -201,37 +200,37 @@ export function AttendancePageClient({ employees }: { employees: Employee[] }) {
 function processAttendanceRecords(records: any[], employees: Employee[]): Attendance[] {
     const attendanceMap = new Map<number, { check_in: string | null, check_out: string | null }>();
 
-    // Get today's date in YYYY-MM-DD format
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    // First, initialize map for all employees
     employees.forEach(emp => {
-        attendanceMap.set(emp.id, { check_in: null, check_out: null });
+        if (emp.id) {
+           attendanceMap.set(emp.id, { check_in: null, check_out: null });
+        }
     });
 
     records.forEach(record => {
         const employeeId = parseInt(record.userId, 10);
-        if (isNaN(employeeId)) return;
+        if (isNaN(employeeId) || !attendanceMap.has(employeeId)) return;
 
-        const recordDate = new Date(record.recordTime).toISOString().split('T')[0];
-
-        // Process only today's records
-        if (recordDate !== today) return;
+        const recordDate = new Date(record.recordTime);
+        recordDate.setHours(0,0,0,0);
+        
+        if (recordDate.getTime() !== today.getTime()) return;
 
         const recordTime = new Date(record.recordTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        const existing = attendanceMap.get(employeeId)!;
 
-        const existing = attendanceMap.get(employeeId) || { check_in: null, check_out: null };
-
-        if (record.attState === 0) { // Check-in
+        // attState seems to be 0 for check-in and 1 for check-out
+        if (record.attState === 0) { 
             if (!existing.check_in || recordTime < existing.check_in) {
                 existing.check_in = recordTime;
             }
-        } else if (record.attState === 1) { // Check-out
+        } else if (record.attState === 1) { 
             if (!existing.check_out || recordTime > existing.check_out) {
                 existing.check_out = recordTime;
             }
         }
-        attendanceMap.set(employeeId, existing);
     });
     
     const finalAttendance: Attendance[] = [];
@@ -241,9 +240,9 @@ function processAttendanceRecords(records: any[], employees: Employee[]): Attend
             let status: 'Present' | 'Absent' | 'On Leave' | 'Late' = 'Absent';
             if(times.check_in) {
                 status = 'Present';
-                // Example of late logic: if check-in is after 9:30 AM
-                const checkInDate = new Date(`${today}T${new Date(`1970-01-01 ${times.check_in}`).toTimeString().split(' ')[0]}`);
-                const lateTime = new Date(`${today}T09:30:00`);
+                const checkInDate = new Date(`${today.toISOString().split('T')[0]}T${new Date(`1970-01-01 ${times.check_in}`).toTimeString().split(' ')[0]}`);
+                const lateTime = new Date(today.getTime());
+                lateTime.setHours(9, 30, 0); // 9:30 AM
                 if (checkInDate > lateTime) {
                     status = 'Late';
                 }
@@ -252,7 +251,7 @@ function processAttendanceRecords(records: any[], employees: Employee[]): Attend
             finalAttendance.push({
                 id: employeeId,
                 employee_id: employeeId,
-                date: today,
+                date: today.toISOString().split('T')[0],
                 employeeName: employee.full_name,
                 employeeAvatar: employee.avatar,
                 check_in: times.check_in,
@@ -262,5 +261,5 @@ function processAttendanceRecords(records: any[], employees: Employee[]): Attend
         }
     });
 
-    return finalAttendance;
+    return finalAttendance.sort((a,b) => a.id - b.id);
 }
