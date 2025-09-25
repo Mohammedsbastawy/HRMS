@@ -43,12 +43,39 @@ export async function createDepartment(formData: unknown) {
 
     revalidatePath('/departments');
 
-    return { message: 'Department created successfully' };
   } catch (error) {
     console.error('Failed to create department:', error);
     throw new Error('Database error');
   }
 }
+
+// --- Job Title Actions ---
+const jobTitleFormSchema = z.object({
+  department_id: z.string(),
+  title_ar: z.string().min(2),
+  title_en: z.string().min(2),
+});
+
+export async function createJobTitle(formData: unknown) {
+  const validatedFields = jobTitleFormSchema.safeParse(formData);
+
+  if (!validatedFields.success) {
+    throw new Error('Invalid form data');
+  }
+  const { department_id, title_ar, title_en } = validatedFields.data;
+
+  try {
+    db.prepare(
+      'INSERT INTO job_titles (department_id, title_ar, title_en) VALUES (?, ?, ?)'
+    ).run(parseInt(department_id), title_ar, title_en);
+
+    revalidatePath('/departments');
+  } catch (error) {
+    console.error('Failed to create job title:', error);
+    throw new Error('Database error');
+  }
+}
+
 
 // --- Location Actions ---
 
@@ -96,7 +123,6 @@ export async function createLocation(formData: unknown) {
         
         revalidatePath('/locations');
 
-        return { message: 'Location created successfully' };
     } catch (error) {
         console.error('Failed to create location:', error);
         throw new Error('Database error');

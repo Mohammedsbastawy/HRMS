@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -32,9 +33,10 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import type { Department } from '@/lib/types';
 import { useEffect, useState } from "react";
+import { createJobTitle } from "@/lib/actions";
 
 const jobTitleFormSchema = z.object({
-  departmentId: z.string({ required_error: "يجب اختيار القسم." }),
+  department_id: z.string({ required_error: "يجب اختيار القسم." }),
   title_ar: z.string().min(2, { message: "المسمى بالعربية مطلوب." }),
   title_en: z.string().min(2, { message: "المسمى بالإنجليزية مطلوب." }),
 });
@@ -43,35 +45,41 @@ type JobTitleFormValues = z.infer<typeof jobTitleFormSchema>;
 
 export default function NewJobTitlePage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [departments, setDepartments] = useState<Department[]>([]);
 
-  // Fetch departments on client side. In a real app, this might be better as a server action
-  // or pre-fetched in a parent server component.
   useEffect(() => {
-    // This is a placeholder. A real implementation would fetch from an API endpoint.
-    // async function fetchDepartments() {
-    //   const res = await fetch('/api/departments');
-    //   const data = await res.json();
-    //   setDepartments(data);
-    // }
-    // fetchDepartments();
-  }, []);
+    async function fetchDepartments() {
+      try {
+        const res = await fetch('/api/departments');
+        const data = await res.json();
+        setDepartments(data.departments);
+      } catch (error) {
+        toast({ variant: 'destructive', title: 'فشل في جلب الأقسام' });
+      }
+    }
+    fetchDepartments();
+  }, [toast]);
 
   const form = useForm<JobTitleFormValues>({
     resolver: zodResolver(jobTitleFormSchema),
   });
 
   async function onSubmit(data: JobTitleFormValues) {
-    // TODO: Send data to the server to be saved in the database
-    console.log(data);
-    toast({
-      title: "تم إرسال النموذج بنجاح!",
-      description: (
-        <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-          <code className="text-white">{JSON.stringify(data, null, 2)}</code>
-        </pre>
-      ),
-    });
+    try {
+      await createJobTitle(data);
+      toast({
+        title: "تم إنشاء المسمى الوظيفي بنجاح!",
+        description: `تمت إضافة "${data.title_ar}".`,
+      });
+      router.push('/departments');
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "حدث خطأ!",
+        description: "فشل في إنشاء المسمى الوظيفي.",
+      });
+    }
   }
 
   return (
@@ -87,7 +95,7 @@ export default function NewJobTitlePage() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <FormField
               control={form.control}
-              name="departmentId"
+              name="department_id"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>القسم</FormLabel>
@@ -145,7 +153,9 @@ export default function NewJobTitlePage() {
                 <Button type="button" variant="outline" asChild>
                     <Link href="/departments">إلغاء</Link>
                 </Button>
-                <Button type="submit">💾 حفظ المسمى الوظيفي</Button>
+                <Button type="submit" disabled={form.formState.isSubmitting}>
+                    {form.formState.isSubmitting ? 'جاري الحفظ...' : '💾 حفظ المسمى الوظيفي'}
+                </Button>
             </div>
           </form>
         </Form>

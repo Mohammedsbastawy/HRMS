@@ -56,17 +56,18 @@ export default function NewLocationPage() {
   const router = useRouter();
   const [employees, setEmployees] = useState<Employee[]>([]);
 
-  // Since this is a client component, we can't use top-level await or db calls directly.
-  // A proper implementation would fetch this via an API route or a server action.
-  // For now, we'll leave it empty as we transition from mock data.
-  // useEffect(() => {
-  //   // async function fetchEmployees() {
-  //   //   const response = await fetch('/api/employees'); // Example API endpoint
-  //   //   const data = await response.json();
-  //   //   setEmployees(data);
-  //   // }
-  //   // fetchEmployees();
-  // }, []);
+  useEffect(() => {
+    async function fetchEmployees() {
+       try {
+        const response = await fetch('/api/employees?is_manager=true');
+        const data = await response.json();
+        setEmployees(data);
+       } catch (error) {
+         toast({ variant: 'destructive', title: 'فشل في جلب بيانات المدراء' });
+       }
+    }
+    fetchEmployees();
+  }, [toast]);
 
 
   const form = useForm<LocationFormValues>({

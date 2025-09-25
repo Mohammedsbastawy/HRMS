@@ -1,4 +1,7 @@
 
+'use client';
+
+import { useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -9,44 +12,46 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, Eye } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Eye, Search, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import type { Location, Employee } from '@/lib/types';
+import type { Location } from '@/lib/types';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
-import db from '@/lib/db';
-
+import { useToast } from '@/components/ui/use-toast';
 
 export default function LocationsPage() {
+    const [locations, setLocations] = useState<Location[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const { toast } = useToast();
 
-    const locations: Location[] = (() => {
-        try {
-            const stmt = db.prepare('SELECT * FROM locations ORDER BY created_at DESC');
-            return stmt.all() as Location[];
-        } catch (error) {
-            console.error(error);
-            return [];
+    useEffect(() => {
+        async function fetchLocations() {
+            try {
+                setIsLoading(true);
+                const response = await fetch('/api/locations');
+                if (!response.ok) {
+                    throw new Error('فشل في جلب المواقع');
+                }
+                const data = await response.json();
+                setLocations(data);
+            } catch (error: any) {
+                toast({
+                    variant: 'destructive',
+                    title: 'خطأ',
+                    description: error.message || 'حدث خطأ أثناء جلب البيانات.',
+                });
+            } finally {
+                setIsLoading(false);
+            }
         }
-    })();
+        fetchLocations();
+    }, [toast]);
 
-    const managerIds = locations.map(l => l.manager_id).filter(Boolean);
-    const employees: Employee[] = (() => {
-        if (managerIds.length === 0) return [];
-        try {
-            const placeholders = managerIds.map(() => '?').join(',');
-            const stmt = db.prepare(`SELECT id, full_name FROM employees WHERE id IN (${placeholders})`);
-            return stmt.all(managerIds) as Employee[];
-        } catch (error) {
-            console.error(error);
-            return [];
-        }
-    })();
-
-    const employeeMap = new Map(employees.map(e => [e.id, e.full_name]));
-    const getManagerName = (managerId: number | null | undefined) => {
-        if (!managerId) return 'غير محدد';
-        return employeeMap.get(managerId) || 'غير معروف';
-    };
+    const filteredLocations = locations.filter(loc => 
+        loc.name_ar.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        loc.name_en.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (loc.city && loc.city.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
 
   return (
     <div className="flex flex-col gap-8">
@@ -63,6 +68,8 @@ export default function LocationsPage() {
                         type="search"
                         placeholder="بحث عن موقع..."
                         className="w-full appearance-none bg-background pr-8"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
                      />
                 </div>
                 <Button asChild size="sm" className="gap-1">
@@ -86,14 +93,20 @@ export default function LocationsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {locations.length > 0 ? (
-                locations.map((loc) => (
+              {isLoading ? (
+                  <TableRow>
+                      <TableCell colSpan={6} className="h-24 text-center">
+                          <Loader2 className="mx-auto h-8 w-8 animate-spin" />
+                      </TableCell>
+                  </TableRow>
+              ) : filteredLocations.length > 0 ? (
+                filteredLocations.map((loc) => (
                     <TableRow key={loc.id}>
                     <TableCell>{loc.code || '-'}</TableCell>
                     <TableCell className="font-medium">{loc.name_ar}</TableCell>
                     <TableCell>{loc.name_en}</TableCell>
                     <TableCell>{loc.city || '-'}</TableCell>
-                    <TableCell>{getManagerName(loc.manager_id)}</TableCell>
+                    <TableCell>{loc.manager?.full_name || 'غير محدد'}</TableCell>
                     <TableCell className="flex justify-end gap-2">
                         <Button variant="ghost" size="icon">
                             <Eye className="h-4 w-4" />

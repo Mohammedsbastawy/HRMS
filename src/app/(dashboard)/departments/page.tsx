@@ -1,4 +1,7 @@
 
+'use client';
+
+import { useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -9,34 +12,40 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import type { Department, JobTitle } from '@/lib/types';
-import db from '@/lib/db';
+import { useToast } from '@/components/ui/use-toast';
 
-// This is now a Server Component
 export default function DepartmentsPage() {
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [jobTitles, setJobTitles] = useState<JobTitle[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
-  const allDepartments: Department[] = (() => {
-    try {
-      const stmt = db.prepare('SELECT * FROM departments ORDER BY created_at DESC');
-      return stmt.all() as Department[];
-    } catch (error) {
-      console.error(error);
-      return [];
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/departments');
+        if (!response.ok) {
+          throw new Error('فشل في جلب البيانات');
+        }
+        const data = await response.json();
+        setDepartments(data.departments);
+        setJobTitles(data.jobTitles);
+      } catch (error: any) {
+        toast({
+          variant: 'destructive',
+          title: 'خطأ',
+          description: error.message || 'حدث خطأ أثناء جلب البيانات.',
+        });
+      } finally {
+        setIsLoading(false);
+      }
     }
-  })();
-
-  const allJobTitles: JobTitle[] = (() => {
-    try {
-        const stmt = db.prepare('SELECT jt.*, d.name_ar as department_name_ar FROM job_titles jt JOIN departments d ON jt.department_id = d.id ORDER BY jt.created_at DESC');
-        return stmt.all() as any[];
-    } catch (error) {
-        console.error(error);
-        return [];
-    }
-  })();
-
+    fetchData();
+  }, [toast]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -65,8 +74,14 @@ export default function DepartmentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {allDepartments.length > 0 ? (
-                allDepartments.map((dept) => (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-24 text-center">
+                    <Loader2 className="mx-auto h-8 w-8 animate-spin" />
+                  </TableCell>
+                </TableRow>
+              ) : departments.length > 0 ? (
+                departments.map((dept) => (
                   <TableRow key={dept.id}>
                     <TableCell className="font-medium">{dept.name_ar}</TableCell>
                     <TableCell>{dept.name_en}</TableCell>
@@ -121,8 +136,14 @@ export default function DepartmentsPage() {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {allJobTitles.length > 0 ? (
-                    allJobTitles.map(jt => {
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="h-24 text-center">
+                        <Loader2 className="mx-auto h-8 w-8 animate-spin" />
+                      </TableCell>
+                    </TableRow>
+                  ) : jobTitles.length > 0 ? (
+                    jobTitles.map(jt => {
                         return (
                             <TableRow key={jt.id}>
                                 <TableCell className="font-medium">{jt.title_ar}</TableCell>
