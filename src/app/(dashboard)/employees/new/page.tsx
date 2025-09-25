@@ -30,12 +30,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { departments, jobTitles } from "@/lib/data";
+import { useState } from "react";
 
 const employeeFormSchema = z.object({
   fullName: z.string().min(2, { message: "الاسم الكامل مطلوب." }),
   email: z.string().email({ message: "بريد إلكتروني غير صالح." }),
   department: z.string({ required_error: "القسم مطلوب." }),
-  jobTitle: z.string().min(2, { message: "المسمى الوظيفي مطلوب." }),
+  jobTitle: z.string({ required_error: "المسمى الوظيفي مطلوب." }),
   hireDate: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "تاريخ التعيين غير صالح."}),
   baseSalary: z.coerce.number().min(0, { message: "الراتب يجب أن يكون رقمًا موجبًا." }),
 });
@@ -43,7 +45,9 @@ const employeeFormSchema = z.object({
 type EmployeeFormValues = z.infer<typeof employeeFormSchema>;
 
 export default function NewEmployeePage() {
-    const { toast } = useToast();
+  const { toast } = useToast();
+  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
+
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema),
     defaultValues: {
@@ -53,6 +57,10 @@ export default function NewEmployeePage() {
       baseSalary: 0,
     },
   });
+
+  const filteredJobTitles = selectedDepartment
+    ? jobTitles.filter(jt => jt.departmentId === selectedDepartment)
+    : [];
 
   function onSubmit(data: EmployeeFormValues) {
     toast({
@@ -109,18 +117,23 @@ export default function NewEmployeePage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>القسم</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select 
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        setSelectedDepartment(value);
+                        form.setValue('jobTitle', ''); // Reset job title
+                      }} 
+                      defaultValue={field.value}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="اختر قسمًا" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="Engineering">الهندسة</SelectItem>
-                        <SelectItem value="HR">الموارد البشرية</SelectItem>
-                        <SelectItem value="Marketing">التسويق</SelectItem>
-                        <SelectItem value="Sales">المبيعات</SelectItem>
-                        <SelectItem value="Finance">المالية</SelectItem>
+                        {departments.map(dept => (
+                          <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -133,9 +146,18 @@ export default function NewEmployeePage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>المسمى الوظيفي</FormLabel>
-                    <FormControl>
-                      <Input placeholder="مثال: مهندس برمجيات" {...field} />
-                    </FormControl>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={!selectedDepartment}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="اختر المسمى الوظيفي" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {filteredJobTitles.map(jt => (
+                          <SelectItem key={jt.id} value={jt.title}>{jt.title}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

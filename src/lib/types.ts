@@ -4,11 +4,23 @@ export type Employee = {
   avatar: string;
   email: string;
   jobTitle: string;
-  department: 'Engineering' | 'HR' | 'Marketing' | 'Sales' | 'Finance';
+  department: string;
   status: 'Active' | 'On Leave' | 'Terminated';
   hireDate: string;
   salary: number;
   performanceReviewScore: number;
+};
+
+export type Department = {
+  id: string;
+  name: string;
+  description: string;
+};
+
+export type JobTitle = {
+  id: string;
+  departmentId: string;
+  title: string;
 };
 
 export type Attendance = {

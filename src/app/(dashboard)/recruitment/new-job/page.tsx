@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -31,9 +30,11 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
+import { departments, jobTitles } from "@/lib/data";
+import { useState } from "react";
 
 const jobFormSchema = z.object({
-  jobTitle: z.string().min(2, { message: "المسمى الوظيفي مطلوب." }),
+  jobTitle: z.string({ required_error: "المسمى الوظيفي مطلوب." }),
   department: z.string({ required_error: "القسم مطلوب." }),
   description: z.string().min(10, { message: "الوصف يجب أن لا يقل عن 10 أحرف." }),
   status: z.enum(["Open", "Closed", "On-Hold"], {
@@ -45,6 +46,8 @@ type JobFormValues = z.infer<typeof jobFormSchema>;
 
 export default function NewJobPage() {
   const { toast } = useToast();
+  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
+  
   const form = useForm<JobFormValues>({
     resolver: zodResolver(jobFormSchema),
     defaultValues: {
@@ -52,9 +55,11 @@ export default function NewJobPage() {
     },
   });
 
+  const filteredJobTitles = selectedDepartment
+    ? jobTitles.filter(jt => jt.departmentId === selectedDepartment)
+    : [];
+
   function onSubmit(data: JobFormValues) {
-    // In a real app, you would post this data to your backend API.
-    // For now, we'll just display it in a toast.
     toast({
       title: "تم إرسال نموذج الوظيفة!",
       description: (
@@ -78,13 +83,26 @@ export default function NewJobPage() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <FormField
               control={form.control}
-              name="jobTitle"
+              name="department"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>المسمى الوظيفي</FormLabel>
-                  <FormControl>
-                    <Input placeholder="مثال: مهندس برمجيات" {...field} />
-                  </FormControl>
+                  <FormLabel>القسم</FormLabel>
+                  <Select onValueChange={(value) => {
+                    field.onChange(value);
+                    setSelectedDepartment(value);
+                    form.setValue('jobTitle', '');
+                  }} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="اختر القسم المسؤول" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {departments.map(dept => (
+                        <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -92,22 +110,20 @@ export default function NewJobPage() {
 
             <FormField
               control={form.control}
-              name="department"
+              name="jobTitle"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>القسم</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormLabel>المسمى الوظيفي</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={!selectedDepartment}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="اختر القسم المسؤول" />
+                        <SelectValue placeholder="اختر المسمى الوظيفي" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="Engineering">الهندسة</SelectItem>
-                      <SelectItem value="HR">الموارد البشرية</SelectItem>
-                      <SelectItem value="Marketing">التسويق</SelectItem>
-                      <SelectItem value="Sales">المبيعات</SelectItem>
-                      <SelectItem value="Finance">المالية</SelectItem>
+                      {filteredJobTitles.map(jt => (
+                        <SelectItem key={jt.id} value={jt.title}>{jt.title}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

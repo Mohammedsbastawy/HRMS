@@ -1,11 +1,39 @@
-import type { Employee, Attendance, LeaveRequest, Payroll, PerformanceReview, Applicant, TrainingCourse, TrainingRecord, AuditLog, Job } from './types';
+import type { Employee, Attendance, LeaveRequest, Payroll, PerformanceReview, Applicant, TrainingCourse, TrainingRecord, AuditLog, Job, Department, JobTitle } from './types';
+
+export const departments: Department[] = [
+  { id: '1', name: 'الهندسة', description: 'مسؤول عن تطوير وصيانة المنتجات التقنية.' },
+  { id: '2', name: 'الموارد البشرية', description: 'إدارة شؤون الموظفين والتوظيف والتدريب.' },
+  { id: '3', name: 'التسويق', description: 'مسؤول عن الحملات التسويقية والترويج للعلامة التجارية.' },
+  { id: '4', name: 'المبيعات', description: 'مسؤول عن تحقيق أهداف المبيعات وإدارة علاقات العملاء.' },
+  { id: '5', name: 'المالية', description: 'إدارة الشؤون المالية والميزانيات والتقارير المالية.' },
+];
+
+export const jobTitles: JobTitle[] = [
+  // الهندسة
+  { id: 'jt1', departmentId: '1', title: 'مهندس برمجيات' },
+  { id: 'jt2', departmentId: '1', title: 'قائد فريق تقني' },
+  { id: 'jt3', departmentId: '1', title: 'مهندس DevOps' },
+  // الموارد البشرية
+  { id: 'jt4', departmentId: '2', title: 'أخصائي موارد بشرية' },
+  { id: 'jt5', departmentId: '2', title: 'مدير موارد بشرية' },
+  { id: 'jt6', departmentId: '2', title: 'مسؤول توظيف' },
+  // التسويق
+  { id: 'jt7', departmentId: '3', title: 'مسوق رقمي' },
+  { id: 'jt8', departmentId: '3', title: 'مدير تسويق' },
+  // المبيعات
+  { id: 'jt9', departmentId: '4', title: 'مندوب مبيعات' },
+  { id: 'jt10', departmentId: '4', title: 'مدير مبيعات' },
+  // المالية
+  { id: 'jt11', departmentId: '5', title: 'محاسب' },
+  { id: 'jt12', departmentId: '5', title: 'محلل مالي' },
+];
 
 export const employees: Employee[] = [
-  { id: '1', name: 'نورة عبدالله', avatar: 'https://picsum.photos/seed/avatar1/100/100', email: 'noura.a@example.com', jobTitle: 'مهندسة برمجيات', department: 'Engineering', status: 'Active', hireDate: '2022-01-15', salary: 90000, performanceReviewScore: 4.5 },
-  { id: '2', name: 'أحمد خان', avatar: 'https://picsum.photos/seed/avatar2/100/100', email: 'ahmed.k@example.com', jobTitle: 'مدير الموارد البشرية', department: 'HR', status: 'Active', hireDate: '2021-03-20', salary: 110000, performanceReviewScore: 4.8 },
-  { id: '3', name: 'فاطمة محمد', avatar: 'https://picsum.photos/seed/avatar3/100/100', email: 'fatima.m@example.com', jobTitle: 'مسوقة رقمية', department: 'Marketing', status: 'On Leave', hireDate: '2022-07-01', salary: 75000, performanceReviewScore: 4.2 },
-  { id: '4', name: 'علي حسن', avatar: 'https://picsum.photos/seed/avatar4/100/100', email: 'ali.h@example.com', jobTitle: 'مدير مبيعات', department: 'Sales', status: 'Active', hireDate: '2020-11-10', salary: 130000, performanceReviewScore: 4.9 },
-  { id: '5', name: 'سارة إبراهيم', avatar: 'https://picsum.photos/seed/avatar5/100/100', email: 'sara.i@example.com', jobTitle: 'محللة مالية', department: 'Finance', status: 'Terminated', hireDate: '2021-09-05', salary: 95000, performanceReviewScore: 3.8 },
+  { id: '1', name: 'نورة عبدالله', avatar: 'https://picsum.photos/seed/avatar1/100/100', email: 'noura.a@example.com', jobTitle: 'مهندسة برمجيات', department: 'الهندسة', status: 'Active', hireDate: '2022-01-15', salary: 90000, performanceReviewScore: 4.5 },
+  { id: '2', name: 'أحمد خان', avatar: 'https://picsum.photos/seed/avatar2/100/100', email: 'ahmed.k@example.com', jobTitle: 'مدير الموارد البشرية', department: 'الموارد البشرية', status: 'Active', hireDate: '2021-03-20', salary: 110000, performanceReviewScore: 4.8 },
+  { id: '3', name: 'فاطمة محمد', avatar: 'https://picsum.photos/seed/avatar3/100/100', email: 'fatima.m@example.com', jobTitle: 'مسوقة رقمية', department: 'التسويق', status: 'On Leave', hireDate: '2022-07-01', salary: 75000, performanceReviewScore: 4.2 },
+  { id: '4', name: 'علي حسن', avatar: 'https://picsum.photos/seed/avatar4/100/100', email: 'ali.h@example.com', jobTitle: 'مدير مبيعات', department: 'المبيعات', status: 'Active', hireDate: '2020-11-10', salary: 130000, performanceReviewScore: 4.9 },
+  { id: '5', name: 'سارة إبراهيم', avatar: 'https://picsum.photos/seed/avatar5/100/100', email: 'sara.i@example.com', jobTitle: 'محللة مالية', department: 'المالية', status: 'Terminated', hireDate: '2021-09-05', salary: 95000, performanceReviewScore: 3.8 },
 ];
 
 export const attendance: Attendance[] = [
@@ -36,9 +64,9 @@ export const performanceReviews: PerformanceReview[] = [
 ];
 
 export const jobs: Job[] = [
-    { id: '1', title: 'مهندس برمجيات', department: 'تقنية المعلومات', status: 'Open', postedDate: '01-08-2024', description: '...'},
+    { id: '1', title: 'مهندس برمجيات', department: 'الهندسة', status: 'Open', postedDate: '01-08-2024', description: '...'},
     { id: '2', title: 'أخصائي موارد بشرية', department: 'الموارد البشرية', status: 'Closed', postedDate: '15-07-2024', description: '...'},
-    { id: '3', title: 'مصمم واجهات', department: 'تقنية المعلومات', status: 'On-Hold', postedDate: '20-08-2024', description: '...'},
+    { id: '3', title: 'مصمم واجهات', department: 'الهندسة', status: 'On-Hold', postedDate: '20-08-2024', description: '...'},
 ]
 
 export const applicants: Applicant[] = [
