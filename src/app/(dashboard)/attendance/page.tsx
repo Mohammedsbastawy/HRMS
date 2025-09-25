@@ -33,16 +33,15 @@ export default function AttendancePage() {
 
       const result = await response.json();
       
-      if (response.ok) {
+      if (response.ok && result.success) {
         toast({
           title: 'نجاح المزامنة',
-          description: result.message,
+          description: `تمت مزامنة ${result.records?.length || 0} سجل بنجاح.`,
         });
-        // Here you would typically refresh the data from your database.
-        // For this demo, we'll just log the fetched records.
+        // In a real app, you would process result.records and update the state
         console.log('Synced Records:', result.records);
       } else {
-        throw new Error(result.message || 'فشل في بدء المزامنة');
+        throw new Error(result.error || result.message || 'فشل في بدء المزامنة');
       }
     } catch (error: any) {
       toast({
@@ -111,7 +110,7 @@ export default function AttendancePage() {
                         '-'
                       )}
                     </TableCell>
-                    <TableCell className="font-medium">{record.workedHours.toFixed(2)}</TableCell>
+                    <TableCell className="font-medium text-right">{record.workedHours.toFixed(2)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

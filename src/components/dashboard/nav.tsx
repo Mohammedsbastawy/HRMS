@@ -15,6 +15,7 @@ import {
   BookUser,
   ShieldCheck,
   LayoutDashboard,
+  Settings, // Added Settings icon
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -22,13 +23,14 @@ import Link from 'next/link';
 const navItems = [
   { href: '/', label: 'نظرة عامة', icon: LayoutDashboard },
   { href: '/employees', label: 'الموظفين', icon: Users },
-  { href: '/attendance', label: 'الحضور والانصراف', icon: Clock },
+  { href: '/attendance', label: 'الحاضرين', icon: Clock },
   { href: '/leaves', label: 'الإجازات', icon: Calendar },
   { href: '/payroll', label: 'الرواتب', icon: Wallet },
   { href: '/performance', label: 'الأداء', icon: Star },
   { href: '/recruitment', label: 'التوظيف', icon: Briefcase },
   { href: '/training', label: 'التدريب', icon: BookUser },
   { href: '/audit-log', label: 'سجل التدقيق', icon: ShieldCheck },
+  { href: '/settings', label: 'الإعدادات', icon: Settings }, // Added Settings nav item
 ];
 
 export function Nav() {
@@ -40,7 +42,6 @@ export function Nav() {
         <SidebarMenuItem key={item.href}>
           <SidebarMenuButton
             asChild
-            href={item.href}
             isActive={pathname === item.href}
             tooltip={item.label}
           >
