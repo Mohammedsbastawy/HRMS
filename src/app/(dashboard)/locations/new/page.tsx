@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import type { Employee } from "@/lib/types"; // Import the type
+import type { Employee } from "@/lib/types";
 
 const employees: Employee[] = []; // Data is now empty
 
@@ -67,9 +67,8 @@ export default function NewLocationPage() {
     }
   });
 
-  async function onSubmit(data: LocationFormValues) {
-    // TODO: Send data to the server to be saved in the database
-    console.log(data);
+  function onSubmit(data: LocationFormValues) {
+    console.log("Form submitted with data:", data);
     toast({
       title: "تم إرسال النموذج بنجاح!",
       description: (
@@ -118,7 +117,7 @@ export default function NewLocationPage() {
                   </FormItem>
                 )}
               />
-               <FormField
+              <FormField
                 control={form.control}
                 name="address"
                 render={({ field }) => (
@@ -131,7 +130,7 @@ export default function NewLocationPage() {
                   </FormItem>
                 )}
               />
-               <FormField
+              <FormField
                 control={form.control}
                 name="city"
                 render={({ field }) => (
@@ -144,7 +143,7 @@ export default function NewLocationPage() {
                   </FormItem>
                 )}
               />
-               <FormField
+              <FormField
                 control={form.control}
                 name="country"
                 render={({ field }) => (
@@ -157,7 +156,7 @@ export default function NewLocationPage() {
                   </FormItem>
                 )}
               />
-               <FormField
+              <FormField
                 control={form.control}
                 name="phone"
                 render={({ field }) => (
@@ -170,7 +169,7 @@ export default function NewLocationPage() {
                   </FormItem>
                 )}
               />
-               <FormField
+              <FormField
                 control={form.control}
                 name="email"
                 render={({ field }) => (
@@ -189,7 +188,7 @@ export default function NewLocationPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>المدير المسؤول (اختياري)</FormLabel>
-                     <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="اختر المدير المسؤول عن الموقع" />
@@ -228,10 +227,10 @@ export default function NewLocationPage() {
             </div>
             
             <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" asChild>
-                    <Link href="/locations">إلغاء</Link>
-                </Button>
-                <Button type="submit">💾 حفظ الموقع</Button>
+              <Button type="button" variant="outline" asChild>
+                <Link href="/locations">إلغاء</Link>
+              </Button>
+              <Button type="submit">💾 حفظ الموقع</Button>
             </div>
           </form>
         </Form>
