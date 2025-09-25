@@ -53,6 +53,15 @@ export type PerformanceReview = {
   comments: string;
 };
 
+export type Job = {
+    id: string;
+    title: string;
+    department: string;
+    status: 'Open' | 'Closed' | 'On-Hold';
+    postedDate: string;
+    description: string;
+}
+
 export type Applicant = {
   id: string;
   name: string;

@@ -1,4 +1,4 @@
-import type { Employee, Attendance, LeaveRequest, Payroll, PerformanceReview, Applicant, TrainingCourse, TrainingRecord, AuditLog } from './types';
+import type { Employee, Attendance, LeaveRequest, Payroll, PerformanceReview, Applicant, TrainingCourse, TrainingRecord, AuditLog, Job } from './types';
 
 export const employees: Employee[] = [
   { id: '1', name: 'نورة عبدالله', avatar: 'https://picsum.photos/seed/avatar1/100/100', email: 'noura.a@example.com', jobTitle: 'مهندسة برمجيات', department: 'Engineering', status: 'Active', hireDate: '2022-01-15', salary: 90000, performanceReviewScore: 4.5 },
@@ -34,6 +34,12 @@ export const performanceReviews: PerformanceReview[] = [
   { id: 'pr3', employeeId: '4', employeeName: 'علي حسن', reviewDate: '2024-06-29', score: 4.9, comments: 'تحقيق أرقام مبيعات قياسية للربع الثاني.' },
   { id: 'pr4', employeeId: '3', employeeName: 'فاطمة محمد', reviewDate: '2024-06-15', score: 4.2, comments: 'مساهمات إبداعية في الحملات التسويقية الأخيرة.' },
 ];
+
+export const jobs: Job[] = [
+    { id: '1', title: 'مهندس برمجيات', department: 'تقنية المعلومات', status: 'Open', postedDate: '01-08-2024', description: '...'},
+    { id: '2', title: 'أخصائي موارد بشرية', department: 'الموارد البشرية', status: 'Closed', postedDate: '15-07-2024', description: '...'},
+    { id: '3', title: 'مصمم واجهات', department: 'تقنية المعلومات', status: 'On-Hold', postedDate: '20-08-2024', description: '...'},
+]
 
 export const applicants: Applicant[] = [
   { id: 'app1', name: 'خالد الغامدي', avatar: 'https://picsum.photos/seed/app1/100/100', jobTitle: 'مهندس برمجيات', stage: 'Interview' },
