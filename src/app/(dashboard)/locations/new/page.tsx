@@ -44,7 +44,7 @@ const locationFormSchema = z.object({
   country: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email({ message: "بريد إلكتروني غير صالح." }).optional().or(z.literal('')),
-  manager_id: z.string().optional(),
+  manager_id: z.string().optional().or(z.literal('')),
 });
 
 type LocationFormValues = z.infer<typeof locationFormSchema>;
@@ -63,6 +63,7 @@ export default function NewLocationPage() {
       country: "",
       phone: "",
       email: "",
+      manager_id: "",
     }
   });
 
