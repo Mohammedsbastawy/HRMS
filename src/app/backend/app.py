@@ -4,6 +4,7 @@ from flask_cors import CORS
 import os
 from datetime import datetime
 import logging
+import sqlite3
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -60,7 +61,6 @@ class Department(db.Model):
     email = db.Column(db.String)
     manager_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
     budget = db.Column(db.Float)
-    headcount = db.Column(db.Integer, default=0)
     parent_department_id = db.Column(db.Integer, db.ForeignKey('departments.id'))
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -164,8 +164,10 @@ class LeaveRequest(db.Model):
               'full_name': self.employee.full_name,
               'avatar': self.employee.avatar
           }
-      if isinstance(data.get('created_at'), datetime):
-          data['created_at'] = data['created_at'].isoformat()
+      # Convert datetime objects to ISO format string
+      created_at_val = getattr(self, 'created_at', None)
+      if isinstance(created_at_val, datetime):
+          data['created_at'] = created_at_val.isoformat()
       return data
 
 class Job(db.Model):
@@ -548,18 +550,44 @@ def sync_attendance_route():
     return jsonify({"message": f"تمت مزامنة {len(mock_records)} سجلات بنجاح.", "records": mock_records})
 
 
-# --- App Context ---
-with app.app_context():
-    # This will create the database file and tables if they don't exist
-    if not os.path.exists(db_path):
-        app.logger.info("Database not found, creating it...")
-        db.create_all()
-        app.logger.info("Database created successfully.")
-    else:
-        app.logger.info("Database already exists.")
+# --- App Context and DB Initialization ---
+def init_db():
+    """Initializes the database from schema.sql."""
+    with app.app_context():
+        # Check if the database file exists
+        if not os.path.exists(db_path):
+            app.logger.info("Database not found, creating it from schema...")
+            try:
+                # This ensures the directory exists
+                os.makedirs(os.path.dirname(db_path), exist_ok=True)
+                
+                # Connect to the database (it will be created if it doesn't exist)
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                
+                # Read the schema file and execute it
+                schema_path = os.path.join(basedir, 'schema.sql')
+                with open(schema_path, 'r') as f:
+                    cursor.executescript(f.read())
+                
+                conn.commit()
+                conn.close()
+                app.logger.info("Database created and schema applied successfully.")
+                
+                # Now that the schema is applied, we can create all tables with SQLAlchemy
+                # This aligns SQLAlchemy's metadata with the existing schema
+                db.create_all()
 
+            except Exception as e:
+                app.logger.error(f"Error initializing database: {e}")
+        else:
+            app.logger.info("Database already exists.")
+            # Ensure tables are created if they are missing for some reason
+            db.create_all()
+
+
+# Initialize the database when the app starts
+init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-    

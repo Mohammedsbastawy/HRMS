@@ -36,7 +36,7 @@
 3.  **تفعيل البيئة الافتراضية**:
     -   **على Windows**:
         ```bash
-        .\venv\Scripts\activate
+        .\venv\Scripts\Activate
         ```
     -   **على Linux/macOS**:
         ```bash
