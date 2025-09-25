@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -16,7 +17,7 @@ import {
   ShieldCheck,
   LayoutDashboard,
   Settings,
-  Building, // Added Building icon
+  Building,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -24,7 +25,7 @@ import Link from 'next/link';
 const navItems = [
   { href: '/', label: 'نظرة عامة', icon: LayoutDashboard },
   { href: '/employees', label: 'الموظفين', icon: Users },
-  { href: '/departments', label: 'الأقسام', icon: Building }, // Added Departments nav item
+  { href: '/departments', label: 'الأقسام', icon: Building },
   { href: '/attendance', label: 'الحاضرين', icon: Clock },
   { href: '/leaves', label: 'الإجازات', icon: Calendar },
   { href: '/payroll', label: 'الرواتب', icon: Wallet },
