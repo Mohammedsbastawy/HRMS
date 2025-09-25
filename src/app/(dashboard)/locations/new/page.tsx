@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -38,11 +37,11 @@ const employees: Employee[] = []; // Data is now empty
 const locationFormSchema = z.object({
   name: z.string().min(2, { message: "اسم الموقع مطلوب." }),
   code: z.string().min(2, { message: "رمز الموقع مطلوب." }),
-  description: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  country: z.string().optional(),
-  phone: z.string().optional(),
+  description: z.string().optional().or(z.literal('')),
+  address: z.string().optional().or(z.literal('')),
+  city: z.string().optional().or(z.literal('')),
+  country: z.string().optional().or(z.literal('')),
+  phone: z.string().optional().or(z.literal('')),
   email: z.string().email({ message: "بريد إلكتروني غير صالح." }).optional().or(z.literal('')),
   manager_id: z.string().optional().or(z.literal('')),
 });
