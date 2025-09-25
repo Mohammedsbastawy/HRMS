@@ -85,10 +85,10 @@ export const trainingCourses: TrainingCourse[] = [
 ];
 
 export const trainingRecords: TrainingRecord[] = [
-  { id: 'tr1', employeeId: '1', courseId: 'tc1', courseTitle: 'Advanced JavaScript', enrollmentDate: '2024-05-01', status: 'Completed' },
-  { id: 'tr2', employeeId: '2', courseId: 'tc2', courseTitle: 'Leadership & Management', enrollmentDate: '2024-04-15', status: 'Completed' },
-  { id: 'tr3', employeeId: '3', courseId: 'tc3', courseTitle: 'Digital Marketing Fundamentals', enrollmentDate: '2024-06-01', status: 'In Progress' },
-  { id: 'tr4', employeeId: '4', courseId: 'tc2', courseTitle: 'Leadership & Management', enrollmentDate: '2024-07-01', status: 'Not Started' },
+  { id: 'tr1', employeeId: '1', courseId: 'tc1', courseTitle: 'Advanced JavaScript', enrollmentDate: '2024-05-01', status: 'Completed', outcome: 'Exceeded Expectations' },
+  { id: 'tr2', employeeId: '2', courseId: 'tc2', courseTitle: 'Leadership & Management', enrollmentDate: '2024-04-15', status: 'Completed', outcome: 'Met Expectations' },
+  { id: 'tr3', employeeId: '3', courseId: 'tc3', courseTitle: 'Digital Marketing Fundamentals', enrollmentDate: '2024-06-01', status: 'In Progress', outcome: 'N/A' },
+  { id: 'tr4', employeeId: '4', courseId: 'tc2', courseTitle: 'Leadership & Management', enrollmentDate: '2024-07-01', status: 'Not Started', outcome: 'N/A' },
 ];
 
 export const auditLogs: AuditLog[] = [

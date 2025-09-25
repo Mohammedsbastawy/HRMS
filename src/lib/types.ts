@@ -96,6 +96,7 @@ export type TrainingRecord = {
   courseTitle: string;
   enrollmentDate: string;
   status: 'Completed' | 'In Progress' | 'Not Started';
+  outcome: 'Exceeded Expectations' | 'Met Expectations' | 'Did Not Meet Expectations' | 'N/A';
 };
 
 export type AuditLog = {
