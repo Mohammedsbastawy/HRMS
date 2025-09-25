@@ -6,6 +6,16 @@ export type Department = {
   name_ar: string;
   name_en: string;
   description?: string | null;
+  code?: string | null;
+  location?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  manager_id?: number | null;
+  budget?: number | null;
+  headcount?: number;
+  parent_department_id?: number | null;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type JobTitle = {
