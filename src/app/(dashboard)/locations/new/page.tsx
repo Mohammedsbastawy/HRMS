@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -40,7 +39,7 @@ import { useState, useEffect } from 'react';
 const locationFormSchema = z.object({
   name_ar: z.string().min(2, { message: "الاسم بالعربية مطلوب." }),
   name_en: z.string().min(2, { message: "الاسم بالإنجليزية مطلوب." }),
-  code: z.string().min(3, { message: "الرمز يجب أن يتكون من 3 أحرف." }).optional(),
+  code: z.string().optional().or(z.literal('')),
   description: z.string().optional().or(z.literal('')),
   address: z.string().optional().or(z.literal('')),
   city: z.string().optional().or(z.literal('')),

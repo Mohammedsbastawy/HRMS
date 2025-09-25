@@ -174,7 +174,8 @@ export type AuditLog = {
 export type Location = {
   id: number;
   code?: string | null;
-  name: string;
+  name_ar: string;
+  name_en: string;
   description?: string | null;
   address?: string | null;
   city?: string | null;

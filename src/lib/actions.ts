@@ -1,4 +1,3 @@
-
 'use server';
 
 import { z } from 'zod';
@@ -52,15 +51,15 @@ export async function createDepartment(formData: unknown) {
 // --- Location Actions ---
 
 const locationFormSchema = z.object({
-  name_ar: z.string().min(2),
-  name_en: z.string().min(2),
-  code: z.string().optional(),
+  name_ar: z.string().min(2, { message: "الاسم بالعربية مطلوب." }),
+  name_en: z.string().min(2, { message: "الاسم بالإنجليزية مطلوب." }),
+  code: z.string().optional().or(z.literal('')),
   description: z.string().optional().or(z.literal('')),
   address: z.string().optional().or(z.literal('')),
   city: z.string().optional().or(z.literal('')),
   country: z.string().optional().or(z.literal('')),
-  phone: z-string().optional().or(z.literal('')),
-  email: z.string().email().optional().or(z.literal('')),
+  phone: z.string().optional().or(z.literal('')),
+  email: z.string().email({ message: "بريد إلكتروني غير صالح." }).optional().or(z.literal('')),
   manager_id: z.string().optional().or(z.literal('')),
 });
 

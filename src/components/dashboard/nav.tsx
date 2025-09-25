@@ -93,9 +93,9 @@ export function Nav() {
     <SidebarMenu>
       {navConfig.map((group, index) => {
         if ('separator' in group) {
-          return <SidebarMenuItem key={`sep-${index}`} className="p-2 !h-auto"><SidebarSeparator className="my-2" /></SidebarMenuItem>;
+          return <SidebarMenuItem key={`sep-${index}`} className="!p-0"><SidebarSeparator className="my-2" /></SidebarMenuItem>;
         }
-
+        
         return (
           <React.Fragment key={group.title || `group-${index}`}>
             {group.items.map(item => (
