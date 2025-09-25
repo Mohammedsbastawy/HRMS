@@ -1,5 +1,4 @@
 
-
 import {
   Table,
   TableBody,
@@ -11,14 +10,34 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Edit, Trash2 } from 'lucide-react';
-import { departments, jobTitles } from '@/lib/data';
 import Link from 'next/link';
 import type { Department, JobTitle } from '@/lib/types';
+import db from '@/lib/db';
 
-const allDepartments: Department[] = [];
-const allJobTitles: JobTitle[] = [];
-
+// This is now a Server Component
 export default function DepartmentsPage() {
+
+  const allDepartments: Department[] = (() => {
+    try {
+      const stmt = db.prepare('SELECT * FROM departments ORDER BY created_at DESC');
+      return stmt.all() as Department[];
+    } catch (error) {
+      console.error(error);
+      return [];
+    }
+  })();
+
+  const allJobTitles: JobTitle[] = (() => {
+    try {
+        const stmt = db.prepare('SELECT * FROM job_titles');
+        return stmt.all() as JobTitle[];
+    } catch (error) {
+        console.error(error);
+        return [];
+    }
+  })();
+
+
   return (
     <div className="flex flex-col gap-8">
       <Card>
@@ -41,7 +60,7 @@ export default function DepartmentsPage() {
                 <TableHead className="text-right">اسم القسم (العربية)</TableHead>
                 <TableHead className="text-right">اسم القسم (الإنجليزية)</TableHead>
                 <TableHead className="text-right">الوصف</TableHead>
-                <TableHead className="text-right">عدد الوظائف</TableHead>
+                <TableHead className="text-right">عدد الموظفين</TableHead>
                 <TableHead className="text-right">إجراءات</TableHead>
               </TableRow>
             </TableHeader>
@@ -52,7 +71,7 @@ export default function DepartmentsPage() {
                     <TableCell className="font-medium">{dept.name_ar}</TableCell>
                     <TableCell>{dept.name_en}</TableCell>
                     <TableCell>{dept.description}</TableCell>
-                    <TableCell>{allJobTitles.filter(jt => jt.department_id === dept.id).length}</TableCell>
+                    <TableCell>{dept.headcount ?? 0}</TableCell>
                     <TableCell className="flex justify-end gap-2">
                       <Button variant="ghost" size="icon">
                           <Edit className="h-4 w-4" />

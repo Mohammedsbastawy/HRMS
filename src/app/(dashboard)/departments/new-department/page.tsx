@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import Link from "next/link";
+import { useRouter } from 'next/navigation';
 import {
   Card,
   CardContent,
@@ -24,12 +25,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
+import { createDepartment } from "@/lib/actions";
 
 const departmentFormSchema = z.object({
   name_ar: z.string().min(2, { message: "الاسم بالعربية مطلوب." }),
   name_en: z.string().min(2, { message: "الاسم بالإنجليزية مطلوب." }),
   code: z.string().optional(),
-  location: z.string().optional(),
   email: z.string().email({ message: "بريد إلكتروني غير صالح." }).optional().or(z.literal('')),
   budget: z.coerce.number().min(0).optional(),
   description: z.string().optional(),
@@ -39,6 +40,7 @@ type DepartmentFormValues = z.infer<typeof departmentFormSchema>;
 
 export default function NewDepartmentPage() {
   const { toast } = useToast();
+  const router = useRouter();
   
   const form = useForm<DepartmentFormValues>({
     resolver: zodResolver(departmentFormSchema),
@@ -46,7 +48,6 @@ export default function NewDepartmentPage() {
       name_ar: "",
       name_en: "",
       code: "",
-      location: "",
       email: "",
       budget: 0,
       description: "",
@@ -54,16 +55,20 @@ export default function NewDepartmentPage() {
   });
 
   async function onSubmit(data: DepartmentFormValues) {
-    // TODO: Send data to the server to be saved in the database
-    console.log(data);
-    toast({
-      title: "تم إرسال النموذج بنجاح!",
-      description: (
-        <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-          <code className="text-white">{JSON.stringify(data, null, 2)}</code>
-        </pre>
-      ),
-    });
+    try {
+      await createDepartment(data);
+      toast({
+        title: "تم إنشاء القسم بنجاح!",
+        description: `تمت إضافة قسم "${data.name_ar}" إلى قاعدة البيانات.`,
+      });
+      router.push('/departments');
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "حدث خطأ!",
+        description: "فشل في إنشاء القسم. يرجى المحاولة مرة أخرى.",
+      });
+    }
   }
 
   return (
@@ -117,20 +122,7 @@ export default function NewDepartmentPage() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="location"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>الموقع (اختياري)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="الرياض، الطابق الثاني" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
+               <FormField
                 control={form.control}
                 name="email"
                 render={({ field }) => (
@@ -162,7 +154,7 @@ export default function NewDepartmentPage() {
               control={form.control}
               name="description"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="md:col-span-2">
                   <FormLabel>الوصف (اختياري)</FormLabel>
                   <FormControl>
                     <Textarea
