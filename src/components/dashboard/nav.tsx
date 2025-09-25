@@ -29,23 +29,25 @@ type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
-  separator?: boolean;
 };
 
-const navItems: NavItem[] = [
-  { href: '/', label: 'نظرة عامة', icon: LayoutDashboard },
-  { href: '/employees', label: 'الموظفين', icon: Users, separator: true },
-  { href: '/departments', label: 'الأقسام', icon: Building },
-  { href: '/locations', label: 'المواقع', icon: MapPin, separator: true },
-  { href: '/attendance', label: 'الحضور', icon: Clock },
-  { href: '/leaves', label: 'الإجازات', icon: Calendar, separator: true },
-  { href: '/payroll', label: 'الرواتب', icon: Wallet },
-  { href: '/performance', label: 'الأداء', icon: Star, separator: true },
-  { href: '/recruitment', label: 'التوظيف', icon: Briefcase },
-  { href: '/training', label: 'التدريب', icon: BookUser, separator: true },
-  { href: '/audit-log', label: 'سجل التدقيق', icon: ShieldCheck },
-  { href: '/settings', label: 'الإعدادات', icon: Settings },
+type NavItemWithSeparator = NavItem & { separator?: boolean };
+
+const navItems: NavItemWithSeparator[] = [
+    { href: '/', label: 'نظرة عامة', icon: LayoutDashboard },
+    { href: '/employees', label: 'الموظفين', icon: Users, separator: true },
+    { href: '/departments', label: 'الأقسام', icon: Building },
+    { href: '/locations', label: 'المواقع', icon: MapPin, separator: true },
+    { href: '/attendance', label: 'الحضور', icon: Clock },
+    { href: '/leaves', label: 'الإجازات', icon: Calendar, separator: true },
+    { href: '/payroll', label: 'الرواتب', icon: Wallet },
+    { href: '/performance', label: 'الأداء', icon: Star, separator: true },
+    { href: '/recruitment', label: 'التوظيف', icon: Briefcase },
+    { href: '/training', label: 'التدريب', icon: BookUser, separator: true },
+    { href: '/audit-log', label: 'سجل التدقيق', icon: ShieldCheck },
+    { href: '/settings', label: 'الإعدادات', icon: Settings },
 ];
+
 
 export function Nav() {
   const pathname = usePathname();
