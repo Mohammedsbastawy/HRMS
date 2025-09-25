@@ -31,24 +31,58 @@ type NavItem = {
   icon: LucideIcon;
 };
 
-const navItems: (NavItem | { separator: true })[] = [
-    { href: '/', label: 'نظرة عامة', icon: LayoutDashboard },
-    { href: '/employees', label: 'الموظفين', icon: Users },
-    { separator: true },
-    { href: '/departments', label: 'الأقسام', icon: Building },
-    { href: '/locations', label: 'المواقع', icon: MapPin },
-    { separator: true },
-    { href: '/attendance', label: 'الحضور', icon: Clock },
-    { href: '/leaves', label: 'الإجازات', icon: Calendar },
-    { separator: true },
-    { href: '/payroll', label: 'الرواتب', icon: Wallet },
-    { href: '/performance', label: 'الأداء', icon: Star },
-    { separator: true },
-    { href: '/recruitment', label: 'التوظيف', icon: Briefcase },
-    { href: '/training', label: 'التدريب', icon: BookUser },
-    { separator: true },
-    { href: '/audit-log', label: 'سجل التدقيق', icon: ShieldCheck },
-    { href: '/settings', label: 'الإعدادات', icon: Settings },
+type NavGroup = {
+  title?: string;
+  items: NavItem[];
+}
+
+const navConfig: (NavGroup | { separator: true })[] = [
+  {
+    items: [
+      { href: '/', label: 'نظرة عامة', icon: LayoutDashboard },
+      { href: '/employees', label: 'الموظفين', icon: Users },
+    ],
+  },
+  { separator: true },
+  {
+    title: 'البيانات الرئيسية',
+    items: [
+      { href: '/departments', label: 'الأقسام', icon: Building },
+      { href: '/locations', label: 'المواقع', icon: MapPin },
+    ],
+  },
+  { separator: true },
+  {
+    title: 'العمليات اليومية',
+    items: [
+      { href: '/attendance', label: 'الحضور', icon: Clock },
+      { href: '/leaves', label: 'الإجازات', icon: Calendar },
+    ],
+  },
+  { separator: true },
+  {
+    title: 'الرواتب والأداء',
+    items: [
+      { href: '/payroll', label: 'الرواتب', icon: Wallet },
+      { href: '/performance', label: 'الأداء', icon: Star },
+    ]
+  },
+  { separator: true },
+  {
+    title: 'التوظيف والتطوير',
+    items: [
+      { href: '/recruitment', label: 'التوظيف', icon: Briefcase },
+      { href: '/training', label: 'التدريب', icon: BookUser },
+    ]
+  },
+  { separator: true },
+  {
+    title: 'النظام',
+    items: [
+      { href: '/audit-log', label: 'سجل التدقيق', icon: ShieldCheck },
+      { href: '/settings', label: 'الإعدادات', icon: Settings },
+    ]
+  }
 ];
 
 
@@ -57,28 +91,29 @@ export function Nav() {
 
   return (
     <SidebarMenu>
-      {navItems.map((item, index) => {
-        if ('separator' in item) {
-          return (
-            <SidebarMenuItem key={`separator-${index}`} className="p-2 !h-auto">
-              <SidebarSeparator className="my-0" />
-            </SidebarMenuItem>
-          );
+      {navConfig.map((group, index) => {
+        if ('separator' in group) {
+          return <SidebarMenuItem key={`sep-${index}`} className="p-2 !h-auto"><SidebarSeparator className="my-2" /></SidebarMenuItem>;
         }
+
         return (
-          <SidebarMenuItem key={item.href}>
-            <SidebarMenuButton
-              asChild
-              isActive={pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/')}
-              tooltip={item.label}
-            >
-              <Link href={item.href}>
-                <item.icon />
-                <span>{item.label}</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        );
+          <React.Fragment key={group.title || `group-${index}`}>
+            {group.items.map(item => (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/')}
+                  tooltip={item.label}
+                >
+                  <Link href={item.href}>
+                    <item.icon />
+                    <span>{item.label}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </React.Fragment>
+        )
       })}
     </SidebarMenu>
   );

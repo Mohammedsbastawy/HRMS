@@ -54,17 +54,12 @@ export async function createDepartment(formData: unknown) {
 const locationFormSchema = z.object({
   name_ar: z.string().min(2),
   name_en: z.string().min(2),
-  code: z
-    .string()
-    .min(3, { message: "الرمز يجب أن يتكون من 3 إلى 5 أحرف." })
-    .max(5, { message: "الرمز يجب أن يتكون من 3 إلى 5 أحرف." })
-    .regex(/^[A-Z]+$/, { message: "الرمز يجب أن يحتوي على أحرف إنجليزية كبيرة فقط." })
-    .transform((val) => val.toUpperCase()),
+  code: z.string().optional(),
   description: z.string().optional().or(z.literal('')),
   address: z.string().optional().or(z.literal('')),
   city: z.string().optional().or(z.literal('')),
   country: z.string().optional().or(z.literal('')),
-  phone: z.string().optional().or(z.literal('')),
+  phone: z-string().optional().or(z.literal('')),
   email: z.string().email().optional().or(z.literal('')),
   manager_id: z.string().optional().or(z.literal('')),
 });
@@ -88,7 +83,7 @@ export async function createLocation(formData: unknown) {
         stmt.run({
             name_ar,
             name_en,
-            code,
+            code: code || null,
             description: description || null,
             address: address || null,
             city: city || null,

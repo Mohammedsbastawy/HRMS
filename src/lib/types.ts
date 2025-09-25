@@ -72,13 +72,13 @@ export type Document = {
 
 export type Attendance = {
   id: number;
-  employee_id: number;
+  employeeId: number;
   date: string;
-  check_in?: string | null;
-  check_out?: string | null;
-  hours_worked?: number | null;
-  status?: 'Present' | 'Absent' | 'On Leave' | 'Late';
-  employee?: Employee; // For UI display
+  checkIn?: string;
+  checkOut?: string;
+  workedHours: number;
+  employeeName: string;
+  employeeAvatar: string;
 };
 
 export type LeaveRequest = {
@@ -95,26 +95,23 @@ export type LeaveRequest = {
 
 export type Payroll = {
   id: number;
-  employee_id: number;
+  employeeId: number;
   month: string;
-  base_salary: number;
-  overtime?: number;
-  deductions?: number;
-  tax?: number;
-  insurance?: number;
-  net_salary: number;
-  generated_at?: string;
-  employee?: Employee; // For UI display
+  baseSalary: number;
+  bonus: number;
+  deductions: number;
+  netSalary: number;
+  employeeName: string;
 };
 
 export type PerformanceReview = {
   id: number;
-  employee_id: number;
-  review_date: string;
+  employeeId: number;
+  reviewDate: string;
   score: number;
-  reviewer_id?: number | null;
-  comments?: string | null;
-  employee?: Employee; // For UI display
+  reviewer: string;
+  comments: string;
+  employeeName: string;
 };
 
 export type Job = {
@@ -144,20 +141,18 @@ export type Applicant = {
 export type TrainingCourse = {
   id: number;
   title: string;
-  provider?: string | null;
-  start_date?: string | null;
-  end_date?: string | null;
+  provider: string;
+  duration: number; // in hours
 };
 
 export type TrainingRecord = {
   id: number;
-  employee_id: number;
-  course_id: number;
-  status?: 'Enrolled' | 'In Progress' | 'Completed' | 'Failed';
-  result?: string | null;
-  employee?: Employee; // For UI display
-  course?: TrainingCourse; // For UI display
-  outcome?: 'Exceeded Expectations' | 'Met Expectations' | 'Did Not Meet Expectations' | 'N/A'; // For UI
+  employeeId: number;
+  courseId: number;
+  status: 'Completed' | 'In Progress' | 'Not Started';
+  outcome: 'Exceeded Expectations' | 'Met Expectations' | 'Did Not Meet Expectations' | 'N/A';
+  employeeName: string;
+  courseTitle: string;
 };
 
 export type SystemSettings = {
@@ -170,18 +165,16 @@ export type SystemSettings = {
 
 export type AuditLog = {
   id: number;
-  user_id?: number | null;
-  action?: string | null;
-  timestamp?: string;
-  user?: User; // for UI display
-  details?: string; // for UI display
+  timestamp: string;
+  user: string;
+  action: string;
+  details: string;
 };
 
 export type Location = {
   id: number;
   code?: string | null;
-  name_ar: string;
-  name_en: string;
+  name: string;
   description?: string | null;
   address?: string | null;
   city?: string | null;
