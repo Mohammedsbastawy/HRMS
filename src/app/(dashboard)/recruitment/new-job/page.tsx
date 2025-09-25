@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -31,8 +32,8 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { Textarea } from "@/components/ui/textarea";
-import { departments, jobTitles } from "@/lib/data";
-import { useState } from "react";
+import type { Department, JobTitle } from "@/lib/types";
+import { useState, useEffect } from "react";
 
 const jobFormSchema = z.object({
   jobTitle: z.string({ required_error: "المسمى الوظيفي مطلوب." }),
@@ -49,6 +50,11 @@ export default function NewJobPage() {
   const { toast } = useToast();
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [jobTitles, setJobTitles] = useState<JobTitle[]>([]);
+
+  // Data fetching would go here. For now, using empty arrays.
+
   const form = useForm<JobFormValues>({
     resolver: zodResolver(jobFormSchema),
     defaultValues: {

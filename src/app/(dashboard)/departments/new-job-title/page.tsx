@@ -30,7 +30,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { departments } from "@/lib/data"; // Will be empty, that's expected
+import type { Department } from '@/lib/types';
+import { useEffect, useState } from "react";
 
 const jobTitleFormSchema = z.object({
   departmentId: z.string({ required_error: "يجب اختيار القسم." }),
@@ -42,7 +43,20 @@ type JobTitleFormValues = z.infer<typeof jobTitleFormSchema>;
 
 export default function NewJobTitlePage() {
   const { toast } = useToast();
-  
+  const [departments, setDepartments] = useState<Department[]>([]);
+
+  // Fetch departments on client side. In a real app, this might be better as a server action
+  // or pre-fetched in a parent server component.
+  useEffect(() => {
+    // This is a placeholder. A real implementation would fetch from an API endpoint.
+    // async function fetchDepartments() {
+    //   const res = await fetch('/api/departments');
+    //   const data = await res.json();
+    //   setDepartments(data);
+    // }
+    // fetchDepartments();
+  }, []);
+
   const form = useForm<JobTitleFormValues>({
     resolver: zodResolver(jobTitleFormSchema),
   });

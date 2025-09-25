@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -32,8 +33,9 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import type { Employee } from "@/lib/types";
-
-const employees: Employee[] = []; // Data is now empty
+import { createLocation } from "@/lib/actions";
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 
 const locationFormSchema = z.object({
   name_ar: z.string().min(2, { message: "الاسم بالعربية مطلوب." }),
@@ -57,7 +59,22 @@ type LocationFormValues = z.infer<typeof locationFormSchema>;
 
 export default function NewLocationPage() {
   const { toast } = useToast();
-  
+  const router = useRouter();
+  const [employees, setEmployees] = useState<Employee[]>([]);
+
+  // Since this is a client component, we can't use top-level await or db calls directly.
+  // A proper implementation would fetch this via an API route or a server action.
+  // For now, we'll leave it empty as we transition from mock data.
+  // useEffect(() => {
+  //   // async function fetchEmployees() {
+  //   //   const response = await fetch('/api/employees'); // Example API endpoint
+  //   //   const data = await response.json();
+  //   //   setEmployees(data);
+  //   // }
+  //   // fetchEmployees();
+  // }, []);
+
+
   const form = useForm<LocationFormValues>({
     resolver: zodResolver(locationFormSchema),
     defaultValues: {
@@ -74,16 +91,21 @@ export default function NewLocationPage() {
     }
   });
 
-  function onSubmit(data: LocationFormValues) {
-    console.log("Form submitted with data:", data);
-    toast({
-      title: "تم إرسال النموذج بنجاح!",
-      description: (
-        <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-          <code className="text-white">{JSON.stringify(data, null, 2)}</code>
-        </pre>
-      ),
-    });
+  async function onSubmit(data: LocationFormValues) {
+    try {
+        await createLocation(data);
+        toast({
+            title: "تم إنشاء الموقع بنجاح!",
+            description: `تمت إضافة موقع "${data.name_ar}" إلى قاعدة البيانات.`,
+        });
+        router.push('/locations');
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "حدث خطأ!",
+            description: "فشل في إنشاء الموقع. يرجى المحاولة مرة أخرى.",
+        });
+    }
   }
 
   return (

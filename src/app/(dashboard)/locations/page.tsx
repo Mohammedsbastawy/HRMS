@@ -14,12 +14,30 @@ import Link from 'next/link';
 import type { Location, Employee } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
+import db from '@/lib/db';
 
-
-const locations: Location[] = []; // Data is now empty
-const employees: Employee[] = []; // Data is now empty
 
 export default function LocationsPage() {
+
+    const locations: Location[] = (() => {
+        try {
+            const stmt = db.prepare('SELECT * FROM locations ORDER BY created_at DESC');
+            return stmt.all() as Location[];
+        } catch (error) {
+            console.error(error);
+            return [];
+        }
+    })();
+
+    const employees: Employee[] = (() => {
+        try {
+            const stmt = db.prepare('SELECT id, full_name FROM employees');
+            return stmt.all() as Employee[];
+        } catch (error) {
+            console.error(error);
+            return [];
+        }
+    })();
 
     const getManagerName = (managerId: number | null | undefined) => {
         if (!managerId) return 'غير محدد';

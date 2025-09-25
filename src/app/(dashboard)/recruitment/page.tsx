@@ -3,7 +3,6 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal, PlusCircle, Search, Eye, Edit, Trash2 } from 'lucide-react';
-import { applicants, jobs } from '@/lib/data';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -22,6 +21,8 @@ import {
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import type { Applicant, Job, Department } from '@/lib/types';
+import db from '@/lib/db';
 
 const stages = ['Applied', 'Screening', 'Interview', 'Offer', 'Hired', 'Rejected'];
 const stageLabels: { [key: string]: string } = {
@@ -33,7 +34,7 @@ const stageLabels: { [key: string]: string } = {
   Rejected: 'مرفوض',
 };
 
-const ApplicantCard = ({ applicant }: { applicant: (typeof applicants)[0] }) => (
+const ApplicantCard = ({ applicant }: { applicant: Applicant }) => (
   <Card>
     <CardContent className="p-4">
       <div className="flex items-start gap-4">
@@ -56,7 +57,7 @@ const ApplicantCard = ({ applicant }: { applicant: (typeof applicants)[0] }) => 
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <p className="text-sm text-muted-foreground">{applicant.jobTitle}</p>
+          <p className="text-sm text-muted-foreground">{applicant.job?.title || 'غير محدد'}</p>
         </div>
       </div>
     </CardContent>
@@ -64,7 +65,18 @@ const ApplicantCard = ({ applicant }: { applicant: (typeof applicants)[0] }) => 
 );
 
 export default function RecruitmentPage() {
-  const getStatusVariant = (status: 'Open' | 'Closed' | 'On-Hold') => {
+    
+    const jobs: Job[] = db.prepare('SELECT * FROM jobs').all() as Job[];
+    const applicants: Applicant[] = db.prepare('SELECT * FROM applicants').all() as Applicant[];
+    const departments: Department[] = db.prepare('SELECT id, name_ar FROM departments').all() as Department[];
+
+    // Map departments to jobs
+    const jobsWithDept = jobs.map(job => ({
+        ...job,
+        department: departments.find(d => d.id === job.department_id)
+    }))
+
+  const getStatusVariant = (status: 'Open' | 'Closed' | 'On-Hold' | undefined) => {
     switch (status) {
       case 'Open':
         return 'default';
@@ -76,7 +88,7 @@ export default function RecruitmentPage() {
         return 'outline';
     }
   };
-   const getStatusText = (status: 'Open' | 'Closed' | 'On-Hold') => {
+   const getStatusText = (status: 'Open' | 'Closed' | 'On-Hold' | undefined) => {
     switch (status) {
       case 'Open':
         return 'مفتوحة';
@@ -84,6 +96,8 @@ export default function RecruitmentPage() {
         return 'مغلقة';
       case 'On-Hold':
         return 'معلقة';
+      default:
+        return 'غير محدد';
     }
   };
 
@@ -118,20 +132,20 @@ export default function RecruitmentPage() {
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead className="text-right text-destructive">الرقم</TableHead>
-                        <TableHead className="text-right text-destructive">المسمى الوظيفي</TableHead>
-                        <TableHead className="text-right text-destructive">القسم</TableHead>
-                        <TableHead className="text-right text-destructive">الحالة</TableHead>
-                        <TableHead className="text-right text-destructive">تاريخ النشر</TableHead>
-                        <TableHead className="text-right text-destructive">إجراءات</TableHead>
+                        <TableHead className="text-right">الرقم</TableHead>
+                        <TableHead className="text-right">المسمى الوظيفي</TableHead>
+                        <TableHead className="text-right">القسم</TableHead>
+                        <TableHead className="text-right">الحالة</TableHead>
+                        <TableHead className="text-right">تاريخ النشر</TableHead>
+                        <TableHead className="text-right">إجراءات</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {jobs.map(job => (
+                    {jobsWithDept.map(job => (
                         <TableRow key={job.id}>
                             <TableCell>{job.id}</TableCell>
                             <TableCell className="font-medium">{job.title}</TableCell>
-                            <TableCell>{job.department}</TableCell>
+                            <TableCell>{job.department?.name_ar || 'غير محدد'}</TableCell>
                             <TableCell>
                                <Badge 
                                  variant={getStatusVariant(job.status)}
@@ -144,7 +158,7 @@ export default function RecruitmentPage() {
                                  {getStatusText(job.status)}
                                </Badge>
                             </TableCell>
-                            <TableCell>{job.postedDate}</TableCell>
+                            <TableCell>{job.created_at ? new Date(job.created_at).toLocaleDateString('ar-EG') : 'غير محدد'}</TableCell>
                             <TableCell className="flex justify-end gap-2">
                                 <Button variant="ghost" size="icon">
                                     <Eye className="h-4 w-4" />
@@ -190,4 +204,3 @@ export default function RecruitmentPage() {
     </div>
   );
 }
-

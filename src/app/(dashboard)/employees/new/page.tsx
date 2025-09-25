@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -30,8 +31,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { departments, jobTitles, locations } from "@/lib/data";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import type { Department, JobTitle, Location } from "@/lib/types";
 
 const employeeFormSchema = z.object({
   fullName: z.string().min(2, { message: "الاسم الكامل مطلوب." }),
@@ -48,6 +49,13 @@ type EmployeeFormValues = z.infer<typeof employeeFormSchema>;
 export default function NewEmployeePage() {
   const { toast } = useToast();
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
+
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [jobTitles, setJobTitles] = useState<JobTitle[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
+
+  // Data fetching would happen here, e.g. in useEffect or via a server action
+  // For now, they remain empty arrays, to be populated from the DB.
 
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema),
