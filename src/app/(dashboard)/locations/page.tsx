@@ -48,8 +48,8 @@ export default function LocationsPage() {
     }, [toast]);
 
     const filteredLocations = locations.filter(loc => 
-        loc.name_ar.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        loc.name_en.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (loc.name_ar || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (loc.name_en || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (loc.city && loc.city.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 

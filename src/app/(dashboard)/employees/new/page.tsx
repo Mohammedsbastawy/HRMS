@@ -44,8 +44,8 @@ export default function NewEmployeePage() {
 
         setDepartments(deptsData.departments || []);
         setJobTitles(jobsData || []);
-        setLocations(locsData || []);
-        setManagers(mgrsData || []);
+        setLocations(locsData.locations || []);
+        setManagers(mgrsData.employees || []);
 
       } catch (error: any) {
         toast({

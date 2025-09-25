@@ -61,7 +61,7 @@ export default function NewLocationPage() {
        try {
         const response = await fetch('/api/employees?is_manager=true');
         const data = await response.json();
-        setEmployees(data);
+        setEmployees(data.employees);
        } catch (error) {
          toast({ variant: 'destructive', title: 'فشل في جلب بيانات المدراء' });
        }
