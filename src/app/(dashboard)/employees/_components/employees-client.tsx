@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -14,19 +14,44 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Search, Trash2, Edit, Eye, ListFilter } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Search, Trash2, Edit, Eye, ListFilter, Loader2 } from 'lucide-react';
 import type { Employee } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/ui/use-toast';
 
-// This is a Client Component. It receives data as props and handles all user interactions.
-// It does NOT import `db` or any other server-side code.
-export function EmployeesPageClient({ initialEmployees }: { initialEmployees: Employee[] }) {
-  const [employees] = useState<Employee[]>(initialEmployees);
+export function EmployeesPageClient() {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    async function fetchEmployees() {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/employees');
+        if (!response.ok) {
+          throw new Error('فشل في جلب بيانات الموظفين');
+        }
+        const data = await response.json();
+        setEmployees(data);
+      } catch (error: any) {
+        toast({
+          variant: 'destructive',
+          title: 'خطأ',
+          description: error.message || 'حدث خطأ أثناء جلب البيانات.',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchEmployees();
+  }, [toast]);
+
 
   const departments = [...new Set(employees.map(e => e.department?.name_en).filter(Boolean) as string[])];
   const statuses = ['Active', 'Resigned', 'Terminated'];
@@ -126,7 +151,14 @@ export function EmployeesPageClient({ initialEmployees }: { initialEmployees: Em
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredEmployees.length > 0 ? (
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={8} className="h-24 text-center">
+                  <Loader2 className="mx-auto h-8 w-8 animate-spin" />
+                  <p>جاري تحميل البيانات...</p>
+                </TableCell>
+              </TableRow>
+            ) : filteredEmployees.length > 0 ? (
               filteredEmployees.map((employee) => (
                 <TableRow key={employee.id}>
                   <TableCell className="font-medium">{employee.id}</TableCell>
