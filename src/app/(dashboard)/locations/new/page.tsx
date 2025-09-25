@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -35,8 +36,14 @@ import type { Employee } from "@/lib/types";
 const employees: Employee[] = []; // Data is now empty
 
 const locationFormSchema = z.object({
-  name: z.string().min(2, { message: "اسم الموقع مطلوب." }),
-  code: z.string().min(2, { message: "رمز الموقع مطلوب." }),
+  name_ar: z.string().min(2, { message: "الاسم بالعربية مطلوب." }),
+  name_en: z.string().min(2, { message: "الاسم بالإنجليزية مطلوب." }),
+  code: z
+    .string()
+    .min(5, { message: "الرمز يجب أن يتكون من 5 أحرف." })
+    .max(5, { message: "الرمز يجب أن يتكون من 5 أحرف." })
+    .regex(/^[A-Z]+$/, { message: "الرمز يجب أن يحتوي على أحرف إنجليزية كبيرة فقط." })
+    .transform((val) => val.toUpperCase()),
   description: z.string().optional().or(z.literal('')),
   address: z.string().optional().or(z.literal('')),
   city: z.string().optional().or(z.literal('')),
@@ -54,7 +61,8 @@ export default function NewLocationPage() {
   const form = useForm<LocationFormValues>({
     resolver: zodResolver(locationFormSchema),
     defaultValues: {
-      name: "",
+      name_ar: "",
+      name_en: "",
       code: "",
       description: "",
       address: "",
@@ -90,14 +98,27 @@ export default function NewLocationPage() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <FormField
+               <FormField
                 control={form.control}
-                name="name"
+                name="name_ar"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>اسم الموقع</FormLabel>
+                    <FormLabel>اسم الموقع (بالعربية)</FormLabel>
                     <FormControl>
-                      <Input placeholder="مثال: المقر الرئيسي - القاهرة" {...field} />
+                      <Input placeholder="مثال: المقر الرئيسي" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+               <FormField
+                control={form.control}
+                name="name_en"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>اسم الموقع (بالإنجليزية)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Head Office" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -110,8 +131,37 @@ export default function NewLocationPage() {
                   <FormItem>
                     <FormLabel>رمز الموقع</FormLabel>
                     <FormControl>
-                      <Input placeholder="HQ / CAI / DXB" {...field} />
+                      <Input placeholder="CAIHO" {...field} onChange={(e) => field.onChange(e.target.value.toUpperCase())} maxLength={5} />
                     </FormControl>
+                     <FormDescription>
+                      يجب أن يتكون من 5 أحرف إنجليزية كبيرة.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="manager_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>المدير المسؤول (اختياري)</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="اختر المدير المسؤول عن الموقع" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {employees.length > 0 ? (
+                          employees.map(emp => (
+                            <SelectItem key={emp.id} value={String(emp.id)}>{emp.full_name}</SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="-" disabled>لا يوجد موظفين متاحين لإسنادهم كمدراء</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -168,7 +218,7 @@ export default function NewLocationPage() {
                   </FormItem>
                 )}
               />
-              <FormField
+               <FormField
                 control={form.control}
                 name="email"
                 render={({ field }) => (
@@ -177,32 +227,6 @@ export default function NewLocationPage() {
                     <FormControl>
                       <Input placeholder="info@example.com" {...field} />
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="manager_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>المدير المسؤول (اختياري)</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="اختر المدير المسؤول عن الموقع" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {employees.length > 0 ? (
-                          employees.map(emp => (
-                            <SelectItem key={emp.id} value={String(emp.id)}>{emp.full_name}</SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="-" disabled>لا يوجد موظفين متاحين لإسنادهم كمدراء</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

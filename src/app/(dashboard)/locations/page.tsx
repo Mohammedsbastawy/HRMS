@@ -57,9 +57,9 @@ export default function LocationsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="text-right">الرمز</TableHead>
-                <TableHead className="text-right">اسم الموقع</TableHead>
+                <TableHead className="text-right">اسم الموقع (العربية)</TableHead>
+                <TableHead className="text-right">اسم الموقع (الإنجليزية)</TableHead>
                 <TableHead className="text-right">المدينة</TableHead>
-                <TableHead className="text-right">الدولة</TableHead>
                 <TableHead className="text-right">المدير المسؤول</TableHead>
                 <TableHead className="text-right">إجراءات</TableHead>
               </TableRow>
@@ -69,9 +69,9 @@ export default function LocationsPage() {
                 locations.map((loc) => (
                     <TableRow key={loc.id}>
                     <TableCell>{loc.code}</TableCell>
-                    <TableCell className="font-medium">{loc.name}</TableCell>
+                    <TableCell className="font-medium">{loc.name_ar}</TableCell>
+                    <TableCell>{loc.name_en}</TableCell>
                     <TableCell>{loc.city}</TableCell>
-                    <TableCell>{loc.country}</TableCell>
                     <TableCell>{getManagerName(loc.manager_id)}</TableCell>
                     <TableCell className="flex justify-end gap-2">
                         <Button variant="ghost" size="icon">

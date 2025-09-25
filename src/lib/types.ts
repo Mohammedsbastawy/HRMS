@@ -16,7 +16,7 @@ export type Department = {
   parent_department_id?: number | null;
   created_at?: string;
   updated_at?: string;
-  location_id?: number | null; // Added
+  location_id?: number | null; 
 };
 
 export type JobTitle = {
@@ -38,7 +38,7 @@ export type Employee = {
   national_id?: string | null;
   department_id?: number | null;
   job_title_id?: number | null;
-  location_id?: number | null; // Added
+  location_id?: number | null;
   contract_type?: string | null; // Full-time / Part-time / Temporary / Intern
   hire_date?: string | null;
   manager_id?: number | null;
@@ -48,7 +48,9 @@ export type Employee = {
   tax_number?: string | null;
   social_insurance_number?: string | null;
   status?: 'Active' | 'Resigned' | 'Terminated';
-  avatar?: string; // Not in schema, but useful for UI
+  avatar?: string;
+  department?: Department; // For UI display
+  jobTitle?: JobTitle; // For UI display
 };
 
 export type User = {
@@ -76,9 +78,7 @@ export type Attendance = {
   check_out?: string | null;
   hours_worked?: number | null;
   status?: 'Present' | 'Absent' | 'On Leave' | 'Late';
-  employeeName?: string; // For UI display
-  employeeAvatar?: string; // For UI display
-  workedHours?: number; // For UI consistency
+  employee?: Employee; // For UI display
 };
 
 export type LeaveRequest = {
@@ -90,8 +90,7 @@ export type LeaveRequest = {
   status?: 'Pending' | 'Approved' | 'Rejected';
   approved_by?: number | null;
   notes?: string | null;
-  employeeName?: string; // For UI display
-  employeeAvatar?: string; // For UI display
+  employee?: Employee; // For UI display
 };
 
 export type Payroll = {
@@ -105,9 +104,7 @@ export type Payroll = {
   insurance?: number;
   net_salary: number;
   generated_at?: string;
-  employeeName?: string; // For UI display
-  bonus?: number; // For UI consistency
-  netSalary?: number; // For UI consistency
+  employee?: Employee; // For UI display
 };
 
 export type PerformanceReview = {
@@ -117,7 +114,7 @@ export type PerformanceReview = {
   score: number;
   reviewer_id?: number | null;
   comments?: string | null;
-  employeeName?: string; // For UI display
+  employee?: Employee; // For UI display
 };
 
 export type Job = {
@@ -127,8 +124,7 @@ export type Job = {
   dept_id?: number | null;
   status?: 'Open' | 'Closed' | 'On-Hold';
   created_at?: string;
-  department?: string; // For UI display
-  postedDate?: string; // For UI display
+  department?: Department; // For UI display
 };
 
 export type Applicant = {
@@ -142,7 +138,7 @@ export type Applicant = {
   applied_at?: string;
   notes?: string | null;
   avatar?: string; // For UI display
-  jobTitle?: string; // For UI display
+  job?: Job; // For UI display
 };
 
 export type TrainingCourse = {
@@ -159,8 +155,8 @@ export type TrainingRecord = {
   course_id: number;
   status?: 'Enrolled' | 'In Progress' | 'Completed' | 'Failed';
   result?: string | null;
-  employeeName?: string; // For UI display
-  courseTitle?: string; // For UI display
+  employee?: Employee; // For UI display
+  course?: TrainingCourse; // For UI display
   outcome?: 'Exceeded Expectations' | 'Met Expectations' | 'Did Not Meet Expectations' | 'N/A'; // For UI
 };
 
@@ -177,14 +173,15 @@ export type AuditLog = {
   user_id?: number | null;
   action?: string | null;
   timestamp?: string;
-  user?: string; // for UI display
+  user?: User; // for UI display
   details?: string; // for UI display
 };
 
 export type Location = {
   id: number;
   code?: string | null;
-  name: string;
+  name_ar: string;
+  name_en: string;
   description?: string | null;
   address?: string | null;
   city?: string | null;
@@ -194,4 +191,7 @@ export type Location = {
   manager_id?: number | null;
   created_at?: string;
   updated_at?: string;
+  manager?: Employee; // for UI display
 };
+
+    
