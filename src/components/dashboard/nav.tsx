@@ -34,16 +34,16 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: '/', label: 'نظرة عامة', icon: LayoutDashboard },
-  { href: '/employees', label: 'الموظفين', icon: Users },
-  { href: '/departments', label: 'الأقسام', icon: Building, separator: true },
-  { href: '/locations', label: 'المواقع', icon: MapPin },
-  { href: '/attendance', label: 'الحضور', icon: Clock, separator: true },
-  { href: '/leaves', label: 'الإجازات', icon: Calendar },
-  { href: '/payroll', label: 'الرواتب', icon: Wallet, separator: true },
-  { href: '/performance', label: 'الأداء', icon: Star },
-  { href: '/recruitment', label: 'التوظيف', icon: Briefcase, separator: true },
-  { href: '/training', label: 'التدريب', icon: BookUser },
-  { href: '/audit-log', label: 'سجل التدقيق', icon: ShieldCheck, separator: true },
+  { href: '/employees', label: 'الموظفين', icon: Users, separator: true },
+  { href: '/departments', label: 'الأقسام', icon: Building },
+  { href: '/locations', label: 'المواقع', icon: MapPin, separator: true },
+  { href: '/attendance', label: 'الحضور', icon: Clock },
+  { href: '/leaves', label: 'الإجازات', icon: Calendar, separator: true },
+  { href: '/payroll', label: 'الرواتب', icon: Wallet },
+  { href: '/performance', label: 'الأداء', icon: Star, separator: true },
+  { href: '/recruitment', label: 'التوظيف', icon: Briefcase },
+  { href: '/training', label: 'التدريب', icon: BookUser, separator: true },
+  { href: '/audit-log', label: 'سجل التدقيق', icon: ShieldCheck },
   { href: '/settings', label: 'الإعدادات', icon: Settings },
 ];
 
