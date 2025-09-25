@@ -18,7 +18,7 @@ import {
   LayoutDashboard,
   Settings,
   Building,
-  MapPin, // Added
+  MapPin,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -27,7 +27,7 @@ const navItems = [
   { href: '/', label: 'نظرة عامة', icon: LayoutDashboard },
   { href: '/employees', label: 'الموظفين', icon: Users },
   { href: '/departments', label: 'الأقسام', icon: Building },
-  { href: '/locations', label: 'المواقع', icon: MapPin }, // Added
+  { href: '/locations', label: 'المواقع', icon: MapPin },
   { href: '/attendance', label: 'الحاضرين', icon: Clock },
   { href: '/leaves', label: 'الإجازات', icon: Calendar },
   { href: '/payroll', label: 'الرواتب', icon: Wallet },
