@@ -92,12 +92,10 @@ export type TrainingCourse = {
 export type TrainingRecord = {
   id: string;
   employeeId: string;
-  employeeName: string;
   courseId: string;
   courseTitle: string;
   enrollmentDate: string;
   status: 'Completed' | 'In Progress' | 'Not Started';
-  outcome: 'Exceeded Expectations' | 'Met Expectations' | 'Did Not Meet Expectations' | 'N/A';
 };
 
 export type AuditLog = {
