@@ -33,7 +33,6 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import type { Department } from '@/lib/types';
 import { useEffect, useState } from "react";
-import { createJobTitle } from "@/lib/actions";
 
 const jobTitleFormSchema = z.object({
   department_id: z.string({ required_error: "يجب اختيار القسم." }),
@@ -67,7 +66,16 @@ export default function NewJobTitlePage() {
 
   async function onSubmit(data: JobTitleFormValues) {
     try {
-      await createJobTitle(data);
+      const response = await fetch('/api/job-titles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error('فشل في إنشاء المسمى الوظيفي');
+      }
+
       toast({
         title: "تم إنشاء المسمى الوظيفي بنجاح!",
         description: `تمت إضافة "${data.title_ar}".`,

@@ -32,7 +32,6 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import type { Employee } from "@/lib/types";
-import { createLocation } from "@/lib/actions";
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 
@@ -88,7 +87,14 @@ export default function NewLocationPage() {
 
   async function onSubmit(data: LocationFormValues) {
     try {
-        await createLocation(data);
+        const response = await fetch('/api/locations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (!response.ok) {
+            throw new Error('فشل في إنشاء الموقع');
+        }
         toast({
             title: "تم إنشاء الموقع بنجاح!",
             description: `تمت إضافة موقع "${data.name_ar}" إلى قاعدة البيانات.`,

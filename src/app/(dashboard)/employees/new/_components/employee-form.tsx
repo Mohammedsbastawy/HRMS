@@ -27,7 +27,6 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { useState } from "react";
 import type { Department, JobTitle, Location } from "@/lib/types";
-import { createEmployee } from "@/lib/actions";
 
 const employeeFormSchema = z.object({
   full_name: z.string().min(2, { message: "الاسم الكامل مطلوب." }),
@@ -72,12 +71,22 @@ export function EmployeeForm({ departments, jobTitles, locations, managers }: Em
 
   async function onSubmit(data: EmployeeFormValues) {
     try {
-        await createEmployee(data);
+        const response = await fetch('/api/employees', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'فشل في إضافة الموظف');
+        }
+
         toast({
             title: "تمت إضافة الموظف بنجاح!",
             description: `تم حفظ بيانات ${data.full_name} في النظام.`,
         });
-        // The action will handle redirection.
+        router.push('/employees');
     } catch(error: any) {
         toast({
             variant: "destructive",

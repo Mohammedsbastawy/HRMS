@@ -25,7 +25,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { createDepartment } from "@/lib/actions";
 
 const departmentFormSchema = z.object({
   name_ar: z.string().min(2, { message: "الاسم بالعربية مطلوب." }),
@@ -56,7 +55,16 @@ export default function NewDepartmentPage() {
 
   async function onSubmit(data: DepartmentFormValues) {
     try {
-      await createDepartment(data);
+      const response = await fetch('/api/departments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if (!response.ok) {
+        throw new Error('فشل في إنشاء القسم');
+      }
+
       toast({
         title: "تم إنشاء القسم بنجاح!",
         description: `تمت إضافة قسم "${data.name_ar}" إلى قاعدة البيانات.`,
