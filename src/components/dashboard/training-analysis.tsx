@@ -3,8 +3,6 @@
 
 import { useState } from 'react';
 import type { TrainingRecord, Employee } from '@/lib/types';
-import { adjustSalaryBasedOnTraining } from '@/ai/flows/adjust-salary-based-on-training';
-import { generateDevelopmentRecommendations } from '@/ai/flows/generate-development-recommendations';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -38,85 +36,38 @@ export function TrainingAnalysis({ record, employee, performanceReviewComments }
   const handleAnalysis = async () => {
     setLoading(true);
     setResult(null);
-    try {
-      // The adjustSalaryBasedOnTraining flow provides both salary and development recommendations.
-      const output = await adjustSalaryBasedOnTraining({
-        employeeName: employee.name,
-        performanceReviewScore: employee.performanceReviewScore,
-        trainingCompletionStatus: record.status,
-        trainingOutcome: record.outcome,
-        currentSalary: employee.salary,
-      });
-
-      setResult(output);
-    } catch (error) {
-      console.error('AI analysis failed:', error);
-      toast({
-        variant: 'destructive',
-        title: 'خطأ في التحليل',
-        description: 'حدث خطأ أثناء الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى.',
-      });
-    } finally {
-      setLoading(false);
-    }
+    toast({
+      variant: 'destructive',
+      title: 'ميزة غير متاحة',
+      description: 'تم تعطيل ميزة التحليل بالذكاء الاصطناعي للعمل دون اتصال بالإنترنت.',
+    });
+    setLoading(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" disabled>
           <Bot className="ml-2 h-4 w-4" />
-          تحليل وتوصية
+          تحليل وتوصية (معطل)
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>تحليل التدريب بالذكاء الاصطناعي</DialogTitle>
           <DialogDescription>
-            تحليل أداء {employee.name} في دورة "{record.courseTitle}" لتقديم توصيات.
+            هذه الميزة تتطلب اتصالاً بالإنترنت وهي معطلة حاليًا.
           </DialogDescription>
         </DialogHeader>
 
         <div className="py-4">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center gap-4 rounded-lg bg-muted p-8 text-center">
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="font-medium">يقوم الذكاء الاصطناعي بالتحليل...</p>
-              <p className="text-sm text-muted-foreground">قد يستغرق هذا بضع لحظات.</p>
-            </div>
-          ) : result ? (
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-headline font-semibold text-lg">تعديل الراتب الموصى به</h4>
-                <p className="text-muted-foreground">{result.recommendedSalaryAdjustment}</p>
-              </div>
-              <div>
-                <h4 className="font-headline font-semibold text-lg">توصيات التطوير المهني</h4>
-                <p className="text-muted-foreground">{result.professionalDevelopmentRecommendations}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center text-muted-foreground">
-              <p>اضغط على الزر أدناه لبدء التحليل وإنشاء توصيات للراتب والتطوير المهني بناءً على أداء الموظف ومراجعاته.</p>
-            </div>
-          )}
+          <div className="text-center text-muted-foreground">
+            <p>تم تعطيل التحليل بالذكاء الاصطناعي لضمان عمل التطبيق دون اتصال بالإنترنت.</p>
+          </div>
         </div>
 
         <DialogFooter>
-          {result ? (
-            <Button onClick={() => setResult(null)}>تحليل مرة أخرى</Button>
-          ) : (
-            <Button onClick={handleAnalysis} disabled={loading} className="w-full">
-              {loading ? (
-                <>
-                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                  جاري التحليل...
-                </>
-              ) : (
-                'إنشاء توصيات'
-              )}
-            </Button>
-          )}
+            <Button onClick={() => setOpen(false)} variant="outline">إغلاق</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
