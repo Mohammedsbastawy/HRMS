@@ -41,10 +41,26 @@ export function UserManagement() {
         setIsLoading(true);
         try {
             const token = localStorage.getItem('authToken');
+            if (!token) {
+                throw new Error('Authentication token not found. Please log in again.');
+            }
             const response = await fetch('/api/users', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            
+            if (response.status === 401) {
+                 toast({
+                    variant: 'destructive',
+                    title: 'جلسة غير صالحة',
+                    description: 'انتهت صلاحية جلسة الدخول. يرجى تسجيل الدخول مرة أخرى.',
+                });
+                // Optionally redirect to login
+                // window.location.href = '/login';
+                return;
+            }
+
             if (!response.ok) throw new Error('فشل في جلب المستخدمين');
+            
             const data = await response.json();
             setUsers(data.users);
         } catch (error: any) {
@@ -158,3 +174,5 @@ export function UserManagement() {
         </>
     );
 }
+
+    

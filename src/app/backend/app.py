@@ -5,9 +5,8 @@ from flask_cors import CORS
 import os
 from datetime import datetime, timedelta
 import logging
-import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
-import jwt
+from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager
 from zk import ZK, const
 
 # Configure logging
@@ -22,10 +21,11 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 db_path = os.path.join(basedir, 'hrms.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-fallback-secret-key-for-development')
+app.config["JWT_SECRET_KEY"] = os.environ.get('SECRET_KEY', "super-secret-key-change-it") # Change this in your production environment
 
-
+# Initialize extensions
 db = SQLAlchemy(app)
+jwt = JWTManager(app)
 
 # --- Database Models ---
 
@@ -293,7 +293,7 @@ class Payroll(db.Model):
     year = db.Column(db.Integer, nullable=False)
     base_salary = db.Column(db.Float, nullable=False)
     overtime = db.Column(db.Float, default=0)
-    deductions = db.Column(db.Float, default=0)
+    deductions = dbColumn(db.Float, default=0)
     tax = db.Column(db.Float, default=0)
     insurance = db.Column(db.Float, default=0)
     net_salary = db.Column(db.Float, nullable=False)
@@ -410,21 +410,6 @@ def log_action(action, details, username="نظام", user_id=None):
         app.logger.error(f"Failed to log action: {e}")
         db.session.rollback()
 
-def encode_auth_token(user_id, role):
-    try:
-        payload = {
-            'exp': datetime.utcnow() + timedelta(days=1),
-            'iat': datetime.utcnow(),
-            'sub': user_id,
-            'role': role
-        }
-        return jwt.encode(
-            payload,
-            app.config.get('SECRET_KEY'),
-            algorithm='HS256'
-        )
-    except Exception as e:
-        return e
 
 # --- API Routes ---
 
@@ -445,16 +430,15 @@ def login():
         if user.account_status != 'Active':
             return jsonify({"message": "الحساب غير نشط"}), 403
         
-        auth_token = encode_auth_token(user.id, user.role)
+        access_token = create_access_token(identity={'username': user.username, 'role': user.role})
         response = jsonify({
             "message": "Login successful",
-            "token": auth_token,
+            "token": access_token,
             "user": {
                 "username": user.username,
                 "role": user.role,
             }
         })
-        response.set_cookie('authToken', auth_token, httponly=True, samesite='Lax', max_age=86400) # 1 day
         log_action("تسجيل دخول", f"نجح المستخدم {username} في تسجيل الدخول.", username=username, user_id=user.id)
         return response, 200
 
@@ -463,17 +447,18 @@ def login():
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
+    # With JWT, logout is handled on the client-side by deleting the token
     response = jsonify({"message": "Successfully logged out"})
-    response.set_cookie('authToken', '', expires=0) # Clear cookie
     return response
 
 # --- Users API ---
 @app.route("/api/users", methods=['GET', 'POST'])
+@jwt_required()
 def handle_users():
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({"message": "Missing or invalid token"}), 401
-    
+    current_user_identity = get_jwt_identity()
+    # You might want to add role-based access control here
+    # For example: if current_user_identity['role'] != 'Admin': return jsonify(...), 403
+
     if request.method == 'POST':
         data = request.get_json()
         if not data or not data.get('username') or not data.get('password') or not data.get('role'):
@@ -491,7 +476,7 @@ def handle_users():
         new_user.set_password(data['password'])
         db.session.add(new_user)
         db.session.commit()
-        log_action("إضافة مستخدم", f"تمت إضافة مستخدم جديد: {new_user.username}")
+        log_action("إضافة مستخدم", f"تمت إضافة مستخدم جديد: {new_user.username}", username=current_user_identity['username'])
         return jsonify(new_user.to_dict()), 201
 
     users = User.query.order_by(User.created_at.desc()).all()
@@ -500,6 +485,7 @@ def handle_users():
 
 # --- Employees API ---
 @app.route("/api/employees", methods=['GET', 'POST'])
+@jwt_required()
 def handle_employees():
     if request.method == 'POST':
         data = request.get_json()
@@ -536,6 +522,7 @@ def handle_employees():
 
 # --- Departments API ---
 @app.route("/api/departments", methods=['GET', 'POST'])
+@jwt_required()
 def handle_departments():
     if request.method == 'POST':
         data = request.get_json()
@@ -557,6 +544,7 @@ def handle_departments():
     
 # --- Job Titles API ---
 @app.route("/api/job-titles", methods=['GET', 'POST'])
+@jwt_required()
 def handle_job_titles():
     if request.method == 'POST':
         data = request.get_json()
@@ -575,6 +563,7 @@ def handle_job_titles():
 
 # --- Locations API ---
 @app.route("/api/locations", methods=['GET', 'POST'])
+@jwt_required()
 def handle_locations():
     if request.method == 'POST':
         data = request.get_json()
@@ -600,11 +589,13 @@ def handle_locations():
 
 # --- Leaves API ---
 @app.route("/api/leaves", methods=['GET'])
+@jwt_required()
 def get_leaves():
     leave_requests = LeaveRequest.query.order_by(LeaveRequest.created_at.desc()).all()
     return jsonify({"leaveRequests": [lr.to_dict() for lr in leave_requests]})
 
 @app.route("/api/leaves/<int:id>", methods=['PATCH'])
+@jwt_required()
 def update_leave(id):
     leave_request = LeaveRequest.query.get_or_404(id)
     data = request.get_json()
@@ -633,6 +624,7 @@ def update_leave(id):
 
 # --- Dashboard API ---
 @app.route("/api/dashboard", methods=['GET'])
+@jwt_required()
 def get_dashboard_data():
     employees = Employee.query.all()
     leave_requests = LeaveRequest.query.all()
@@ -655,6 +647,7 @@ def get_dashboard_data():
 
 # --- Recruitment API ---
 @app.route("/api/recruitment", methods=['GET'])
+@jwt_required()
 def get_recruitment_data():
     jobs = Job.query.order_by(Job.created_at.desc()).all()
     applicants = Applicant.query.all()
@@ -665,21 +658,25 @@ def get_recruitment_data():
     
 # --- Other Read-only APIs ---
 @app.route("/api/payrolls", methods=['GET'])
+@jwt_required()
 def get_payrolls():
     payrolls = Payroll.query.all()
     return jsonify({"payrolls": [p.to_dict() for p in payrolls]})
     
 @app.route("/api/performance", methods=['GET'])
+@jwt_required()
 def get_performance():
     reviews = PerformanceReview.query.all()
     return jsonify({"performanceReviews": [r.to_dict() for r in reviews]})
 
 @app.route("/api/audit-log", methods=['GET'])
+@jwt_required()
 def get_audit_logs():
     logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).all()
     return jsonify({"auditLogs": [log.to_dict() for log in logs]})
 
 @app.route("/api/attendance", methods=['GET'])
+@jwt_required()
 def get_attendance():
     # This is a simplified version. A real implementation would aggregate punches.
     attendance_records = Attendance.query.order_by(Attendance.timestamp.desc()).limit(50).all()
@@ -687,6 +684,7 @@ def get_attendance():
 
 # --- Training Courses API ---
 @app.route('/api/training-courses', methods=['GET', 'POST'])
+@jwt_required()
 def handle_training_courses():
     if request.method == 'POST':
         data = request.get_json()
@@ -706,6 +704,7 @@ def handle_training_courses():
     return jsonify({'courses': [c.to_dict() for c in courses]})
 
 @app.route('/api/training-courses/<int:id>', methods=['PUT', 'DELETE'])
+@jwt_required()
 def handle_training_course(id):
     course = TrainingCourse.query.get_or_404(id)
     if request.method == 'PUT':
@@ -726,7 +725,8 @@ def handle_training_course(id):
         return jsonify({'message': 'تم حذف الدورة بنجاح'})
 
 # --- Training Records API ---
-@app.route('/api/training-records', methods=['GET', 'POST'])
+@approute('/api/training-records', methods=['GET', 'POST'])
+@jwt_required()
 def handle_training_records():
     if request.method == 'POST':
         data = request.get_json()
@@ -754,6 +754,7 @@ def handle_training_records():
     return jsonify({'message': 'Please provide a course_id'}), 400
 
 @app.route('/api/training-records/<int:id>', methods=['PUT', 'DELETE'])
+@jwt_required()
 def handle_training_record(id):
     record = TrainingRecord.query.get_or_404(id)
     if request.method == 'PUT':
@@ -774,6 +775,7 @@ def handle_training_record(id):
 
 # --- ZKTeco Devices API ---
 @app.route('/api/zkt-devices', methods=['GET', 'POST'])
+@jwt_required()
 def handle_zkt_devices():
     if request.method == 'POST':
         data = request.get_json()
@@ -801,6 +803,7 @@ def handle_zkt_devices():
     return jsonify({'devices': [d.to_dict() for d in devices]})
 
 @app.route('/api/zkt-devices/<int:id>', methods=['PUT', 'DELETE'])
+@jwt_required()
 def handle_zkt_device(id):
     device = ZktDevice.query.get_or_404(id)
     if request.method == 'PUT':
@@ -836,6 +839,7 @@ def test_pyzk_connection(ip, port, timeout=2):
             conn.disconnect()
 
 @app.route("/api/attendance/test-connection", methods=['POST'])
+@jwt_required()
 def test_connection_route():
     data = request.get_json()
     ip = data.get('ip')
@@ -853,6 +857,7 @@ def test_connection_route():
 
 
 @app.route("/api/attendance/sync-all", methods=['POST'])
+@jwt_required()
 def sync_all_devices():
     devices = ZktDevice.query.all()
     total_new_records = 0
@@ -935,6 +940,7 @@ def init_db():
                 app.logger.error(f"Error creating database: {e}")
         else:
             app.logger.info("Database already exists.")
+            # This ensures that any new tables are created if they don't exist
             db.create_all()
         
         create_initial_admin_user()
@@ -944,3 +950,5 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    
