@@ -119,6 +119,11 @@ function TaxSchemeForm({ scheme, onSuccess, onCancel }: { scheme: Partial<TaxSch
                 {method === 'slab' && (
                     <div className="space-y-4">
                         <Label>شرائح الضريبة</Label>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <div className="w-1/3">من مبلغ</div>
+                            <div className="w-1/3">إلى مبلغ</div>
+                            <div className="w-1/4">النسبة %</div>
+                        </div>
                         {fields.map((field, index) => (
                             <div key={field.id} className="flex items-center gap-2">
                                 <Input type="number" placeholder="من" {...register(`brackets.${index}.min_amount`)} className="w-1/3"/>
