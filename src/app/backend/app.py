@@ -9,7 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager
 from zk import ZK, const
 from collections import defaultdict
-from sqlalchemy import func
+from sqlalchemy import func, inspect
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -592,6 +592,39 @@ def create_notification(recipient_user_id, title, message, type, related_link=No
         app.logger.error(f"Failed to create notification: {e}")
         db.session.rollback()
 
+def migrate_db():
+    """A simple migration utility to add missing columns."""
+    inspector = inspect(db.engine)
+    all_tables = inspector.get_table_names()
+    
+    for table_name, model in db.metadata.tables.items():
+        if table_name not in all_tables:
+            continue
+            
+        # Get existing columns in the database table
+        existing_columns = {c['name'] for c in inspector.get_columns(table_name)}
+        
+        # Get columns defined in the model
+        model_columns = {c.name for c in model.columns}
+        
+        # Find missing columns
+        missing_columns = model_columns - existing_columns
+        
+        if missing_columns:
+            app.logger.info(f"Table '{table_name}': Found missing columns: {', '.join(missing_columns)}")
+            for column_name in missing_columns:
+                column_obj = model.columns[column_name]
+                # Using a raw ALTER TABLE statement for simplicity
+                # This works for SQLite but might need adjustments for other DBs
+                try:
+                    col_type = column_obj.type.compile(db.engine.dialect)
+                    # A very basic ALTER TABLE. More complex changes (like NOT NULL on existing tables) need more care.
+                    stmt = f'ALTER TABLE {table_name} ADD COLUMN {column_name} {col_type}'
+                    db.session.execute(db.text(stmt))
+                    app.logger.info(f"Added column '{column_name}' to table '{table_name}'.")
+                except Exception as e:
+                    app.logger.error(f"Error adding column {column_name} to {table_name}: {e}")
+            db.session.commit()
 
 # --- API Routes ---
 
@@ -1162,7 +1195,7 @@ def handle_zkt_devices():
             port=data.get('port', 4370),
             username=data.get('username'),
             password=data.get('password'),
-            location_id=int(data['location_id']) if data.get('location_id') != 'none' and data.get('location_id') else None,
+            location_id=int(data['location_id']) if data.get('location_id') and data.get('location_id') != 'none' else None,
         )
         db.session.add(new_device)
         db.session.commit()
@@ -1188,7 +1221,7 @@ def handle_zkt_device(id):
         device.port = data.get('port', device.port)
         device.username = data.get('username', device.username)
         device.password = data.get('password', device.password)
-        device.location_id = int(data['location_id']) if data.get('location_id') != 'none' and data.get('location_id') else None
+        device.location_id = int(data['location_id']) if data.get('location_id') and data.get('location_id') != 'none' else None
         db.session.commit()
         log_action("تحديث جهاز بصمة", f"تم تحديث بيانات الجهاز: {device.name}", username=current_user_identity['username'], user_id=current_user_identity['id'])
         return jsonify(device.to_dict())
@@ -1488,9 +1521,9 @@ def init_db():
                 app.logger.error(f"Error creating database: {e}")
         else:
             app.logger.info("Database already exists.")
-            # This ensures that any new tables are created if they don't exist
-            db.create_all()
         
+        # Always run migrations and user creation check
+        migrate_db()
         create_initial_admin_user()
 
 
@@ -1498,3 +1531,5 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    
