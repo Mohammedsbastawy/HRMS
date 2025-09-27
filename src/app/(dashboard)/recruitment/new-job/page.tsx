@@ -40,9 +40,6 @@ const jobFormSchema = z.object({
   title: z.string({ required_error: "المسمى الوظيفي مطلوب." }),
   department_id: z.string({ required_error: "القسم مطلوب." }),
   description: z.string().min(10, { message: "الوصف يجب أن لا يقل عن 10 أحرف." }).optional().or(z.literal('')),
-  status: z.enum(["Open", "Closed", "On-Hold"], {
-    required_error: "الحالة مطلوبة.",
-  }),
 });
 
 type JobFormValues = z.infer<typeof jobFormSchema>;
@@ -84,7 +81,6 @@ export default function NewJobPage() {
   const form = useForm<JobFormValues>({
     resolver: zodResolver(jobFormSchema),
     defaultValues: {
-      status: "Open",
       title: "",
       department_id: "",
       description: "",
@@ -100,7 +96,7 @@ export default function NewJobPage() {
         const response = await fetch('/api/recruitment/jobs', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data),
+            body: JSON.stringify({...data, status: 'Open'}), // Default status to Open
         });
 
         if (!response.ok) {
@@ -203,32 +199,6 @@ export default function NewJobPage() {
                       {...field}
                     />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>الحالة</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="اختر حالة الوظيفة" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="Open">مفتوحة</SelectItem>
-                      <SelectItem value="Closed">مغلقة</SelectItem>
-                      <SelectItem value="On-Hold">معلقة</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    "مفتوحة" للتقديم، "مغلقة" بعد التعيين، "معلقة" للتجميد المؤقت.
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
