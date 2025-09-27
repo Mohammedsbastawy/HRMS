@@ -852,6 +852,26 @@ def handle_locations():
     locations = Location.query.options(db.joinedload(Location.manager)).order_by(Location.created_at.desc()).all()
     return jsonify({"locations": [loc.to_dict(include_manager=True) for loc in locations]})
 
+@app.route("/api/locations/<int:id>", methods=['PUT', 'DELETE'])
+def handle_location(id):
+    location = Location.query.get_or_404(id)
+    
+    if request.method == 'PUT':
+        data = request.get_json()
+        location.name_ar = data.get('name_ar', location.name_ar)
+        location.name_en = data.get('name_en', location.name_en)
+        location.code = data.get('code', location.code)
+        location.manager_id = int(data.get('manager_id')) if data.get('manager_id') else None
+        db.session.commit()
+        log_action("تحديث موقع", f"تم تحديث بيانات الموقع: {location.name_ar}")
+        return jsonify(location.to_dict(include_manager=True))
+
+    if request.method == 'DELETE':
+        log_action("حذف موقع", f"تم حذف الموقع: {location.name_ar}")
+        db.session.delete(location)
+        db.session.commit()
+        return jsonify({'message': 'Location deleted successfully'})
+
 # --- Leaves API ---
 @app.route("/api/leaves", methods=['GET', 'POST'])
 @jwt_required()
@@ -1531,5 +1551,3 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-    
