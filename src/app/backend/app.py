@@ -96,7 +96,7 @@ class Department(db.Model):
     parent_department_id = db.Column(db.Integer, db.ForeignKey('departments.id'))
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = dbColumn(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     job_titles = db.relationship('JobTitle', backref='department', lazy=True, cascade="all, delete-orphan")
 
     def to_dict(self):
@@ -417,6 +417,30 @@ class ZktDevice(db.Model):
             'location_name': self.location.name_ar if self.location else None
         }
 
+class InAppNotification(db.Model):
+    __tablename__ = 'in_app_notifications'
+    id = db.Column(db.Integer, primary_key=True)
+    recipient_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    title = db.Column(db.String, nullable=False)
+    message = db.Column(db.String, nullable=False)
+    type = db.Column(db.String) # e.g., LeaveApproval, Payroll
+    related_link = db.Column(db.String) # e.g., /leaves/123
+    status = db.Column(db.String, default='Unread', nullable=False) # Unread, Read
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    recipient = db.relationship('User', backref='notifications')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'message': self.message,
+            'type': self.type,
+            'related_link': self.related_link,
+            'status': self.status,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
 
 # --- Utility Functions ---
 def log_action(action, details, username="نظام", user_id=None):
@@ -426,6 +450,22 @@ def log_action(action, details, username="نظام", user_id=None):
         db.session.commit()
     except Exception as e:
         app.logger.error(f"Failed to log action: {e}")
+        db.session.rollback()
+
+def create_notification(recipient_user_id, title, message, type, related_link=None):
+    try:
+        notification = InAppNotification(
+            recipient_user_id=recipient_user_id,
+            title=title,
+            message=message,
+            type=type,
+            related_link=related_link,
+            status='Unread'
+        )
+        db.session.add(notification)
+        db.session.commit()
+    except Exception as e:
+        app.logger.error(f"Failed to create notification: {e}")
         db.session.rollback()
 
 
@@ -453,6 +493,7 @@ def login():
             "message": "Login successful",
             "token": access_token,
             "user": {
+                "id": user.id,
                 "username": user.username,
                 "role": user.role,
             }
@@ -537,7 +578,13 @@ def handle_users():
         new_user.set_password(data['password'])
         db.session.add(new_user)
         db.session.commit()
-        log_action("إضافة مستخدم", f"تمت إضافة مستخدم جديد: {new_user.username}", username=current_user_identity['username'])
+        log_action("إضافة مستخدم", f"تمت إضافة مستخدم جديد: {new_user.username}", username=current_user_identity['username'], user_id=current_user_identity['id'])
+        create_notification(
+            recipient_user_id=new_user.id,
+            title="أهلاً بك في نظام HRMS!",
+            message=f"تم إنشاء حسابك بنجاح بدور {new_user.role}.",
+            type="AccountCreation"
+        )
         return jsonify(new_user.to_dict()), 201
 
     users = User.query.order_by(User.created_at.desc()).all()
@@ -651,27 +698,55 @@ def get_leaves():
     return jsonify({"leaveRequests": [lr.to_dict() for lr in leave_requests]})
 
 @app.route("/api/leaves/<int:id>", methods=['PATCH'])
+@jwt_required()
 def update_leave(id):
+    current_user_identity = get_jwt_identity()
     leave_request = LeaveRequest.query.get_or_404(id)
     data = request.get_json()
     action = data.get('action')
 
     if leave_request.status != 'Pending':
         return jsonify({"success": False, "message": "لم يتم العثور على الطلب أو تمت معالجته بالفعل."}), 404
+    
+    approver_user = User.query.get(current_user_identity['id'])
 
     if action == 'approve':
         leave_request.status = 'Approved'
-        leave_request.approved_by = 1 # Placeholder
+        leave_request.approved_by = approver_user.id
         details = f"تمت الموافقة على طلب الإجازة للموظف {leave_request.employee.full_name}"
-        log_action("الموافقة على إجازة", details)
+        log_action("الموافقة على إجازة", details, username=approver_user.username, user_id=approver_user.id)
+        
+        # Notify employee
+        recipient = User.query.filter_by(employee_id=leave_request.employee_id).first()
+        if recipient:
+            create_notification(
+                recipient_user_id=recipient.id,
+                title="تمت الموافقة على طلب الإجازة",
+                message=f"تمت الموافقة على طلب إجازتك من {leave_request.start_date} إلى {leave_request.end_date}.",
+                type="LeaveApproval",
+                related_link="/leaves"
+            )
+
         db.session.commit()
         return jsonify({"success": True, "message": "تمت الموافقة على طلب الإجازة."})
     elif action == 'reject':
         leave_request.status = 'Rejected'
-        leave_request.approved_by = 1 # Placeholder
+        leave_request.approved_by = approver_user.id
         leave_request.notes = data.get('notes', '')
         details = f"تم رفض طلب الإجازة للموظف {leave_request.employee.full_name} بسبب: {leave_request.notes}"
-        log_action("رفض إجازة", details)
+        log_action("رفض إجازة", details, username=approver_user.username, user_id=approver_user.id)
+
+        # Notify employee
+        recipient = User.query.filter_by(employee_id=leave_request.employee_id).first()
+        if recipient:
+            create_notification(
+                recipient_user_id=recipient.id,
+                title="تم رفض طلب الإجازة",
+                message=f"تم رفض طلب إجازتك. السبب: {leave_request.notes}",
+                type="LeaveApproval",
+                related_link="/leaves"
+            )
+
         db.session.commit()
         return jsonify({"success": True, "message": "تم رفض طلب الإجازة."})
     else:
@@ -882,7 +957,7 @@ def handle_zkt_devices():
         )
         db.session.add(new_device)
         db.session.commit()
-        log_action("إضافة جهاز بصمة", f"تمت إضافة جهاز جديد: {new_device.name} ({new_device.ip_address})", username=current_user_identity['username'])
+        log_action("إضافة جهاز بصمة", f"تمت إضافة جهاز جديد: {new_device.name} ({new_device.ip_address})", username=current_user_identity['username'], user_id=current_user_identity['id'])
         return jsonify(new_device.to_dict()), 201
 
     devices = ZktDevice.query.options(db.joinedload(ZktDevice.location)).order_by(ZktDevice.name).all()
@@ -904,13 +979,13 @@ def handle_zkt_device(id):
         device.port = data.get('port', device.port)
         device.username = data.get('username', device.username)
         device.password = data.get('password', device.password)
-        device.location_id = int(data['location_id']) if data.get('location_id') else None
+        device.location_id = int(data['location_id']) if data.get('location_id') != 'none' and data.get('location_id') else None
         db.session.commit()
-        log_action("تحديث جهاز بصمة", f"تم تحديث بيانات الجهاز: {device.name}", username=current_user_identity['username'])
+        log_action("تحديث جهاز بصمة", f"تم تحديث بيانات الجهاز: {device.name}", username=current_user_identity['username'], user_id=current_user_identity['id'])
         return jsonify(device.to_dict())
     
     if request.method == 'DELETE':
-        log_action("حذف جهاز بصمة", f"تم حذف الجهاز: {device.name} ({device.ip_address})", username=current_user_identity['username'])
+        log_action("حذف جهاز بصمة", f"تم حذف الجهاز: {device.name} ({device.ip_address})", username=current_user_identity['username'], user_id=current_user_identity['id'])
         db.session.delete(device)
         db.session.commit()
         return jsonify({'message': 'تم حذف الجهاز بنجاح'})
@@ -1006,6 +1081,45 @@ def sync_all_devices():
         return jsonify({"message": f"تمت المزامنة مع بعض المشاكل. إجمالي السجلات الجديدة: {total_new_records}", "total_records": total_new_records, "errors": errors}), 207
         
     return jsonify({"message": f"تمت مزامنة {total_new_records} سجلات جديدة بنجاح من {len(devices)} أجهزة.", "total_records": total_new_records, "errors": []})
+
+
+# --- Notifications API ---
+@app.route('/api/notifications', methods=['GET'])
+@jwt_required()
+def get_notifications():
+    current_user_identity = get_jwt_identity()
+    user_id = current_user_identity['id']
+    
+    notifications = InAppNotification.query.filter_by(recipient_user_id=user_id).order_by(InAppNotification.created_at.desc()).all()
+    unread_count = InAppNotification.query.filter_by(recipient_user_id=user_id, status='Unread').count()
+
+    return jsonify({
+        'notifications': [n.to_dict() for n in notifications],
+        'unread_count': unread_count
+    })
+
+@app.route('/api/notifications/<int:id>/read', methods=['PATCH'])
+@jwt_required()
+def mark_notification_as_read(id):
+    current_user_identity = get_jwt_identity()
+    user_id = current_user_identity['id']
+    
+    notification = InAppNotification.query.filter_by(id=id, recipient_user_id=user_id).first_or_404()
+    notification.status = 'Read'
+    db.session.commit()
+    
+    return jsonify({'message': 'Notification marked as read.'})
+
+@app.route('/api/notifications/read-all', methods=['POST'])
+@jwt_required()
+def mark_all_notifications_as_read():
+    current_user_identity = get_jwt_identity()
+    user_id = current_user_identity['id']
+    
+    InAppNotification.query.filter_by(recipient_user_id=user_id, status='Unread').update({'status': 'Read'})
+    db.session.commit()
+    
+    return jsonify({'message': 'All notifications marked as read.'})
 
 
 def create_initial_admin_user():

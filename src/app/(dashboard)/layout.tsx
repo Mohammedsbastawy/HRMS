@@ -9,7 +9,6 @@ import {
 } from '@/components/ui/sidebar';
 import { HrmsIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { Bell } from 'lucide-react';
 import { Header } from '@/components/dashboard/header';
 import { Nav } from '@/components/dashboard/nav';
 
@@ -29,9 +28,7 @@ export default function DashboardLayout({
               </Button>
               <span className="font-headline text-lg font-semibold">HRMS</span>
             </div>
-            <Button variant="ghost" size="icon">
-              <Bell className="h-5 w-5" />
-            </Button>
+            {/* The Bell icon is now in the Header component */}
           </div>
         </SidebarHeader>
         <SidebarContent>
