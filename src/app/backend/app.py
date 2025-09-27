@@ -235,7 +235,7 @@ class Payroll(db.Model):
     year = db.Column(db.Integer, nullable=False)
     base_salary = db.Column(db.Float, nullable=False)
     overtime = db.Column(db.Float)
-    deductions = dbColumn(db.Float)
+    deductions = db.Column(db.Float)
     tax = db.Column(db.Float)
     insurance = db.Column(db.Float)
     net_salary = db.Column(db.Float, nullable=False)
