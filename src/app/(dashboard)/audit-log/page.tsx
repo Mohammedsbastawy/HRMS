@@ -13,9 +13,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import type { AuditLog } from '@/lib/types';
 
 export default function AuditLogPage() {
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -88,5 +89,3 @@ export default function AuditLogPage() {
     </Card>
   );
 }
-
-    

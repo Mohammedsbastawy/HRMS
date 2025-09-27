@@ -73,7 +73,7 @@ export type Document = {
 };
 
 export type Attendance = {
-  id: number;
+  id: string;
   employee_id: number;
   employeeName: string;
   employeeAvatar?: string | null;
@@ -98,13 +98,13 @@ export type LeaveRequest = {
 export type Payroll = {
   id: number;
   employee_id: number;
-  month: string;
+  month: number;
   year: number;
   base_salary: number;
-  overtime?: number;
-  deductions?: number;
-  tax?: number;
-  insurance?: number;
+  overtime?: number | null;
+  deductions?: number | null;
+  tax?: number | null;
+  insurance?: number | null;
   net_salary: number;
   generated_at?: string;
   status?: string;
@@ -140,7 +140,7 @@ export type Applicant = {
   cv_path?: string | null;
   stage?: 'Applied' | 'Screening' | 'Interview' | 'Offer' | 'Hired' | 'Rejected';
   applied_at?: string;
-notes?: string | null;
+  notes?: string | null;
   avatar?: string; // For UI display
   job?: Partial<Job>; // For UI display
 };
@@ -162,7 +162,7 @@ export type TrainingRecord = {
   course_id: number;
   status?: 'Enrolled' | 'In Progress' | 'Completed' | 'Failed';
   result?: string | null;
-  employee?: Partial<Employee>;
+  employee?: Partial<Employee & { department?: Partial<Department> }>;
   course?: Partial<TrainingCourse>;
 };
 
