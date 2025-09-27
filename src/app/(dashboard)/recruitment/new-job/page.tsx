@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -35,10 +34,11 @@ import { Textarea } from "@/components/ui/textarea";
 import type { Department, JobTitle } from "@/lib/types";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 const jobFormSchema = z.object({
-  title: z.string({ required_error: "المسمى الوظيفي مطلوب." }),
-  department_id: z.string({ required_error: "القسم مطلوب." }),
+  title: z.string({ required_error: "المسمى الوظيفي مطلوب." }).min(1, "المسمى الوظيفي مطلوب."),
+  department_id: z.string({ required_error: "القسم مطلوب." }).min(1, "القسم مطلوب."),
   description: z.string().min(10, { message: "الوصف يجب أن لا يقل عن 10 أحرف." }).optional().or(z.literal('')),
 });
 
@@ -55,10 +55,12 @@ export default function NewJobPage() {
 
   useEffect(() => {
     async function fetchData() {
+        setIsLoading(true);
         try {
+            const token = localStorage.getItem('authToken');
             const [deptsRes, jobsRes] = await Promise.all([
-                fetch('/api/departments'),
-                fetch('/api/job-titles'),
+                fetch('/api/departments', { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch('/api/job-titles', { headers: { 'Authorization': `Bearer ${token}` } }),
             ]);
             if (!deptsRes.ok || !jobsRes.ok) throw new Error('فشل تحميل بيانات الأقسام والمسميات');
 
@@ -93,10 +95,14 @@ export default function NewJobPage() {
 
   async function onSubmit(data: JobFormValues) {
      try {
+        const token = localStorage.getItem('authToken');
         const response = await fetch('/api/recruitment/jobs', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({...data, status: 'Open'}), // Default status to Open
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({...data, status: 'Open'}),
         });
 
         if (!response.ok) {
@@ -127,6 +133,12 @@ export default function NewJobPage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {isLoading ? (
+            <div className="flex items-center justify-center h-40">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <p className="mr-2">جاري تحميل بيانات النموذج...</p>
+            </div>
+        ) : (
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <FormField
@@ -151,7 +163,7 @@ export default function NewJobPage() {
                           <SelectItem key={dept.id} value={String(dept.id)}>{dept.name_ar}</SelectItem>
                         ))
                       ) : (
-                         <SelectItem value="loading" disabled>جاري تحميل الأقسام...</SelectItem>
+                         <SelectItem value="loading" disabled>لا توجد أقسام متاحة</SelectItem>
                       )}
                     </SelectContent>
                   </Select>
@@ -214,6 +226,7 @@ export default function NewJobPage() {
             </div>
           </form>
         </Form>
+        )}
       </CardContent>
     </Card>
   );
