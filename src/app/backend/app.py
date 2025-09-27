@@ -341,7 +341,7 @@ class TrainingRecord(db.Model):
     course_id = db.Column(db.Integer, db.ForeignKey('training_courses.id', ondelete='CASCADE'), nullable=False)
     status = db.Column(db.String, default='Enrolled') # Enrolled, In Progress, Completed, Failed
     result = db.Column(db.String)
-    completed_at = dbColumn(db.String)
+    completed_at = db.Column(db.String)
     
     employee = db.relationship('Employee', backref=db.backref('training_records', cascade="all, delete-orphan"))
     course = db.relationship('TrainingCourse', backref=db.backref('training_records', cascade="all, delete-orphan"))
@@ -459,7 +459,7 @@ def logout():
     return response
 
 # --- Users API ---
-@approute("/api/users", methods=['GET', 'POST'])
+@app.route("/api/users", methods=['GET', 'POST'])
 @jwt_required()
 def handle_users():
     current_user_identity = get_jwt_identity()
@@ -492,7 +492,6 @@ def handle_users():
 
 # --- Employees API ---
 @app.route("/api/employees", methods=['GET', 'POST'])
-@jwt_required()
 def handle_employees():
     if request.method == 'POST':
         data = request.get_json()
@@ -529,7 +528,6 @@ def handle_employees():
 
 # --- Departments API ---
 @app.route("/api/departments", methods=['GET', 'POST'])
-@jwt_required()
 def handle_departments():
     if request.method == 'POST':
         data = request.get_json()
@@ -551,7 +549,6 @@ def handle_departments():
     
 # --- Job Titles API ---
 @app.route("/api/job-titles", methods=['GET', 'POST'])
-@jwt_required()
 def handle_job_titles():
     if request.method == 'POST':
         data = request.get_json()
@@ -570,7 +567,6 @@ def handle_job_titles():
 
 # --- Locations API ---
 @app.route("/api/locations", methods=['GET', 'POST'])
-@jwt_required()
 def handle_locations():
     if request.method == 'POST':
         data = request.get_json()
@@ -596,13 +592,11 @@ def handle_locations():
 
 # --- Leaves API ---
 @app.route("/api/leaves", methods=['GET'])
-@jwt_required()
 def get_leaves():
     leave_requests = LeaveRequest.query.order_by(LeaveRequest.created_at.desc()).all()
     return jsonify({"leaveRequests": [lr.to_dict() for lr in leave_requests]})
 
 @app.route("/api/leaves/<int:id>", methods=['PATCH'])
-@jwt_required()
 def update_leave(id):
     leave_request = LeaveRequest.query.get_or_404(id)
     data = request.get_json()
@@ -631,7 +625,6 @@ def update_leave(id):
 
 # --- Dashboard API ---
 @app.route("/api/dashboard", methods=['GET'])
-@jwt_required()
 def get_dashboard_data():
     employees = Employee.query.all()
     leave_requests = LeaveRequest.query.all()
@@ -654,7 +647,6 @@ def get_dashboard_data():
 
 # --- Recruitment API ---
 @app.route("/api/recruitment", methods=['GET'])
-@jwt_required()
 def get_recruitment_data():
     jobs = Job.query.order_by(Job.created_at.desc()).all()
     applicants = Applicant.query.all()
@@ -665,25 +657,21 @@ def get_recruitment_data():
     
 # --- Other Read-only APIs ---
 @app.route("/api/payrolls", methods=['GET'])
-@jwt_required()
 def get_payrolls():
     payrolls = Payroll.query.all()
     return jsonify({"payrolls": [p.to_dict() for p in payrolls]})
     
 @app.route("/api/performance", methods=['GET'])
-@jwt_required()
 def get_performance():
     reviews = PerformanceReview.query.all()
     return jsonify({"performanceReviews": [r.to_dict() for r in reviews]})
 
 @app.route("/api/audit-log", methods=['GET'])
-@jwt_required()
 def get_audit_logs():
     logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).all()
     return jsonify({"auditLogs": [log.to_dict() for log in logs]})
 
 @app.route("/api/attendance", methods=['GET'])
-@jwt_required()
 def get_attendance():
     # This is a simplified version. A real implementation would aggregate punches.
     attendance_records = Attendance.query.order_by(Attendance.timestamp.desc()).limit(50).all()
@@ -691,7 +679,6 @@ def get_attendance():
 
 # --- Training Courses API ---
 @app.route('/api/training-courses', methods=['GET', 'POST'])
-@jwt_required()
 def handle_training_courses():
     if request.method == 'POST':
         data = request.get_json()
@@ -712,7 +699,6 @@ def handle_training_courses():
     return jsonify({'courses': [c.to_dict() for c in courses]})
 
 @app.route('/api/training-courses/<int:id>', methods=['PUT', 'DELETE'])
-@jwt_required()
 def handle_training_course(id):
     course = TrainingCourse.query.get_or_404(id)
     if request.method == 'PUT':
@@ -735,7 +721,6 @@ def handle_training_course(id):
 
 # --- Training Records API ---
 @app.route('/api/training-records', methods=['GET', 'POST'])
-@jwt_required()
 def handle_training_records():
     if request.method == 'POST':
         data = request.get_json()
@@ -765,7 +750,6 @@ def handle_training_records():
     return jsonify({'message': 'Please provide a course_id'}), 400
 
 @app.route('/api/training-records/<int:id>', methods=['PUT', 'DELETE'])
-@jwt_required()
 def handle_training_record(id):
     record = TrainingRecord.query.get_or_404(id)
     if request.method == 'PUT':
