@@ -121,7 +121,7 @@ function TaxSchemeForm({ scheme, onSuccess, onCancel }: { scheme: Partial<TaxSch
                         <div>
                           <Label>شرائح الضريبة</Label>
                           <p className="text-sm text-muted-foreground">
-                            عرف نطاق الدخل السنوي ونسبة الضريبة لكل نطاق.
+                            عرف نطاق الدخل السنوي للموظف ونسبة الضريبة لكل نطاق.
                           </p>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
