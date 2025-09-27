@@ -14,13 +14,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Download, Upload, Loader2, ServerCog, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import type { Attendance } from '@/lib/types';
 import { useToast } from '@/components/ui/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import type { Attendance } from '@/lib/types';
+
 
 export default function AttendancePage() {
-  const [attendance, setAttendance] = useState<any[]>([]);
+  const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ message: string; errors: string[] } | null>(null);
@@ -54,7 +55,7 @@ export default function AttendancePage() {
       const result = await response.json();
       setSyncResult(result);
 
-      if (response.ok) {
+      if (response.ok || response.status === 207) { // 207 Multi-Status is a partial success
         toast({
           title: 'اكتملت المزامنة',
           description: result.message,
@@ -94,6 +95,31 @@ export default function AttendancePage() {
       default: return status;
     }
   };
+
+  // Group by employee and date
+  const groupedAttendance = attendance.reduce((acc, record) => {
+    const key = `${record.employee_id}-${record.date}`;
+    if (!acc[key]) {
+      acc[key] = {
+        id: `${record.id}-${key}`, // unique key for react
+        employeeName: record.employeeName,
+        employeeAvatar: record.employeeAvatar,
+        date: record.date,
+        check_in: null,
+        check_out: null,
+        status: record.status, // Simplified for now
+      };
+    }
+    if (record.check_in) {
+      acc[key].check_in = acc[key].check_in ? Math.min(acc[key].check_in, record.check_in) : record.check_in;
+    }
+    if (record.check_out) {
+      acc[key].check_out = acc[key].check_out ? Math.max(acc[key].check_out, record.check_out) : record.check_out;
+    }
+    return acc;
+  }, {} as Record<string, any>);
+
+  const finalAttendance = Object.values(groupedAttendance);
 
   return (
     <div className="flex flex-col gap-6">
@@ -150,8 +176,8 @@ export default function AttendancePage() {
                     <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                   </TableCell>
                 </TableRow>
-              ) : attendance.length > 0 ? (
-                attendance.map((record) => (
+              ) : finalAttendance.length > 0 ? (
+                finalAttendance.map((record) => (
                   <TableRow key={record.id}>
                     <TableCell>
                       <div className="flex items-center justify-end gap-3">

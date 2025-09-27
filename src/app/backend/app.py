@@ -8,7 +8,7 @@ import logging
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
-from node_zklib import ZKLib
+from zk import ZK, const
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -172,6 +172,29 @@ class Employee(db.Model):
             'jobTitle': {'title_ar': self.job_title.title_ar} if self.job_title else None
         }
 
+class Attendance(db.Model):
+    __tablename__ = 'attendance'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_uid = db.Column(db.Integer, nullable=False) # UID from ZKTeco device
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True) # Link to our employee table
+    timestamp = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.Integer, nullable=False) # Status code from device
+    punch = db.Column(db.Integer, nullable=False) # Punch type from device
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    employee = db.relationship('Employee', backref='attendance_logs')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'employee_id': self.employee_id,
+            'employeeName': self.employee.full_name if self.employee else f'UID: {self.employee_uid}',
+            'employeeAvatar': self.employee.avatar if self.employee else None,
+            'date': self.timestamp.strftime('%Y-%m-%d'),
+            'check_in': self.timestamp.strftime('%H:%M:%S') if self.punch == const.PUNCH_IN else None,
+            'check_out': self.timestamp.strftime('%H:%M:%S') if self.punch == const.PUNCH_OUT else None,
+            'status': 'Present' # Simplified status
+        }
+
 class LeaveRequest(db.Model):
     __tablename__ = 'leave_requests'
     id = db.Column(db.Integer, primary_key=True)
@@ -248,7 +271,7 @@ class PerformanceReview(db.Model):
     review_date = db.Column(db.String, nullable=False)
     score = db.Column(db.Float, nullable=False)
     reviewer_id = db.Column(db.Integer)
-    comments = db_Column(db.String)
+    comments = db.Column(db.String)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     employee = db.relationship('Employee', backref='performance_reviews', lazy=True)
     
@@ -652,6 +675,12 @@ def get_audit_logs():
     logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).all()
     return jsonify({"auditLogs": [log.to_dict() for log in logs]})
 
+@app.route("/api/attendance", methods=['GET'])
+def get_attendance():
+    # This is a simplified version. A real implementation would aggregate punches.
+    attendance_records = Attendance.query.order_by(Attendance.timestamp.desc()).limit(50).all()
+    return jsonify({"attendance": [att.to_dict() for att in attendance_records]})
+
 # --- ZKTeco Devices API ---
 @app.route('/api/zkt-devices', methods=['GET', 'POST'])
 def handle_zkt_devices():
@@ -702,17 +731,18 @@ def handle_zkt_device(id):
         return jsonify({'message': 'تم حذف الجهاز بنجاح'})
 
 # --- ZKTeco Sync ---
-async def test_zklib_connection(ip, port, timeout=2):
-    zk = ZKLib(ip, port, timeout)
+def test_pyzk_connection(ip, port, timeout=2):
+    zk = ZK(ip, port=port, timeout=timeout)
+    conn = None
     try:
-        await zk.createSocket()
-        serial_number = await zk.getSerialNumber()
-        return True, f"تم الاتصال بنجاح. الرقم التسلسلي: {serial_number.data}"
+        conn = zk.connect()
+        serial_number = conn.get_serialnumber()
+        return True, f"تم الاتصال بنجاح. الرقم التسلسلي: {serial_number}"
     except Exception as e:
         return False, f"فشل الاتصال: {e}"
     finally:
-        if zk.is_connect:
-            await zk.disconnect()
+        if conn:
+            conn.disconnect()
 
 @app.route("/api/attendance/test-connection", methods=['POST'])
 def test_connection_route():
@@ -724,44 +754,70 @@ def test_connection_route():
         return jsonify({"success": False, "message": "لم يتم توفير عنوان IP"}), 400
         
     try:
-        import asyncio
-        success, message = asyncio.run(test_zklib_connection(ip, port))
+        success, message = test_pyzk_connection(ip, port)
         return jsonify({"success": success, "message": message})
     except Exception as e:
+        app.logger.error(f"Unexpected error during ZK test: {e}")
         return jsonify({"success": False, "message": f"خطأ غير متوقع: {e}"}), 500
 
 
 @app.route("/api/attendance/sync-all", methods=['POST'])
 def sync_all_devices():
     devices = ZktDevice.query.all()
-    all_records = []
+    total_new_records = 0
     errors = []
     
     for device in devices:
+        conn = None
+        zk = ZK(device.ip_address, port=device.port, timeout=5)
         try:
-            zk = ZKLib(device.ip_address, device.port, 5000)
-            zk.connect()
-            zk.enableDevice()
+            conn = zk.connect()
+            conn.disable_device()
             
-            attendance = zk.getAttendance()
-            if attendance:
-                all_records.extend(attendance)
-                # You might want to save these to the DB here
+            attendance_logs = conn.get_attendance()
+            if not attendance_logs:
+                continue
+
+            new_records_count = 0
+            for att_log in attendance_logs:
+                # Simple check to avoid duplicates. A more robust solution would check timestamp and UID.
+                exists = Attendance.query.filter_by(employee_uid=att_log.user_id, timestamp=att_log.timestamp).first()
+                if not exists:
+                    new_att = Attendance(
+                        employee_uid=att_log.user_id,
+                        timestamp=att_log.timestamp,
+                        status=att_log.status,
+                        punch=att_log.punch,
+                    )
+                    db.session.add(new_att)
+                    new_records_count += 1
             
-            zk.disableDevice()
-            zk.disconnect()
-            log_action("مزامنة ناجحة", f"تم سحب {len(attendance)} سجلات من جهاز {device.name}")
+            if new_records_count > 0:
+                db.session.commit()
+                total_new_records += new_records_count
+                log_action("مزامنة ناجحة", f"تم سحب {new_records_count} سجلات جديدة من جهاز {device.name}")
+            
+            conn.clear_attendance() # Clear logs from device after fetching
         except Exception as e:
-            errors.append(f"فشل الاتصال بجهاز {device.name} ({device.ip_address}): {e}")
-            log_action("فشل المزامنة", f"فشل الاتصال بجهاز {device.name} ({device.ip_address})")
-            
-    if not errors and not all_records:
-         return jsonify({"message": "لا توجد سجلات جديدة للمزامنة من أي جهاز.", "total_records": 0, "errors": []})
+            db.session.rollback()
+            error_message = f"فشل الاتصال بجهاز {device.name} ({device.ip_address}): {e}"
+            errors.append(error_message)
+            log_action("فشل المزامنة", error_message)
+        finally:
+            if conn:
+                try:
+                    conn.enable_device()
+                    conn.disconnect()
+                except Exception as e:
+                    app.logger.error(f"Error during ZK disconnect/enable for {device.name}: {e}")
+
+    if not errors and total_new_records == 0:
+        return jsonify({"message": "لا توجد سجلات جديدة للمزامنة من أي جهاز.", "total_records": 0, "errors": []})
     
     if errors:
-        return jsonify({"message": f"تمت المزامنة مع بعض المشاكل. إجمالي السجلات: {len(all_records)}", "total_records": len(all_records), "errors": errors}), 207 # Multi-Status
+        return jsonify({"message": f"تمت المزامنة مع بعض المشاكل. إجمالي السجلات الجديدة: {total_new_records}", "total_records": total_new_records, "errors": errors}), 207 # Multi-Status
         
-    return jsonify({"message": f"تمت مزامنة {len(all_records)} سجلات بنجاح من {len(devices)} أجهزة.", "total_records": len(all_records), "errors": []})
+    return jsonify({"message": f"تمت مزامنة {total_new_records} سجلات جديدة بنجاح من {len(devices)} أجهزة.", "total_records": total_new_records, "errors": []})
 
 
 def create_initial_admin_user():
@@ -791,7 +847,8 @@ def init_db():
                 app.logger.error(f"Error creating database: {e}")
         else:
             app.logger.info("Database already exists.")
-            db.create_all() # Ensure all tables exist
+            # This ensures any new tables are created if the db file exists but is outdated
+            db.create_all()
         
         create_initial_admin_user()
 
@@ -800,5 +857,7 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    
 
     
