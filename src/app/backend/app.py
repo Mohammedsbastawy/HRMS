@@ -8,6 +8,7 @@ import logging
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
+from node_zklib import ZKLib
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -247,7 +248,7 @@ class PerformanceReview(db.Model):
     review_date = db.Column(db.String, nullable=False)
     score = db.Column(db.Float, nullable=False)
     reviewer_id = db.Column(db.Integer)
-    comments = db.Column(db.String)
+    comments = db_Column(db.String)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     employee = db.relationship('Employee', backref='performance_reviews', lazy=True)
     
@@ -334,6 +335,30 @@ class AuditLog(db.Model):
             'details': self.details,
             'timestamp': self.timestamp.isoformat()
         }
+
+class ZktDevice(db.Model):
+    __tablename__ = 'zkt_devices'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    ip_address = db.Column(db.String, nullable=False, unique=True)
+    port = db.Column(db.Integer, default=4370)
+    username = db.Column(db.String)
+    password = db.Column(db.String)
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
+    location = db.relationship('Location', backref='zkt_devices', lazy=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'ip_address': self.ip_address,
+            'port': self.port,
+            'username': self.username,
+            'password': self.password, # Note: Sending password to frontend is a security risk.
+            'location_id': self.location_id,
+            'location_name': self.location.name_ar if self.location else None
+        }
+
 
 # --- Utility Functions ---
 def log_action(action, details, username="نظام", user_id=None):
@@ -627,26 +652,117 @@ def get_audit_logs():
     logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).all()
     return jsonify({"auditLogs": [log.to_dict() for log in logs]})
 
-# --- ZKTeco Sync Simulation ---
-@app.route("/api/attendance/sync", methods=['POST'])
-def sync_attendance_route():
+# --- ZKTeco Devices API ---
+@app.route('/api/zkt-devices', methods=['GET', 'POST'])
+def handle_zkt_devices():
+    if request.method == 'POST':
+        data = request.get_json()
+        if not data or not data.get('name') or not data.get('ip_address'):
+            return jsonify({'message': 'بيانات غير مكتملة'}), 400
+        
+        existing_device = ZktDevice.query.filter_by(ip_address=data['ip_address']).first()
+        if existing_device:
+            return jsonify({'message': 'جهاز بنفس عنوان IP موجود بالفعل'}), 409
+
+        new_device = ZktDevice(
+            name=data['name'],
+            ip_address=data['ip_address'],
+            port=data.get('port', 4370),
+            username=data.get('username'),
+            password=data.get('password'),
+            location_id=int(data['location_id']) if data.get('location_id') else None
+        )
+        db.session.add(new_device)
+        db.session.commit()
+        log_action("إضافة جهاز بصمة", f"تمت إضافة جهاز جديد: {new_device.name} ({new_device.ip_address})")
+        return jsonify(new_device.to_dict()), 201
+
+    devices = ZktDevice.query.options(db.joinedload(ZktDevice.location)).order_by(ZktDevice.name).all()
+    return jsonify({'devices': [d.to_dict() for d in devices]})
+
+@app.route('/api/zkt-devices/<int:id>', methods=['PUT', 'DELETE'])
+def handle_zkt_device(id):
+    device = ZktDevice.query.get_or_404(id)
+    if request.method == 'PUT':
+        data = request.get_json()
+        device.name = data.get('name', device.name)
+        device.ip_address = data.get('ip_address', device.ip_address)
+        device.port = data.get('port', device.port)
+        device.username = data.get('username', device.username)
+        device.password = data.get('password', device.password)
+        device.location_id = int(data['location_id']) if data.get('location_id') else None
+        db.session.commit()
+        log_action("تحديث جهاز بصمة", f"تم تحديث بيانات الجهاز: {device.name}")
+        return jsonify(device.to_dict())
+    
+    if request.method == 'DELETE':
+        log_action("حذف جهاز بصمة", f"تم حذف الجهاز: {device.name} ({device.ip_address})")
+        db.session.delete(device)
+        db.session.commit()
+        return jsonify({'message': 'تم حذف الجهاز بنجاح'})
+
+# --- ZKTeco Sync ---
+async def test_zklib_connection(ip, port, timeout=2):
+    zk = ZKLib(ip, port, timeout)
+    try:
+        await zk.createSocket()
+        serial_number = await zk.getSerialNumber()
+        return True, f"تم الاتصال بنجاح. الرقم التسلسلي: {serial_number.data}"
+    except Exception as e:
+        return False, f"فشل الاتصال: {e}"
+    finally:
+        if zk.is_connect:
+            await zk.disconnect()
+
+@app.route("/api/attendance/test-connection", methods=['POST'])
+def test_connection_route():
     data = request.get_json()
     ip = data.get('ip')
-    app.logger.info(f"Attempting to sync with ZKTeco device at {ip}")
+    port = data.get('port', 4370)
     
-    if ip != "192.168.1.201":
-         return jsonify({
-            "message": "فشل الاتصال. تحقق من عنوان IP أو الشبكة. عرض بيانات محاكاة.",
-            "success": False
-        }), 400
-    
-    if data.get('test'):
-         return jsonify({"success": True, "message": "تم الاتصال بالجهاز بنجاح!"})
+    if not ip:
+        return jsonify({"success": False, "message": "لم يتم توفير عنوان IP"}), 400
+        
+    try:
+        import asyncio
+        success, message = asyncio.run(test_zklib_connection(ip, port))
+        return jsonify({"success": success, "message": message})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"خطأ غير متوقع: {e}"}), 500
 
-    mock_records = [
-        { "userId": '1', "recordTime": datetime.now().isoformat(), "attState": 0 },
-    ]
-    return jsonify({"message": f"تمت مزامنة {len(mock_records)} سجلات بنجاح.", "records": mock_records})
+
+@app.route("/api/attendance/sync-all", methods=['POST'])
+def sync_all_devices():
+    devices = ZktDevice.query.all()
+    all_records = []
+    errors = []
+    
+    for device in devices:
+        try:
+            zk = ZKLib(device.ip_address, device.port, 5000)
+            zk.connect()
+            zk.enableDevice()
+            
+            attendance = zk.getAttendance()
+            if attendance:
+                all_records.extend(attendance)
+                # You might want to save these to the DB here
+            
+            zk.disableDevice()
+            zk.disconnect()
+            log_action("مزامنة ناجحة", f"تم سحب {len(attendance)} سجلات من جهاز {device.name}")
+        except Exception as e:
+            errors.append(f"فشل الاتصال بجهاز {device.name} ({device.ip_address}): {e}")
+            log_action("فشل المزامنة", f"فشل الاتصال بجهاز {device.name} ({device.ip_address})")
+            
+    if not errors and not all_records:
+         return jsonify({"message": "لا توجد سجلات جديدة للمزامنة من أي جهاز.", "total_records": 0, "errors": []})
+    
+    if errors:
+        return jsonify({"message": f"تمت المزامنة مع بعض المشاكل. إجمالي السجلات: {len(all_records)}", "total_records": len(all_records), "errors": errors}), 207 # Multi-Status
+        
+    return jsonify({"message": f"تمت مزامنة {len(all_records)} سجلات بنجاح من {len(devices)} أجهزة.", "total_records": len(all_records), "errors": []})
+
 
 def create_initial_admin_user():
     with app.app_context():
@@ -684,3 +800,5 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    
