@@ -8,7 +8,7 @@ import logging
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
-from pyzatt.zk import ZK, const
+from zk import ZK, const
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -377,7 +377,7 @@ class ZktDevice(db.Model):
             'ip_address': self.ip_address,
             'port': self.port,
             'username': self.username,
-            'password': self.password, # Note: Sending password to frontend is a security risk.
+            'password': self.password,
             'location_id': self.location_id,
             'location_name': self.location.name_ar if self.location else None
         }
@@ -437,7 +437,6 @@ def login():
                 "role": user.role,
             }
         })
-        # Set cookie
         response.set_cookie('authToken', auth_token, httponly=True, samesite='Lax', max_age=86400) # 1 day
         log_action("تسجيل دخول", f"نجح المستخدم {username} في تسجيل الدخول.", username=username, user_id=user.id)
         return response, 200
@@ -454,7 +453,6 @@ def logout():
 # --- Users API ---
 @app.route("/api/users", methods=['GET', 'POST'])
 def handle_users():
-    # Simple token validation (can be improved with a decorator)
     auth_header = request.headers.get('Authorization')
     if not auth_header or not auth_header.startswith('Bearer '):
         return jsonify({"message": "Missing or invalid token"}), 401
@@ -731,7 +729,7 @@ def handle_zkt_device(id):
         return jsonify({'message': 'تم حذف الجهاز بنجاح'})
 
 # --- ZKTeco Sync ---
-def test_pyzatt_connection(ip, port, timeout=2):
+def test_pyzk_connection(ip, port, timeout=2):
     zk = ZK(ip, port=port, timeout=timeout, force_udp=False)
     conn = None
     try:
@@ -754,7 +752,7 @@ def test_connection_route():
         return jsonify({"success": False, "message": "لم يتم توفير عنوان IP"}), 400
         
     try:
-        success, message = test_pyzatt_connection(ip, port)
+        success, message = test_pyzk_connection(ip, port)
         return jsonify({"success": success, "message": message})
     except Exception as e:
         app.logger.error(f"Unexpected error during ZK test: {e}")
@@ -769,7 +767,7 @@ def sync_all_devices():
     
     for device in devices:
         conn = None
-        zk = ZK(device.ip_address, port=device.port, timeout=5, force_udp=False)
+        zk = ZK(device.ip_address, port=device.port, timeout=5, force_udp=False, ommit_ping=True)
         try:
             conn = zk.connect()
             conn.disable_device()
@@ -780,14 +778,15 @@ def sync_all_devices():
 
             new_records_count = 0
             for att_log in attendance_logs:
-                # Simple check to avoid duplicates. A more robust solution would check timestamp and UID.
                 exists = Attendance.query.filter_by(employee_uid=att_log.user_id, timestamp=att_log.timestamp).first()
                 if not exists:
+                    # pyzk uses punch, pyzatt uses punch_type
+                    punch_value = att_log.punch if hasattr(att_log, 'punch') else 0 
                     new_att = Attendance(
-                        employee_uid=att_log.user_id,
+                        employee_uid=str(att_log.user_id),
                         timestamp=att_log.timestamp,
                         status=att_log.status,
-                        punch=att_log.punch_type, # Use punch_type for pyzatt
+                        punch=punch_value,
                     )
                     db.session.add(new_att)
                     new_records_count += 1
@@ -796,10 +795,8 @@ def sync_all_devices():
                 db.session.commit()
                 total_new_records += new_records_count
                 log_action("مزامنة ناجحة", f"تم سحب {new_records_count} سجلات جديدة من جهاز {device.name}")
-            
-            # Note: pyzatt does not have a reliable clear_attendance method.
-            # It's safer to handle this manually or rely on the device's own settings.
-            # conn.clear_attendance() 
+                # It is safer not to clear attendance automatically.
+                # conn.clear_attendance()
         except Exception as e:
             db.session.rollback()
             error_message = f"فشل الاتصال بجهاز {device.name} ({device.ip_address}): {e}"
@@ -824,7 +821,6 @@ def sync_all_devices():
 
 def create_initial_admin_user():
     with app.app_context():
-        # Check if any user exists
         if User.query.first() is None:
             app.logger.info("No users found. Creating initial admin user...")
             admin_user = User(
@@ -849,7 +845,6 @@ def init_db():
                 app.logger.error(f"Error creating database: {e}")
         else:
             app.logger.info("Database already exists.")
-            # This ensures any new tables are created if the db file exists but is outdated
             db.create_all()
         
         create_initial_admin_user()
@@ -859,7 +854,5 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-    
 
     
