@@ -76,7 +76,7 @@ const DeviceForm = ({ device, onSave, onCancel }: { device: Partial<ZktDevice> |
   };
   
   const handleSelectChange = (name: string, value: string) => {
-    setFormData({ ...formData, [name]: value });
+    setFormData({ ...formData, [name]: value === 'none' ? null : value });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -130,7 +130,7 @@ const DeviceForm = ({ device, onSave, onCancel }: { device: Partial<ZktDevice> |
             <SelectValue placeholder="اختر الموقع الذي يتواجد به الجهاز" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">بلا موقع</SelectItem>
+            <SelectItem value="none">بلا موقع</SelectItem>
             {locations.map(loc => (
               <SelectItem key={loc.id} value={String(loc.id)}>{loc.name_ar}</SelectItem>
             ))}
