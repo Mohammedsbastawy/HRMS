@@ -235,7 +235,7 @@ class Payroll(db.Model):
     year = db.Column(db.Integer, nullable=False)
     base_salary = db.Column(db.Float, nullable=False)
     overtime = db.Column(db.Float)
-    deductions = db.Column(db.Float)
+    deductions = dbColumn(db.Float)
     tax = db.Column(db.Float)
     insurance = db.Column(db.Float)
     net_salary = db.Column(db.Float, nullable=False)
@@ -457,6 +457,72 @@ class EmployeeRequest(db.Model):
 
     employee = db.relationship('Employee', backref='service_requests')
     resolver = db.relationship('User', backref='resolved_requests')
+
+class DisciplinaryPolicy(db.Model):
+    __tablename__ = 'disciplinary_policies'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    trigger_type = db.Column(db.String, nullable=False)
+    threshold_count = db.Column(db.Integer)
+    period_days = db.Column(db.Integer)
+    action_type = db.Column(db.String)
+    severity = db.Column(db.String)
+    deduction_type = db.Column(db.String)
+    deduction_value = db.Column(db.Float)
+    points = db.Column(db.Integer, default=0)
+    active = db.Column(db.Boolean, default=True)
+
+class DisciplinaryAction(db.Model):
+    __tablename__ = 'disciplinary_actions'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    policy_id = db.Column(db.Integer, db.ForeignKey('disciplinary_policies.id'))
+    source = db.Column(db.String, default='manual')
+    title = db.Column(db.String, nullable=False)
+    description = db.Column(db.Text)
+    type = db.Column(db.String, nullable=False)
+    severity = db.Column(db.String)
+    points = db.Column(db.Integer, default=0)
+    status = db.Column(db.String, default='Draft')
+    issue_date = db.Column(db.String, default=lambda: date.today().isoformat())
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    employee = db.relationship('Employee', backref='disciplinary_actions')
+    policy = db.relationship('DisciplinaryPolicy', backref='actions')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'employee_id': self.employee_id,
+            'employee_name': self.employee.full_name if self.employee else None,
+            'title': self.title,
+            'description': self.description,
+            'type': self.type,
+            'severity': self.severity,
+            'status': self.status,
+            'issue_date': self.issue_date
+        }
+
+class DisciplinaryEvidence(db.Model):
+    __tablename__ = 'disciplinary_evidence'
+    id = db.Column(db.Integer, primary_key=True)
+    action_id = db.Column(db.Integer, db.ForeignKey('disciplinary_actions.id', ondelete='CASCADE'), nullable=False)
+    file_path = db.Column(db.String)
+    note = db.Column(db.Text)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class PayrollAdjustment(db.Model):
+    __tablename__ = 'payroll_adjustments'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    month = db.Column(db.String, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    reason = db.Column(db.String, nullable=False)
+    source = db.Column(db.String, default='disciplinary')
+    source_id = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    __table_args__ = (db.UniqueConstraint('employee_id', 'month', 'source', 'source_id', name='_employee_month_source_uc'),)
+
 
 # --- Utility Functions ---
 def log_action(action, details, username="نظام", user_id=None):
@@ -1054,7 +1120,7 @@ def handle_zkt_devices():
             port=data.get('port', 4370),
             username=data.get('username'),
             password=data.get('password'),
-            location_id=int(data['location_id']) if data.get('location_id') else None
+            location_id=int(data['location_id']) if data.get('location_id') != 'none' and data.get('location_id') else None,
         )
         db.session.add(new_device)
         db.session.commit()
@@ -1090,6 +1156,35 @@ def handle_zkt_device(id):
         db.session.delete(device)
         db.session.commit()
         return jsonify({'message': 'تم حذف الجهاز بنجاح'})
+
+# --- Disciplinary Actions API ---
+@app.route('/api/disciplinary/actions', methods=['GET', 'POST'])
+@jwt_required()
+def handle_disciplinary_actions():
+    current_user_identity = get_jwt_identity()
+    user = User.query.get(current_user_identity['id'])
+    if user.role not in ['Admin', 'HR']:
+        return jsonify({"message": "صلاحيات غير كافية"}), 403
+
+    if request.method == 'POST':
+        data = request.get_json()
+        new_action = DisciplinaryAction(
+            employee_id=data['employee_id'],
+            title=data['title'],
+            description=data.get('description'),
+            type=data['type'],
+            severity=data['severity'],
+            status='Draft',
+            source='manual'
+        )
+        db.session.add(new_action)
+        db.session.commit()
+        log_action("إجراء تأديبي يدوي", f"تم إنشاء إجراء يدوي '{new_action.title}' للموظف ID {new_action.employee_id}", username=user.username, user_id=user.id)
+        return jsonify(new_action.to_dict()), 201
+
+    actions = DisciplinaryAction.query.options(db.joinedload(DisciplinaryAction.employee)).order_by(DisciplinaryAction.created_at.desc()).all()
+    return jsonify({"actions": [a.to_dict() for a in actions]})
+
 
 # --- ZKTeco Sync ---
 def test_pyzk_connection(ip, port, timeout=2):
@@ -1259,5 +1354,3 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-    

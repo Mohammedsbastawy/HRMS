@@ -3,6 +3,7 @@
 
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -198,4 +199,16 @@ export type Location = {
   created_at?: string;
   updated_at?: string;
   manager?: Partial<Employee>; // for UI display
+};
+
+export type DisciplinaryAction = {
+  id: number;
+  employee_id: number;
+  employee_name?: string;
+  title: string;
+  description?: string;
+  type: 'warning' | 'deduction' | 'suspension';
+  severity: 'low' | 'medium' | 'high';
+  status: 'Draft' | 'PendingApproval' | 'Approved' | 'Applied' | 'Rejected' | 'Reversed';
+  issue_date: string;
 };

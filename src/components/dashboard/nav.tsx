@@ -22,7 +22,8 @@ import {
   Building,
   MapPin,
   User as UserIcon,
-  BarChart
+  BarChart,
+  TriangleAlert,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -69,6 +70,7 @@ const navConfig: (NavGroup | { separator: true })[] = [
     items: [
       { href: '/attendance', label: 'الحضورو الانصراف', icon: Clock },
       { href: '/leaves', label: 'الإجازات', icon: Calendar },
+      { href: '/disciplinary', label: 'الإجراءات التأديبية', icon: TriangleAlert, roles: ['Admin', 'HR', 'Manager'] },
     ],
   },
   { separator: true },
@@ -168,7 +170,7 @@ export function Nav() {
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/')}
+                  isActive={pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')}
                   tooltip={item.label}
                 >
                   <Link href={item.href}>
@@ -184,5 +186,3 @@ export function Nav() {
     </SidebarMenu>
   );
 }
-
-    
