@@ -228,5 +228,3 @@ export function EmployeesPageClient() {
     </Card>
   );
 }
-
-    

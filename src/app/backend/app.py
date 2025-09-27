@@ -201,7 +201,7 @@ class LeaveRequest(db.Model):
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
     leave_type = db.Column(db.String, nullable=False)
     start_date = db.Column(db.String, nullable=False)
-    end_date = dbColumn(db.String, nullable=False)
+    end_date = db.Column(db.String, nullable=False)
     status = db.Column(db.String, default='Pending')
     approved_by = db.Column(db.Integer)
     notes = db.Column(db.String)
@@ -341,7 +341,7 @@ class TrainingRecord(db.Model):
     course_id = db.Column(db.Integer, db.ForeignKey('training_courses.id', ondelete='CASCADE'), nullable=False)
     status = db.Column(db.String, default='Enrolled') # Enrolled, In Progress, Completed, Failed
     result = db.Column(db.String)
-    completed_at = db.Column(db.String)
+    completed_at = dbColumn(db.String)
     
     employee = db.relationship('Employee', backref=db.backref('training_records', cascade="all, delete-orphan"))
     course = db.relationship('TrainingCourse', backref=db.backref('training_records', cascade="all, delete-orphan"))
@@ -459,7 +459,7 @@ def logout():
     return response
 
 # --- Users API ---
-@app.route("/api/users", methods=['GET', 'POST'])
+@approute("/api/users", methods=['GET', 'POST'])
 @jwt_required()
 def handle_users():
     current_user_identity = get_jwt_identity()
