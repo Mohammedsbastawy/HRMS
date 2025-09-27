@@ -86,9 +86,10 @@ const DeviceForm = ({ device, onSave, onCancel }: { device: Partial<ZktDevice> |
     const url = formData.id ? `/api/zkt-devices/${formData.id}` : '/api/zkt-devices';
 
     try {
+        const token = localStorage.getItem('authToken');
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(formData),
       });
       const result = await response.json();
@@ -160,9 +161,12 @@ export function ZktFingerprintSettings() {
   const fetchDevices = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/zkt-devices');
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/zkt-devices', {
+           headers: { 'Authorization': `Bearer ${token}` }
+      });
       const data = await response.json();
-      if (!response.ok) throw new Error('فشل في جلب الأجهزة');
+      if (!response.ok) throw new Error(data.message || 'فشل في جلب الأجهزة');
       setDevices(data.devices);
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'خطأ', description: error.message });
@@ -193,7 +197,11 @@ export function ZktFingerprintSettings() {
   const confirmDelete = async () => {
     if (!selectedDevice?.id) return;
     try {
-      const response = await fetch(`/api/zkt-devices/${selectedDevice.id}`, { method: 'DELETE' });
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`/api/zkt-devices/${selectedDevice.id}`, { 
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (!response.ok) throw new Error('فشل حذف الجهاز');
       toast({ title: 'تم الحذف', description: `تم حذف جهاز "${selectedDevice.name}".` });
       fetchDevices();
@@ -208,9 +216,10 @@ export function ZktFingerprintSettings() {
   const handleTestConnection = async (device: ZktDevice) => {
     setTestingDeviceId(device.id);
     try {
+      const token = localStorage.getItem('authToken');
       const response = await fetch('/api/attendance/test-connection', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ ip: device.ip_address, port: device.port }),
       });
 
@@ -317,5 +326,3 @@ export function ZktFingerprintSettings() {
     </>
   );
 }
-
-    

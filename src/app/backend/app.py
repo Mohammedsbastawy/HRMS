@@ -8,7 +8,6 @@ import logging
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager
 from zk import ZK, const
-from collections import defaultdict
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -192,8 +191,8 @@ class Attendance(db.Model):
             'employeeName': self.employee.full_name if self.employee else f'UID: {self.employee_uid}',
             'employeeAvatar': self.employee.avatar if self.employee else None,
             'date': self.timestamp.strftime('%Y-%m-%d'),
-            'check_in': self.timestamp.strftime('%H:%M:%S') if self.punch == const.PUNCH_IN else None,
-            'check_out': self.timestamp.strftime('%H:%M:%S') if self.punch == const.PUNCH_OUT else None,
+            'check_in': self.timestamp.strftime('%H:%M:%S') if self.punch == 0 else None,
+            'check_out': self.timestamp.strftime('%H:%M:%S') if self.punch == 1 else None,
             'status': 'Present' # Simplified status
         }
 
@@ -290,44 +289,17 @@ class TrainingCourse(db.Model):
     price = db.Column(db.Float)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    def to_dict(self):
-        participant_count = db.session.query(db.func.count(TrainingRecord.id)).filter_by(course_id=self.id).scalar()
-        return {
-            'id': self.id,
-            'title': self.title,
-            'provider': self.provider,
-            'description': self.description,
-            'start_date': self.start_date,
-            'end_date': self.end_date,
-            'price': self.price,
-            'participant_count': participant_count
-        }
-
 class TrainingRecord(db.Model):
     __tablename__ = 'training_records'
     id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
-    course_id = db.Column(db.Integer, db.ForeignKey('training_courses.id', ondelete='CASCADE'), nullable=False)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('training_courses.id'), nullable=False)
     status = db.Column(db.String, default='Enrolled') # Enrolled, In Progress, Completed, Failed
     result = db.Column(db.String)
     completed_at = db.Column(db.String)
     
     employee = db.relationship('Employee', backref='training_records')
-    course = db.relationship('TrainingCourse', backref=db.backref('training_records', cascade="all, delete-orphan"))
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'employee_id': self.employee_id,
-            'course_id': self.course_id,
-            'status': self.status,
-            'result': self.result,
-            'employee': {
-                'full_name': self.employee.full_name,
-                'department': self.employee.department.to_dict() if self.employee.department else None
-            } if self.employee else None,
-            'course': self.course.to_dict() if self.course else None
-        }
+    course = db.relationship('TrainingCourse', backref='training_records')
 
 class Job(db.Model):
     __tablename__ = 'jobs'
@@ -646,8 +618,8 @@ def update_leave(id):
 def get_dashboard_data():
     employees = Employee.query.all()
     leave_requests = LeaveRequest.query.all()
-    performance_reviews = [] #PerformanceReview.query.all()
-    jobs = [] #Job.query.filter_by(status='Open').all()
+    performance_reviews = PerformanceReview.query.all()
+    jobs = Job.query.filter_by(status='Open').all()
     logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(5).all()
 
     recent_activities = [{
@@ -658,8 +630,8 @@ def get_dashboard_data():
     return jsonify({
         "employees": [e.to_dict() for e in employees],
         "leaveRequests": [lr.to_dict() for lr in leave_requests],
-        "performanceReviews": [], # [pr.to_dict() for pr in performance_reviews],
-        "jobs": [], #[j.to_dict() for j in jobs],
+        "performanceReviews": [pr.to_dict() for pr in performance_reviews],
+        "jobs": [j.to_dict() for j in jobs],
         "recentActivities": recent_activities
     })
 
@@ -694,6 +666,7 @@ def get_attendance():
     raw_attendance_records = Attendance.query.options(db.joinedload(Attendance.employee)).order_by(Attendance.timestamp.desc()).all()
     
     # Group punches by employee and date
+    from collections import defaultdict
     grouped_punches = defaultdict(lambda: defaultdict(list))
     for record in raw_attendance_records:
         if record.employee: # Only process records linked to an employee
@@ -734,89 +707,10 @@ def get_attendance():
     return jsonify({"attendance": processed_attendance})
 
 
-# --- Training Courses API ---
-@app.route('/api/training-courses', methods=['GET', 'POST'])
-def handle_training_courses():
-    if request.method == 'POST':
-        data = request.get_json()
-        new_course = TrainingCourse(
-            title=data['title'],
-            provider=data.get('provider'),
-            description=data.get('description'),
-            start_date=data.get('start_date') or None,
-            end_date=data.get('end_date') or None,
-            price=data.get('price')
-        )
-        db.session.add(new_course)
-        db.session.commit()
-        log_action("إضافة دورة تدريبية", f"تمت إضافة دورة: {new_course.title}")
-        return jsonify(new_course.to_dict()), 201
-
-    courses = TrainingCourse.query.order_by(TrainingCourse.created_at.desc()).all()
-    return jsonify({'courses': [c.to_dict() for c in courses]})
-
-@app.route('/api/training-courses/<int:id>', methods=['PUT', 'DELETE'])
-def handle_training_course(id):
-    course = TrainingCourse.query.get_or_404(id)
-    if request.method == 'PUT':
-        data = request.get_json()
-        course.title = data.get('title', course.title)
-        course.provider = data.get('provider', course.provider)
-        course.description = data.get('description', course.description)
-        course.start_date = data.get('start_date', course.start_date)
-        course.end_date = data.get('end_date', course.end_date)
-        course.price = data.get('price', course.price)
-        db.session.commit()
-        log_action("تحديث دورة تدريبية", f"تم تحديث دورة: {course.title}")
-        return jsonify(course.to_dict())
-    
-    if request.method == 'DELETE':
-        log_action("حذف دورة تدريبية", f"تم حذف دورة: {course.title}")
-        db.session.delete(course)
-        db.session.commit()
-        return jsonify({'message': 'تم حذف الدورة بنجاح'})
-
-# --- Training Records API ---
-@app.route('/api/training-records', methods=['GET', 'POST'])
-def handle_training_records():
-    if request.method == 'POST':
-        data = request.get_json()
-        course_id = data.get('course_id')
-        employee_ids = data.get('employee_ids', [])
-
-        for emp_id in employee_ids:
-            record = TrainingRecord(employee_id=emp_id, course_id=course_id, status='Enrolled')
-            db.session.add(record)
-        
-        db.session.commit()
-        log_action("تسجيل موظفين بدورة", f"تم تسجيل {len(employee_ids)} موظفين في الدورة ID: {course_id}")
-        return jsonify({'message': 'تم تسجيل الموظفين بنجاح'}), 201
-
-    course_id = request.args.get('course_id')
-    if course_id:
-        records = TrainingRecord.query.options(db.joinedload(TrainingRecord.employee).options(db.joinedload(Employee.department))).filter_by(course_id=course_id).all()
-        return jsonify({'records': [r.to_dict() for r in records]})
-    
-    return jsonify({'message': 'Please provide a course_id'}), 400
-
-@app.route('/api/training-records/<int:id>', methods=['PUT', 'DELETE'])
-def handle_training_record(id):
-    record = TrainingRecord.query.get_or_404(id)
-    if request.method == 'PUT':
-        data = request.get_json()
-        record.status = data.get('status', record.status)
-        record.result = data.get('result', record.result)
-        if record.status == 'Completed':
-            record.completed_at = datetime.utcnow().isoformat()
-        db.session.commit()
-        log_action("تحديث سجل تدريب", f"تم تحديث حالة الموظف ID: {record.employee_id} في الدورة ID: {record.course_id}")
-        return jsonify(record.to_dict())
-
-    if request.method == 'DELETE':
-        log_action("حذف مشارك من دورة", f"تم حذف الموظف ID: {record.employee_id} من الدورة ID: {record.course_id}")
-        db.session.delete(record)
-        db.session.commit()
-        return jsonify({'message': 'تم حذف المشارك بنجاح'})
+# --- Training Courses & Records are not yet implemented ---
+@app.route('/api/training-courses', methods=['GET'])
+def get_training_courses():
+    return jsonify({'courses': []})
 
 # --- ZKTeco Devices API ---
 @app.route('/api/zkt-devices', methods=['GET', 'POST'])
