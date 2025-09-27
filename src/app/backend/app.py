@@ -224,95 +224,6 @@ class LeaveRequest(db.Model):
           data['created_at'] = created_at_val.isoformat()
       return data
 
-class Job(db.Model):
-    __tablename__ = 'jobs'
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String, nullable=False)
-    description = db.Column(db.String)
-    department_id = db.Column(db.Integer, db.ForeignKey('departments.id'))
-    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
-    status = db.Column(db.String, default='Open')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    department = db.relationship('Department', backref='jobs', lazy=True)
-
-    def to_dict(self):
-        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
-        if self.department:
-            data['department_name_ar'] = self.department.name_ar
-        if isinstance(data.get('created_at'), datetime):
-            data['created_at'] = data['created_at'].isoformat()
-        return data
-
-class Applicant(db.Model):
-    __tablename__ = 'applicants'
-    id = db.Column(db.Integer, primary_key=True)
-    job_id = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
-    name = db.Column(db.String, nullable=False)
-    email = db.Column(db.String, unique=True)
-    phone = db.Column(db.String)
-    cv_path = db.Column(db.String)
-    stage = db.Column(db.String, default='Applied')
-    applied_at = db.Column(db.DateTime, default=datetime.utcnow)
-    notes = db.Column(db.String)
-    avatar = db.Column(db.String)
-    job = db.relationship('Job', backref='applicants', lazy=True)
-
-    def to_dict(self):
-        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
-        if self.job:
-            data['job'] = {'title': self.job.title}
-        if isinstance(data.get('applied_at'), datetime):
-            data['applied_at'] = data['applied_at'].isoformat()
-        return data
-        
-class PerformanceReview(db.Model):
-    __tablename__ = 'performance_reviews'
-    id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
-    review_date = db.Column(db.String, nullable=False)
-    score = db.Column(db.Float, nullable=False)
-    reviewer_id = db.Column(db.Integer)
-    comments = db.Column(db.String)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    employee = db.relationship('Employee', backref='performance_reviews', lazy=True)
-    
-    def to_dict(self):
-      return {
-          'id': self.id,
-          'employee_id': self.employee_id,
-          'employeeName': self.employee.full_name if self.employee else None,
-          'review_date': self.review_date,
-          'score': self.score,
-          'comments': self.comments,
-      }
-
-class Payroll(db.Model):
-    __tablename__ = 'payrolls'
-    id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
-    month = db.Column(db.String, nullable=False)
-    year = db.Column(db.Integer, nullable=False)
-    base_salary = db.Column(db.Float, nullable=False)
-    overtime = db.Column(db.Float, default=0)
-    deductions = db.Column(db.Float, default=0)
-    tax = db.Column(db.Float, default=0)
-    insurance = db.Column(db.Float, default=0)
-    net_salary = db.Column(db.Float, nullable=False)
-    generated_at = db.Column(db.DateTime, default=datetime.utcnow)
-    status = db.Column(db.String, default='Generated')
-    employee = db.relationship('Employee', backref='payrolls', lazy=True)
-
-    def to_dict(self):
-      return {
-          'id': self.id,
-          'employeeName': self.employee.full_name if self.employee else None,
-          'base_salary': self.base_salary,
-          'overtime': self.overtime,
-          'deductions': self.deductions,
-          'net_salary': self.net_salary,
-      }
-
 class TrainingCourse(db.Model):
     __tablename__ = 'training_courses'
     id = db.Column(db.Integer, primary_key=True)
@@ -323,48 +234,36 @@ class TrainingCourse(db.Model):
     end_date = db.Column(db.String)
     price = db.Column(db.Float)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+
     def to_dict(self):
-      return {
-        'id': self.id,
-        'title': self.title,
-        'provider': self.provider,
-        'description': self.description,
-        'start_date': self.start_date,
-        'end_date': self.end_date,
-        'price': self.price,
-        'participant_count': TrainingRecord.query.filter_by(course_id=self.id).count()
-      }
+        return {
+            'id': self.id,
+            'title': self.title,
+            'provider': self.provider,
+            'description': self.description,
+            'start_date': self.start_date,
+            'end_date': self.end_date,
+            'price': self.price
+        }
 
 class TrainingRecord(db.Model):
     __tablename__ = 'training_records'
     id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
-    course_id = db.Column(db.Integer, db.ForeignKey('training_courses.id', ondelete='CASCADE'), nullable=False)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('training_courses.id'), nullable=False)
     status = db.Column(db.String, default='Enrolled') # Enrolled, In Progress, Completed, Failed
     result = db.Column(db.String)
     completed_at = db.Column(db.String)
-    
-    employee = db.relationship('Employee', backref=db.backref('training_records', cascade="all, delete-orphan"))
-    course = db.relationship('TrainingCourse', backref=db.backref('training_records', cascade="all, delete-orphan"))
+    employee = db.relationship('Employee', backref='training_records')
+    course = db.relationship('TrainingCourse', backref='training_records')
 
     def to_dict(self):
-        employee_info = None
-        if self.employee:
-            department_info = self.employee.department.to_dict() if self.employee.department else None
-            employee_info = {
-                'full_name': self.employee.full_name,
-                'department': department_info
-            }
-
         return {
             'id': self.id,
             'employee_id': self.employee_id,
             'course_id': self.course_id,
             'status': self.status,
-            'result': self.result,
-            'employee': employee_info,
-            'course': self.course.to_dict() if self.course else None,
+            'result': self.result
         }
 
 class AuditLog(db.Model):
@@ -626,13 +525,14 @@ def update_leave(id):
     else:
         return jsonify({"success": False, "message": "إجراء غير صالح"}), 400
 
+
 # --- Dashboard API ---
 @app.route("/api/dashboard", methods=['GET'])
 def get_dashboard_data():
     employees = Employee.query.all()
     leave_requests = LeaveRequest.query.all()
-    performance_reviews = PerformanceReview.query.all()
-    jobs = Job.query.filter_by(status='Open').all()
+    performance_reviews = [] #PerformanceReview.query.all()
+    jobs = [] #Job.query.filter_by(status='Open').all()
     logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(5).all()
 
     recent_activities = [{
@@ -643,31 +543,31 @@ def get_dashboard_data():
     return jsonify({
         "employees": [e.to_dict() for e in employees],
         "leaveRequests": [lr.to_dict() for lr in leave_requests],
-        "performanceReviews": [pr.to_dict() for pr in performance_reviews],
-        "jobs": [j.to_dict() for j in jobs],
+        "performanceReviews": [], # [pr.to_dict() for pr in performance_reviews],
+        "jobs": [], #[j.to_dict() for j in jobs],
         "recentActivities": recent_activities
     })
 
 # --- Recruitment API ---
 @app.route("/api/recruitment", methods=['GET'])
 def get_recruitment_data():
-    jobs = Job.query.order_by(Job.created_at.desc()).all()
-    applicants = Applicant.query.all()
+    jobs = [] #Job.query.order_by(Job.created_at.desc()).all()
+    applicants = [] #Applicant.query.all()
     return jsonify({
-        "jobs": [j.to_dict() for j in jobs],
-        "applicants": [a.to_dict() for a in applicants]
+        "jobs": [], #[j.to_dict() for j in jobs],
+        "applicants": [] #[a.to_dict() for a in applicants]
     })
     
 # --- Other Read-only APIs ---
 @app.route("/api/payrolls", methods=['GET'])
 def get_payrolls():
-    payrolls = Payroll.query.all()
-    return jsonify({"payrolls": [p.to_dict() for p in payrolls]})
+    payrolls = [] #Payroll.query.all()
+    return jsonify({"payrolls": []}) #[p.to_dict() for p in payrolls]})
     
 @app.route("/api/performance", methods=['GET'])
 def get_performance():
-    reviews = PerformanceReview.query.all()
-    return jsonify({"performanceReviews": [r.to_dict() for r in reviews]})
+    reviews = [] #PerformanceReview.query.all()
+    return jsonify({"performanceReviews": []}) #[r.to_dict() for r in reviews]})
 
 @app.route("/api/audit-log", methods=['GET'])
 def get_audit_logs():
@@ -730,7 +630,7 @@ def handle_training_courses():
             description=data.get('description'),
             start_date=data.get('start_date') or None,
             end_date=data.get('end_date') or None,
-            price=float(data['price']) if data.get('price') else None
+            price=data.get('price')
         )
         db.session.add(new_course)
         db.session.commit()
@@ -750,7 +650,7 @@ def handle_training_course(id):
         course.description = data.get('description', course.description)
         course.start_date = data.get('start_date', course.start_date)
         course.end_date = data.get('end_date', course.end_date)
-        course.price = float(data['price']) if data.get('price') is not None else course.price
+        course.price = data.get('price', course.price)
         db.session.commit()
         log_action("تحديث دورة تدريبية", f"تم تحديث دورة: {course.title}")
         return jsonify(course.to_dict())
@@ -769,14 +669,9 @@ def handle_training_records():
         course_id = data.get('course_id')
         employee_ids = data.get('employee_ids', [])
 
-        if not course_id or not employee_ids:
-            return jsonify({'message': 'بيانات غير مكتملة'}), 400
-
         for emp_id in employee_ids:
-            existing = TrainingRecord.query.filter_by(employee_id=emp_id, course_id=course_id).first()
-            if not existing:
-                record = TrainingRecord(employee_id=emp_id, course_id=course_id, status='Enrolled')
-                db.session.add(record)
+            record = TrainingRecord(employee_id=emp_id, course_id=course_id, status='Enrolled')
+            db.session.add(record)
         
         db.session.commit()
         log_action("تسجيل موظفين بدورة", f"تم تسجيل {len(employee_ids)} موظفين في الدورة ID: {course_id}")
@@ -784,9 +679,7 @@ def handle_training_records():
 
     course_id = request.args.get('course_id')
     if course_id:
-        records = TrainingRecord.query.options(
-            db.joinedload(TrainingRecord.employee).joinedload(Employee.department)
-        ).filter_by(course_id=course_id).all()
+        records = TrainingRecord.query.options(db.joinedload(TrainingRecord.employee)).filter_by(course_id=course_id).all()
         return jsonify({'records': [r.to_dict() for r in records]})
     
     return jsonify({'message': 'Please provide a course_id'}), 400
@@ -798,7 +691,7 @@ def handle_training_record(id):
         data = request.get_json()
         record.status = data.get('status', record.status)
         record.result = data.get('result', record.result)
-        if record.status in ['Completed', 'Failed']:
+        if record.status == 'Completed':
             record.completed_at = datetime.utcnow().isoformat()
         db.session.commit()
         log_action("تحديث سجل تدريب", f"تم تحديث حالة الموظف ID: {record.employee_id} في الدورة ID: {record.course_id}")
@@ -1000,3 +893,5 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    
