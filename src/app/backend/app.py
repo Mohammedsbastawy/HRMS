@@ -1009,6 +1009,23 @@ def get_recruitment_data():
         "jobs": [j.to_dict() for j in jobs],
         "applicants": [a.to_dict() for a in applicants]
     })
+
+@app.route("/api/recruitment/jobs", methods=['POST'])
+@jwt_required()
+def handle_recruitment_jobs():
+    data = request.get_json()
+    new_job = Job(
+        title=data.get('title'),
+        department_id=int(data.get('department_id')),
+        description=data.get('description'),
+        status=data.get('status', 'Open')
+    )
+    db.session.add(new_job)
+    db.session.commit()
+    # Assuming the user is an admin/HR from the JWT
+    current_user = get_jwt_identity()
+    log_action("إضافة وظيفة", f"أضاف المستخدم {current_user['username']} وظيفة جديدة: {new_job.title}", username=current_user['username'], user_id=current_user['id'])
+    return jsonify(new_job.to_dict()), 201
     
 # --- Other Read-only APIs ---
 @app.route("/api/payrolls", methods=['GET'])

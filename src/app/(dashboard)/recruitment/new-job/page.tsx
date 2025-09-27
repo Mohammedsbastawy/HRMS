@@ -34,11 +34,12 @@ import { useToast } from "@/components/ui/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import type { Department, JobTitle } from "@/lib/types";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 const jobFormSchema = z.object({
-  jobTitle: z.string({ required_error: "المسمى الوظيفي مطلوب." }),
-  department: z.string({ required_error: "القسم مطلوب." }),
-  description: z.string().min(10, { message: "الوصف يجب أن لا يقل عن 10 أحرف." }),
+  title: z.string({ required_error: "المسمى الوظيفي مطلوب." }),
+  department_id: z.string({ required_error: "القسم مطلوب." }),
+  description: z.string().min(10, { message: "الوصف يجب أن لا يقل عن 10 أحرف." }).optional().or(z.literal('')),
   status: z.enum(["Open", "Closed", "On-Hold"], {
     required_error: "الحالة مطلوبة.",
   }),
@@ -48,17 +49,45 @@ type JobFormValues = z.infer<typeof jobFormSchema>;
 
 export default function NewJobPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   
   const [departments, setDepartments] = useState<Department[]>([]);
   const [jobTitles, setJobTitles] = useState<JobTitle[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Data fetching would go here. For now, using empty arrays.
+  useEffect(() => {
+    async function fetchData() {
+        try {
+            const [deptsRes, jobsRes] = await Promise.all([
+                fetch('/api/departments'),
+                fetch('/api/job-titles'),
+            ]);
+            if (!deptsRes.ok || !jobsRes.ok) throw new Error('فشل تحميل بيانات الأقسام والمسميات');
+
+            const deptsData = await deptsRes.json();
+            const jobsData = await jobsRes.json();
+
+            setDepartments(deptsData.departments || []);
+            setJobTitles(jobsData || []);
+
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'خطأ', description: error.message });
+        } finally {
+            setIsLoading(false);
+        }
+    }
+    fetchData();
+  }, [toast]);
+
 
   const form = useForm<JobFormValues>({
     resolver: zodResolver(jobFormSchema),
     defaultValues: {
       status: "Open",
+      title: "",
+      department_id: "",
+      description: "",
     },
   });
 
@@ -66,15 +95,31 @@ export default function NewJobPage() {
     ? jobTitles.filter(jt => String(jt.department_id) === selectedDepartment)
     : [];
 
-  function onSubmit(data: JobFormValues) {
-    toast({
-      title: "تم إرسال نموذج الوظيفة!",
-      description: (
-        <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-          <code className="text-white">{JSON.stringify(data, null, 2)}</code>
-        </pre>
-      ),
-    });
+  async function onSubmit(data: JobFormValues) {
+     try {
+        const response = await fetch('/api/recruitment/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'فشل في إنشاء الوظيفة');
+        }
+        
+        toast({
+            title: "تم إنشاء الوظيفة بنجاح!",
+        });
+        router.push('/recruitment');
+
+    } catch (error: any) {
+        toast({
+            variant: "destructive",
+            title: "حدث خطأ!",
+            description: error.message,
+        });
+    }
   }
 
   return (
@@ -90,24 +135,28 @@ export default function NewJobPage() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <FormField
               control={form.control}
-              name="department"
+              name="department_id"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>القسم</FormLabel>
                   <Select onValueChange={(value) => {
                     field.onChange(value);
                     setSelectedDepartment(value);
-                    form.setValue('jobTitle', '');
-                  }} defaultValue={field.value}>
+                    form.setValue('title', '');
+                  }} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="اختر القسم المسؤول" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {departments.map(dept => (
-                        <SelectItem key={dept.id} value={String(dept.id)}>{dept.name_ar}</SelectItem>
-                      ))}
+                      {departments.length > 0 ? (
+                        departments.map(dept => (
+                          <SelectItem key={dept.id} value={String(dept.id)}>{dept.name_ar}</SelectItem>
+                        ))
+                      ) : (
+                         <SelectItem value="loading" disabled>جاري تحميل الأقسام...</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -117,7 +166,7 @@ export default function NewJobPage() {
 
             <FormField
               control={form.control}
-              name="jobTitle"
+              name="title"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>المسمى الوظيفي</FormLabel>
@@ -129,8 +178,11 @@ export default function NewJobPage() {
                     </FormControl>
                     <SelectContent>
                       {filteredJobTitles.map(jt => (
-                        <SelectItem key={jt.id} value={String(jt.id)}>{jt.title_ar}</SelectItem>
+                        <SelectItem key={jt.id} value={jt.title_ar}>{jt.title_ar}</SelectItem>
                       ))}
+                      {selectedDepartment && filteredJobTitles.length === 0 && (
+                          <SelectItem value="no-jobs" disabled>لا توجد مسميات وظيفية لهذا القسم</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -186,7 +238,9 @@ export default function NewJobPage() {
                 <Button type="button" variant="outline" asChild>
                     <Link href="/recruitment">إلغاء</Link>
                 </Button>
-                <Button type="submit">💾 حفظ الوظيفة</Button>
+                <Button type="submit" disabled={form.formState.isSubmitting}>
+                    {form.formState.isSubmitting ? 'جاري الحفظ...' : '💾 حفظ الوظيفة'}
+                </Button>
             </div>
           </form>
         </Form>
