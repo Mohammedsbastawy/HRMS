@@ -8,7 +8,7 @@ import logging
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
-from zk import ZK, const
+from pyzatt.zk import ZK, const
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -175,7 +175,7 @@ class Employee(db.Model):
 class Attendance(db.Model):
     __tablename__ = 'attendance'
     id = db.Column(db.Integer, primary_key=True)
-    employee_uid = db.Column(db.Integer, nullable=False) # UID from ZKTeco device
+    employee_uid = db.Column(db.String, nullable=False) # UID from ZKTeco device
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True) # Link to our employee table
     timestamp = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.Integer, nullable=False) # Status code from device
@@ -731,8 +731,8 @@ def handle_zkt_device(id):
         return jsonify({'message': 'تم حذف الجهاز بنجاح'})
 
 # --- ZKTeco Sync ---
-def test_pyzk_connection(ip, port, timeout=2):
-    zk = ZK(ip, port=port, timeout=timeout)
+def test_pyzatt_connection(ip, port, timeout=2):
+    zk = ZK(ip, port=port, timeout=timeout, force_udp=False)
     conn = None
     try:
         conn = zk.connect()
@@ -754,7 +754,7 @@ def test_connection_route():
         return jsonify({"success": False, "message": "لم يتم توفير عنوان IP"}), 400
         
     try:
-        success, message = test_pyzk_connection(ip, port)
+        success, message = test_pyzatt_connection(ip, port)
         return jsonify({"success": success, "message": message})
     except Exception as e:
         app.logger.error(f"Unexpected error during ZK test: {e}")
@@ -769,7 +769,7 @@ def sync_all_devices():
     
     for device in devices:
         conn = None
-        zk = ZK(device.ip_address, port=device.port, timeout=5)
+        zk = ZK(device.ip_address, port=device.port, timeout=5, force_udp=False)
         try:
             conn = zk.connect()
             conn.disable_device()
@@ -787,7 +787,7 @@ def sync_all_devices():
                         employee_uid=att_log.user_id,
                         timestamp=att_log.timestamp,
                         status=att_log.status,
-                        punch=att_log.punch,
+                        punch=att_log.punch_type, # Use punch_type for pyzatt
                     )
                     db.session.add(new_att)
                     new_records_count += 1
@@ -797,7 +797,9 @@ def sync_all_devices():
                 total_new_records += new_records_count
                 log_action("مزامنة ناجحة", f"تم سحب {new_records_count} سجلات جديدة من جهاز {device.name}")
             
-            conn.clear_attendance() # Clear logs from device after fetching
+            # Note: pyzatt does not have a reliable clear_attendance method.
+            # It's safer to handle this manually or rely on the device's own settings.
+            # conn.clear_attendance() 
         except Exception as e:
             db.session.rollback()
             error_message = f"فشل الاتصال بجهاز {device.name} ({device.ip_address}): {e}"
