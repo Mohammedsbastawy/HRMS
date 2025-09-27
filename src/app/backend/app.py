@@ -1014,15 +1014,23 @@ def get_recruitment_data():
 @jwt_required()
 def handle_recruitment_jobs():
     data = request.get_json()
+    if not data or not data.get('department_id'):
+        return jsonify({"message": "بيانات غير مكتملة، القسم مطلوب"}), 422
+    
+    try:
+        department_id = int(data.get('department_id'))
+    except (ValueError, TypeError):
+        return jsonify({"message": "معرف القسم غير صالح"}), 422
+
     new_job = Job(
         title=data.get('title'),
-        department_id=int(data.get('department_id')),
+        department_id=department_id,
         description=data.get('description'),
-        status=data.get('status', 'Open')
+        status='Open' # Always open on creation
     )
     db.session.add(new_job)
     db.session.commit()
-    # Assuming the user is an admin/HR from the JWT
+    
     current_user = get_jwt_identity()
     log_action("إضافة وظيفة", f"أضاف المستخدم {current_user['username']} وظيفة جديدة: {new_job.title}", username=current_user['username'], user_id=current_user['id'])
     return jsonify(new_job.to_dict()), 201
@@ -1568,3 +1576,5 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    
