@@ -62,6 +62,11 @@ export default function NewJobTitlePage() {
 
   const form = useForm<JobTitleFormValues>({
     resolver: zodResolver(jobTitleFormSchema),
+    defaultValues: {
+      department_id: "",
+      title_ar: "",
+      title_en: "",
+    },
   });
 
   async function onSubmit(data: JobTitleFormValues) {
@@ -107,7 +112,7 @@ export default function NewJobTitlePage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>القسم</FormLabel>
-                   <Select onValueChange={field.onChange} defaultValue={field.value}>
+                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="اختر القسم الذي يتبعه المسمى الوظيفي" />
