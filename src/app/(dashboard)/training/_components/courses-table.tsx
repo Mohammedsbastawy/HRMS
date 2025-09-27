@@ -66,6 +66,11 @@ export function CoursesTable({ courses, onEdit, onDeleteSuccess }: CoursesTableP
       setIsDeleteAlertOpen(false);
     }
   };
+  
+  const formatPrice = (price: number | null | undefined) => {
+    if (price === null || price === undefined) return '-';
+    return new Intl.NumberFormat('ar-SA', { style: 'currency', currency: 'SAR' }).format(price);
+  }
 
   return (
     <>
@@ -76,6 +81,7 @@ export function CoursesTable({ courses, onEdit, onDeleteSuccess }: CoursesTableP
             <TableHead className="text-right">عنوان الدورة</TableHead>
             <TableHead className="text-right">الجهة المقدمة</TableHead>
             <TableHead className="text-right">التواريخ</TableHead>
+            <TableHead className="text-right">السعر</TableHead>
             <TableHead className="text-right">المشاركون</TableHead>
             <TableHead className="text-right">إجراءات</TableHead>
           </TableRow>
@@ -91,6 +97,7 @@ export function CoursesTable({ courses, onEdit, onDeleteSuccess }: CoursesTableP
                     {course.start_date ? new Date(course.start_date).toLocaleDateString('ar-EG') : ''}
                     {course.end_date ? ` - ${new Date(course.end_date).toLocaleDateString('ar-EG')}` : ''}
                 </TableCell>
+                <TableCell>{formatPrice(course.price)}</TableCell>
                 <TableCell>{course.participant_count || 0}</TableCell>
                 <TableCell className="flex justify-end gap-2">
                   <Button variant="ghost" size="icon" onClick={() => handleViewClick(course)}>
@@ -112,7 +119,7 @@ export function CoursesTable({ courses, onEdit, onDeleteSuccess }: CoursesTableP
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={6} className="h-24 text-center">
+              <TableCell colSpan={7} className="h-24 text-center">
                 لا توجد دورات تدريبية لعرضها.
               </TableCell>
             </TableRow>

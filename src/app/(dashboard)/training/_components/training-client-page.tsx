@@ -45,7 +45,7 @@ export function TrainingClientPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [toast]);
 
   const handleEditCourse = (course: TrainingCourse) => {
     setEditingCourse(course);
@@ -74,7 +74,7 @@ export function TrainingClientPage() {
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <CardTitle>🎓 إدارة التدريب</CardTitle>
+              <CardTitle>🎓 إدارة التدريب والتطوير</CardTitle>
               <CardDescription>إدارة الدورات التدريبية وتتبع تطور الموظفين.</CardDescription>
             </div>
             <div className="flex flex-shrink-0 gap-2">

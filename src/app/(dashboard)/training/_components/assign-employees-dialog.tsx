@@ -26,7 +26,6 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { TrainingCourse, Employee } from '@/lib/types';
-import { useState } from 'react';
 
 interface AssignEmployeesDialogProps {
   open: boolean;

@@ -104,7 +104,7 @@ export type Payroll = {
   overtime?: number;
   deductions?: number;
   tax?: number;
-insurance?: number;
+  insurance?: number;
   net_salary: number;
   generated_at?: string;
   status?: string;
@@ -140,7 +140,7 @@ export type Applicant = {
   cv_path?: string | null;
   stage?: 'Applied' | 'Screening' | 'Interview' | 'Offer' | 'Hired' | 'Rejected';
   applied_at?: string;
-  notes?: string | null;
+notes?: string | null;
   avatar?: string; // For UI display
   job?: Partial<Job>; // For UI display
 };
@@ -152,6 +152,7 @@ export type TrainingCourse = {
   start_date?: string | null;
   end_date?: string | null;
   description?: string | null;
+  price?: number | null;
   participant_count?: number; // Added for UI
 };
 

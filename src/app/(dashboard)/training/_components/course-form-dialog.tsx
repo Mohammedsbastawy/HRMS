@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -34,6 +34,7 @@ const courseFormSchema = z.object({
   description: z.string().optional(),
   start_date: z.string().optional(),
   end_date: z.string().optional(),
+  price: z.coerce.number().min(0, "السعر يجب أن يكون رقمًا موجبًا").optional(),
 });
 
 type CourseFormValues = z.infer<typeof courseFormSchema>;
@@ -41,35 +42,30 @@ type CourseFormValues = z.infer<typeof courseFormSchema>;
 export function CourseFormDialog({ open, onOpenChange, onSuccess, course }: CourseFormDialogProps) {
   const { toast } = useToast();
   const {
-    control,
-    handleSubmit,
     register,
+    handleSubmit,
     reset,
     formState: { isSubmitting, errors },
   } = useForm<CourseFormValues>({
     resolver: zodResolver(courseFormSchema),
-    defaultValues: {
-      title: '',
-      provider: '',
-      description: '',
-      start_date: '',
-      end_date: '',
-    },
   });
 
   useEffect(() => {
-    if (course) {
-      reset({
-        title: course.title,
-        provider: course.provider || '',
-        description: course.description || '',
-        start_date: course.start_date?.split('T')[0] || '',
-        end_date: course.end_date?.split('T')[0] || '',
-      });
-    } else {
-      reset({
-        title: '', provider: '', description: '', start_date: '', end_date: '',
-      });
+    if (open) {
+      if (course) {
+        reset({
+          title: course.title,
+          provider: course.provider || '',
+          description: course.description || '',
+          start_date: course.start_date?.split('T')[0] || '',
+          end_date: course.end_date?.split('T')[0] || '',
+          price: course.price || 0,
+        });
+      } else {
+        reset({
+          title: '', provider: '', description: '', start_date: '', end_date: '', price: 0
+        });
+      }
     }
   }, [course, open, reset]);
 
@@ -123,6 +119,11 @@ export function CourseFormDialog({ open, onOpenChange, onSuccess, course }: Cour
                     <Label htmlFor="end_date">تاريخ الانتهاء</Label>
                     <Input id="end_date" type="date" {...register('end_date')} />
                 </div>
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="price">سعر الدورة (اختياري)</Label>
+                <Input id="price" type="number" step="0.01" {...register('price')} placeholder="0.00" />
+                {errors.price && <p className="text-sm text-destructive">{errors.price.message}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="description">الوصف (اختياري)</Label>

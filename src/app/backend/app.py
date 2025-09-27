@@ -201,7 +201,7 @@ class LeaveRequest(db.Model):
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
     leave_type = db.Column(db.String, nullable=False)
     start_date = db.Column(db.String, nullable=False)
-    end_date = db.Column(db.String, nullable=False)
+    end_date = dbColumn(db.String, nullable=False)
     status = db.Column(db.String, default='Pending')
     approved_by = db.Column(db.Integer)
     notes = db.Column(db.String)
@@ -293,7 +293,7 @@ class Payroll(db.Model):
     year = db.Column(db.Integer, nullable=False)
     base_salary = db.Column(db.Float, nullable=False)
     overtime = db.Column(db.Float, default=0)
-    deductions = dbColumn(db.Float, default=0)
+    deductions = db.Column(db.Float, default=0)
     tax = db.Column(db.Float, default=0)
     insurance = db.Column(db.Float, default=0)
     net_salary = db.Column(db.Float, nullable=False)
@@ -319,6 +319,7 @@ class TrainingCourse(db.Model):
     description = db.Column(db.Text)
     start_date = db.Column(db.String)
     end_date = db.Column(db.String)
+    price = db.Column(db.Float)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def to_dict(self):
@@ -329,6 +330,7 @@ class TrainingCourse(db.Model):
         'description': self.description,
         'start_date': self.start_date,
         'end_date': self.end_date,
+        'price': self.price,
         'participant_count': TrainingRecord.query.filter_by(course_id=self.id).count()
       }
 
@@ -345,16 +347,21 @@ class TrainingRecord(db.Model):
     course = db.relationship('TrainingCourse', backref=db.backref('training_records', cascade="all, delete-orphan"))
 
     def to_dict(self):
+        employee_info = None
+        if self.employee:
+            department_info = self.employee.department.to_dict() if self.employee.department else None
+            employee_info = {
+                'full_name': self.employee.full_name,
+                'department': department_info
+            }
+
         return {
             'id': self.id,
             'employee_id': self.employee_id,
             'course_id': self.course_id,
             'status': self.status,
             'result': self.result,
-            'employee': {
-                'full_name': self.employee.full_name,
-                'department': self.employee.department.to_dict() if self.employee.department else None
-            } if self.employee else None,
+            'employee': employee_info,
             'course': self.course.to_dict() if self.course else None,
         }
 
@@ -693,7 +700,8 @@ def handle_training_courses():
             provider=data.get('provider'),
             description=data.get('description'),
             start_date=data.get('start_date') or None,
-            end_date=data.get('end_date') or None
+            end_date=data.get('end_date') or None,
+            price=float(data['price']) if data.get('price') else None
         )
         db.session.add(new_course)
         db.session.commit()
@@ -714,6 +722,7 @@ def handle_training_course(id):
         course.description = data.get('description', course.description)
         course.start_date = data.get('start_date', course.start_date)
         course.end_date = data.get('end_date', course.end_date)
+        course.price = float(data['price']) if data.get('price') is not None else course.price
         db.session.commit()
         log_action("تحديث دورة تدريبية", f"تم تحديث دورة: {course.title}")
         return jsonify(course.to_dict())
@@ -725,7 +734,7 @@ def handle_training_course(id):
         return jsonify({'message': 'تم حذف الدورة بنجاح'})
 
 # --- Training Records API ---
-@approute('/api/training-records', methods=['GET', 'POST'])
+@app.route('/api/training-records', methods=['GET', 'POST'])
 @jwt_required()
 def handle_training_records():
     if request.method == 'POST':
@@ -748,7 +757,9 @@ def handle_training_records():
 
     course_id = request.args.get('course_id')
     if course_id:
-        records = TrainingRecord.query.filter_by(course_id=course_id).options(db.joinedload(TrainingRecord.employee).joinedload(Employee.department)).all()
+        records = TrainingRecord.query.options(
+            db.joinedload(TrainingRecord.employee).joinedload(Employee.department)
+        ).filter_by(course_id=course_id).all()
         return jsonify({'records': [r.to_dict() for r in records]})
     
     return jsonify({'message': 'Please provide a course_id'}), 400
@@ -950,5 +961,3 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-    

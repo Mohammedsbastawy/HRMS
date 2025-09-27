@@ -49,9 +49,10 @@ export function CourseDetailsDialog({ open, onOpenChange, course, onUpdate }: Co
   };
 
   useEffect(() => {
-    if (open) {
+    if (open && course.id) {
       fetchParticipants();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [course, open]);
   
   const handleEditClick = (record: TrainingRecord) => {
@@ -77,29 +78,50 @@ export function CourseDetailsDialog({ open, onOpenChange, course, onUpdate }: Co
     }
   }
 
-
-  const getStatusVariant = (status: string | undefined) => {
+  const getStatusVariant = (status?: string) => {
     switch (status) {
       case 'Completed': return 'default';
       case 'In Progress': return 'secondary';
       case 'Failed': return 'destructive';
+      case 'Enrolled': return 'outline';
       default: return 'outline';
     }
   };
 
+  const getStatusText = (status?: string) => {
+    switch (status) {
+      case 'Completed': return 'مكتمل';
+      case 'In Progress': return 'قيد التنفيذ';
+      case 'Failed': return 'فشل';
+      case 'Enrolled': return 'مسجل';
+      default: return status || '-';
+    }
+  };
+
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>{course.title}</DialogTitle>
             <DialogDescription>
-              {course.provider} | {course.start_date ? new Date(course.start_date).toLocaleDateString('ar-EG') : ''} - {course.end_date ? new Date(course.end_date).toLocaleDateString('ar-EG') : ''}
+              <div>
+                <span>{course.provider}</span>
+                <span className="mx-2">|</span>
+                <span>{course.start_date ? new Date(course.start_date).toLocaleDateString('ar-EG') : ''} - {course.end_date ? new Date(course.end_date).toLocaleDateString('ar-EG') : ''}</span>
+                {course.price && (
+                    <>
+                        <span className="mx-2">|</span>
+                        <span>التكلفة: {new Intl.NumberFormat('ar-SA', { style: 'currency', currency: 'SAR' }).format(course.price)}</span>
+                    </>
+                )}
+              </div>
               <p className="mt-2 text-sm text-muted-foreground">{course.description}</p>
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <h3 className="mb-2 font-semibold">المشاركون</h3>
+            <h3 className="mb-2 font-semibold">المشاركون ({participants.length})</h3>
             {isLoading ? (
               <div className="flex justify-center items-center h-40">
                 <Loader2 className="h-6 w-6 animate-spin" />
@@ -120,8 +142,8 @@ export function CourseDetailsDialog({ open, onOpenChange, course, onUpdate }: Co
                     participants.map(p => (
                       <TableRow key={p.id}>
                         <TableCell>{p.employee?.full_name}</TableCell>
-                        <TableCell>{p.employee?.department?.name_ar}</TableCell>
-                        <TableCell><Badge variant={getStatusVariant(p.status)}>{p.status}</Badge></TableCell>
+                        <TableCell>{p.employee?.department?.name_ar || '-'}</TableCell>
+                        <TableCell><Badge variant={getStatusVariant(p.status)}>{getStatusText(p.status)}</Badge></TableCell>
                         <TableCell>{p.result || '-'}</TableCell>
                         <TableCell className="flex justify-end gap-1">
                           <Button variant="ghost" size="icon" onClick={() => handleEditClick(p)}><Edit className="h-4 w-4" /></Button>
