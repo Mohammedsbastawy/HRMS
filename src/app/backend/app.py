@@ -182,7 +182,7 @@ class Attendance(db.Model):
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True) # Link to our employee table
     timestamp = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.Integer, nullable=False) # Status code from device
-    punch = dbColumn(db.Integer, nullable=False) # Punch type from device
+    punch = db.Column(db.Integer, nullable=False) # Punch type from device
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     employee = db.relationship('Employee', backref='attendance_logs')
     
@@ -1044,3 +1044,5 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    
