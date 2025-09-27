@@ -540,6 +540,31 @@ class PayrollComponent(db.Model):
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
+class TaxScheme(db.Model):
+    __tablename__ = 'tax_schemes'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    method = db.Column(db.String, nullable=False, default='slab') # slab, flat
+    active = db.Column(db.Boolean, default=True)
+    brackets = db.relationship('TaxBracket', backref='scheme', lazy='dynamic', cascade="all, delete-orphan")
+
+    def to_dict(self, include_brackets=False):
+        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        if include_brackets:
+            data['brackets'] = [b.to_dict() for b in self.brackets.all()]
+        return data
+
+class TaxBracket(db.Model):
+    __tablename__ = 'tax_brackets'
+    id = db.Column(db.Integer, primary_key=True)
+    scheme_id = db.Column(db.Integer, db.ForeignKey('tax_schemes.id', ondelete='CASCADE'), nullable=False)
+    min_amount = db.Column(db.Float, nullable=False)
+    max_amount = db.Column(db.Float)
+    rate = db.Column(db.Float, nullable=False)
+    
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
 
 # --- Utility Functions ---
 def log_action(action, details, username="نظام", user_id=None):
@@ -1261,6 +1286,49 @@ def handle_payroll_component(id):
         db.session.delete(component)
         db.session.commit()
         return jsonify({'message': 'تم حذف المكون بنجاح'})
+
+# --- Tax Schemes API ---
+@app.route('/api/tax-schemes', methods=['GET', 'POST'])
+@jwt_required()
+def handle_tax_schemes():
+    current_user_identity = get_jwt_identity()
+    user = User.query.get(current_user_identity['id'])
+    if user.role not in ['Admin', 'HR']:
+        return jsonify({"message": "صلاحيات غير كافية"}), 403
+    
+    if request.method == 'POST':
+        data = request.get_json()
+        if not data.get('name') or not data.get('method'):
+            return jsonify({'message': 'بيانات ناقصة'}), 400
+
+        new_scheme = TaxScheme(name=data['name'], method=data['method'], active=data.get('active', True))
+        db.session.add(new_scheme)
+        db.session.commit()
+        
+        if data.get('method') == 'slab' and 'brackets' in data:
+            for b_data in data['brackets']:
+                new_bracket = TaxBracket(
+                    scheme_id=new_scheme.id,
+                    min_amount=b_data['min_amount'],
+                    max_amount=b_data.get('max_amount'),
+                    rate=b_data['rate']
+                )
+                db.session.add(new_bracket)
+            db.session.commit()
+        
+        log_action("إنشاء مخطط ضريبي", f"تم إنشاء مخطط: {new_scheme.name}", username=user.username, user_id=user.id)
+        return jsonify(new_scheme.to_dict(include_brackets=True)), 201
+
+    schemes = TaxScheme.query.order_by(TaxScheme.name).all()
+    return jsonify({'schemes': [s.to_dict() for s in schemes]})
+
+@app.route('/api/tax-schemes/<int:id>', methods=['GET', 'PUT', 'DELETE'])
+@jwt_required()
+def handle_tax_scheme(id):
+    # (Implementation for PUT and DELETE would go here)
+    scheme = TaxScheme.query.options(db.joinedload(TaxScheme.brackets)).get_or_404(id)
+    return jsonify(scheme.to_dict(include_brackets=True))
+
 
 # --- ZKTeco Sync ---
 def test_pyzk_connection(ip, port, timeout=2):

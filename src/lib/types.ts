@@ -5,6 +5,7 @@
 
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -226,4 +227,19 @@ export type PayrollComponent = {
   taxable: boolean;
   pre_tax: boolean;
   active: boolean;
+};
+
+export type TaxBracket = {
+  id?: number;
+  min_amount: number;
+  max_amount: number | null;
+  rate: number;
+};
+
+export type TaxScheme = {
+  id: number;
+  name: string;
+  method: 'slab' | 'flat';
+  active: boolean;
+  brackets?: TaxBracket[];
 };
