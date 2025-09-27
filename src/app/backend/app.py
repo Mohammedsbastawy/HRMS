@@ -523,6 +523,23 @@ class PayrollAdjustment(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     __table_args__ = (db.UniqueConstraint('employee_id', 'month', 'source', 'source_id', name='_employee_month_source_uc'),)
 
+class PayrollComponent(db.Model):
+    __tablename__ = 'payroll_components'
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String, unique=True, nullable=False)
+    name = db.Column(db.String, nullable=False)
+    component_type = db.Column(db.String, nullable=False) # earning, deduction, benefit, insurance
+    calculation_type = db.Column(db.String, nullable=False) # fixed, percent, slab, formula
+    value = db.Column(db.Float)
+    rate = db.Column(db.Float)
+    base = db.Column(db.String, default='base')
+    taxable = db.Column(db.Boolean, default=True)
+    pre_tax = db.Column(db.Boolean, default=False)
+    active = db.Column(db.Boolean, default=True)
+
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
 
 # --- Utility Functions ---
 def log_action(action, details, username="نظام", user_id=None):
@@ -1185,6 +1202,65 @@ def handle_disciplinary_actions():
     actions = DisciplinaryAction.query.options(db.joinedload(DisciplinaryAction.employee)).order_by(DisciplinaryAction.created_at.desc()).all()
     return jsonify({"actions": [a.to_dict() for a in actions]})
 
+# --- Payroll Components API ---
+@app.route('/api/payroll-components', methods=['GET', 'POST'])
+@jwt_required()
+def handle_payroll_components():
+    current_user_identity = get_jwt_identity()
+    user = User.query.get(current_user_identity['id'])
+    if user.role not in ['Admin', 'HR']:
+        return jsonify({"message": "صلاحيات غير كافية"}), 403
+
+    if request.method == 'POST':
+        data = request.get_json()
+        # Basic validation
+        if not data.get('code') or not data.get('name') or not data.get('component_type') or not data.get('calculation_type'):
+            return jsonify({'message': 'بيانات ناقصة'}), 400
+
+        new_component = PayrollComponent(
+            code=data['code'],
+            name=data['name'],
+            component_type=data['component_type'],
+            calculation_type=data['calculation_type'],
+            value=data.get('value'),
+            rate=data.get('rate'),
+            base=data.get('base', 'base'),
+            taxable=data.get('taxable', True),
+            pre_tax=data.get('pre_tax', False),
+            active=data.get('active', True)
+        )
+        db.session.add(new_component)
+        db.session.commit()
+        log_action("إنشاء مكون راتب", f"تم إنشاء المكون: {new_component.name}", username=user.username, user_id=user.id)
+        return jsonify(new_component.to_dict()), 201
+
+    components = PayrollComponent.query.order_by(PayrollComponent.name).all()
+    return jsonify({'components': [c.to_dict() for c in components]})
+
+@app.route('/api/payroll-components/<int:id>', methods=['PUT', 'DELETE'])
+@jwt_required()
+def handle_payroll_component(id):
+    current_user_identity = get_jwt_identity()
+    user = User.query.get(current_user_identity['id'])
+    if user.role not in ['Admin', 'HR']:
+        return jsonify({"message": "صلاحيات غير كافية"}), 403
+
+    component = PayrollComponent.query.get_or_404(id)
+
+    if request.method == 'PUT':
+        data = request.get_json()
+        for key, value in data.items():
+            if hasattr(component, key) and key != 'id':
+                setattr(component, key, value)
+        db.session.commit()
+        log_action("تحديث مكون راتب", f"تم تحديث المكون: {component.name}", username=user.username, user_id=user.id)
+        return jsonify(component.to_dict())
+
+    if request.method == 'DELETE':
+        log_action("حذف مكون راتب", f"تم حذف المكون: {component.name}", username=user.username, user_id=user.id)
+        db.session.delete(component)
+        db.session.commit()
+        return jsonify({'message': 'تم حذف المكون بنجاح'})
 
 # --- ZKTeco Sync ---
 def test_pyzk_connection(ip, port, timeout=2):

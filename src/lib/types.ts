@@ -4,6 +4,7 @@
 
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -211,4 +212,18 @@ export type DisciplinaryAction = {
   severity: 'low' | 'medium' | 'high';
   status: 'Draft' | 'PendingApproval' | 'Approved' | 'Applied' | 'Rejected' | 'Reversed';
   issue_date: string;
+};
+
+export type PayrollComponent = {
+  id: number;
+  code: string;
+  name: string;
+  component_type: 'earning' | 'deduction' | 'benefit' | 'insurance';
+  calculation_type: 'fixed' | 'percent' | 'slab' | 'formula';
+  value?: number | null;
+  rate?: number | null;
+  base?: 'base' | 'gross' | 'custom';
+  taxable: boolean;
+  pre_tax: boolean;
+  active: boolean;
 };
