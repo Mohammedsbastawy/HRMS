@@ -38,6 +38,8 @@ class User(db.Model):
     role = db.Column(db.String, nullable=False, default='Employee')
     account_status = db.Column(db.String, default='Active')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    employee = db.relationship('Employee', backref='user_account', uselist=False)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -180,7 +182,7 @@ class Attendance(db.Model):
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True) # Link to our employee table
     timestamp = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.Integer, nullable=False) # Status code from device
-    punch = db.Column(db.Integer, nullable=False) # Punch type from device
+    punch = dbColumn(db.Integer, nullable=False) # Punch type from device
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     employee = db.relationship('Employee', backref='attendance_logs')
     
@@ -289,17 +291,38 @@ class TrainingCourse(db.Model):
     price = db.Column(db.Float)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    def to_dict(self):
+        d = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        d['participant_count'] = TrainingRecord.query.filter_by(course_id=self.id).count()
+        return d
+
 class TrainingRecord(db.Model):
     __tablename__ = 'training_records'
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
-    course_id = db.Column(db.Integer, db.ForeignKey('training_courses.id'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('training_courses.id', ondelete='CASCADE'), nullable=False)
     status = db.Column(db.String, default='Enrolled') # Enrolled, In Progress, Completed, Failed
     result = db.Column(db.String)
-    completed_at = db.Column(db.String)
     
-    employee = db.relationship('Employee', backref='training_records')
-    course = db.relationship('TrainingCourse', backref='training_records')
+    employee = db.relationship('Employee', backref=db.backref('training_records', cascade="all, delete-orphan"))
+    course = db.relationship('TrainingCourse', backref=db.backref('training_records', cascade="all, delete-orphan"))
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'employee_id': self.employee_id,
+            'course_id': self.course_id,
+            'status': self.status,
+            'result': self.result,
+            'employee': {
+                'full_name': self.employee.full_name,
+                'department': {
+                    'name_ar': self.employee.department.name_ar if self.employee.department else None
+                } if self.employee else None
+            } if self.employee else None,
+            'course': { 'title': self.course.title } if self.course else None
+        }
+
 
 class Job(db.Model):
     __tablename__ = 'jobs'
@@ -442,9 +465,51 @@ def login():
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
-    # With JWT, logout is handled on the client-side by deleting the token
     response = jsonify({"message": "Successfully logged out"})
     return response
+
+# --- Account Self-Service API ---
+@app.route('/api/account/me', methods=['GET'])
+@jwt_required()
+def get_my_account():
+    current_user_identity = get_jwt_identity()
+    user = User.query.options(db.joinedload(User.employee)).get(current_user_identity['id'])
+    if not user:
+        return jsonify({"message": "المستخدم غير موجود"}), 404
+
+    employee_data = None
+    if user.employee:
+        employee_data = user.employee.to_dict()
+
+    recent_logs = AuditLog.query.filter_by(user_id=user.id).order_by(AuditLog.timestamp.desc()).limit(10).all()
+
+    return jsonify({
+        "username": user.username,
+        "role": user.role,
+        "employee": employee_data,
+        "audit_logs": [log.to_dict() for log in recent_logs]
+    })
+
+
+@app.route('/api/account/change-password', methods=['POST'])
+@jwt_required()
+def change_password():
+    current_user_identity = get_jwt_identity()
+    user = User.query.get(current_user_identity['id'])
+    
+    data = request.get_json()
+    current_password = data.get('current_password')
+    new_password = data.get('new_password')
+
+    if not user.check_password(current_password):
+        return jsonify({"message": "كلمة المرور الحالية غير صحيحة"}), 400
+
+    user.set_password(new_password)
+    db.session.commit()
+
+    log_action("تغيير كلمة المرور", "قام المستخدم بتغيير كلمة المرور الخاصة به.", username=user.username, user_id=user.id)
+    return jsonify({"message": "تم تغيير كلمة المرور بنجاح."}), 200
+
 
 # --- Users API ---
 @app.route("/api/users", methods=['GET', 'POST'])
@@ -707,10 +772,87 @@ def get_attendance():
     return jsonify({"attendance": processed_attendance})
 
 
-# --- Training Courses & Records are not yet implemented ---
-@app.route('/api/training-courses', methods=['GET'])
-def get_training_courses():
-    return jsonify({'courses': []})
+# --- Training Courses & Records ---
+
+@app.route('/api/training-courses', methods=['GET', 'POST'])
+@jwt_required()
+def handle_training_courses():
+    if request.method == 'POST':
+        data = request.get_json()
+        new_course = TrainingCourse(
+            title=data.get('title'),
+            provider=data.get('provider'),
+            description=data.get('description'),
+            start_date=data.get('start_date') or None,
+            end_date=data.get('end_date') or None,
+            price=float(data.get('price')) if data.get('price') else None,
+        )
+        db.session.add(new_course)
+        db.session.commit()
+        return jsonify(new_course.to_dict()), 201
+    
+    courses = TrainingCourse.query.order_by(TrainingCourse.created_at.desc()).all()
+    return jsonify({'courses': [c.to_dict() for c in courses]})
+
+@app.route('/api/training-courses/<int:id>', methods=['PUT', 'DELETE'])
+@jwt_required()
+def handle_training_course(id):
+    course = TrainingCourse.query.get_or_404(id)
+    if request.method == 'PUT':
+        data = request.get_json()
+        course.title = data.get('title', course.title)
+        course.provider = data.get('provider', course.provider)
+        course.description = data.get('description', course.description)
+        course.start_date = data.get('start_date', course.start_date)
+        course.end_date = data.get('end_date', course.end_date)
+        course.price = float(data.get('price')) if data.get('price') else course.price
+        db.session.commit()
+        return jsonify(course.to_dict())
+    
+    if request.method == 'DELETE':
+        db.session.delete(course)
+        db.session.commit()
+        return jsonify({'message': 'Course deleted'})
+
+@app.route('/api/training-records', methods=['GET', 'POST'])
+@jwt_required()
+def handle_training_records():
+    if request.method == 'POST': # Assign employees
+        data = request.get_json()
+        course_id = data.get('course_id')
+        employee_ids = data.get('employee_ids', [])
+        for emp_id in employee_ids:
+            # Avoid duplicates
+            existing = TrainingRecord.query.filter_by(course_id=course_id, employee_id=emp_id).first()
+            if not existing:
+                record = TrainingRecord(course_id=course_id, employee_id=emp_id, status='Enrolled')
+                db.session.add(record)
+        db.session.commit()
+        return jsonify({'message': 'Employees assigned successfully'}), 201
+
+    course_id = request.args.get('course_id')
+    records = TrainingRecord.query
+    if course_id:
+        records = records.filter_by(course_id=course_id)
+    
+    return jsonify({'records': [r.to_dict() for r in records.all()]})
+
+@app.route('/api/training-records/<int:id>', methods=['PUT', 'DELETE'])
+@jwt_required()
+def handle_training_record(id):
+    record = TrainingRecord.query.get_or_404(id)
+    if request.method == 'PUT': # Update status/result
+        data = request.get_json()
+        record.status = data.get('status', record.status)
+        record.result = data.get('result', record.result)
+        db.session.commit()
+        return jsonify(record.to_dict())
+
+    if request.method == 'DELETE':
+        db.session.delete(record)
+        db.session.commit()
+        return jsonify({'message': 'Participant removed'})
+
 
 # --- ZKTeco Devices API ---
 @app.route('/api/zkt-devices', methods=['GET', 'POST'])

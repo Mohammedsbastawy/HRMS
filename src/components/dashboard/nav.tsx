@@ -21,6 +21,7 @@ import {
   Settings,
   Building,
   MapPin,
+  User as UserIcon
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -56,7 +57,7 @@ const navConfig: (NavGroup | { separator: true })[] = [
   {
     title: 'العمليات اليومية',
     items: [
-      { href: '/attendance', label: 'الحضور', icon: Clock },
+      { href: '/attendance', label: 'الحاضرين', icon: Clock },
       { href: '/leaves', label: 'الإجازات', icon: Calendar },
     ],
   },
@@ -81,6 +82,7 @@ const navConfig: (NavGroup | { separator: true })[] = [
     title: 'النظام',
     items: [
       { href: '/audit-log', label: 'سجل التدقيق', icon: ShieldCheck },
+      { href: '/account', label: 'حسابي', icon: UserIcon },
       { href: '/settings', label: 'الإعدادات', icon: Settings },
     ]
   }
@@ -99,6 +101,13 @@ export function Nav() {
         
         return (
           <React.Fragment key={group.title || `group-${index}`}>
+            {group.title && (
+              <SidebarMenuItem>
+                <div className="px-2 text-xs font-medium text-muted-foreground uppercase tracking-wider group-data-[collapsible=icon]:hidden">
+                  {group.title}
+                </div>
+              </SidebarMenuItem>
+            )}
             {group.items.map(item => (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
@@ -119,5 +128,3 @@ export function Nav() {
     </SidebarMenu>
   );
 }
-
-    

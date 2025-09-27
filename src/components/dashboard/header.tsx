@@ -64,6 +64,9 @@ export function Header() {
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>{user ? `مرحباً، ${user.username}` : 'حسابي'}</DropdownMenuLabel>
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => router.push('/account')}>
+            حسابي
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => router.push('/settings')}>
             الإعدادات
           </DropdownMenuItem>
