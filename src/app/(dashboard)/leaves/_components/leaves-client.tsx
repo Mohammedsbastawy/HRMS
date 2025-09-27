@@ -17,18 +17,29 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { MoreHorizontal, PlusCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import type { LeaveRequest } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import Link from 'next/link';
 import { useToast } from '@/components/ui/use-toast';
+import { RequestLeaveDialog } from './request-leave-dialog';
+
+type User = {
+  id: number;
+  username: string;
+  role: 'Admin' | 'HR' | 'Manager' | 'Employee';
+}
 
 export function LeaveRequestClientPage() {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const fetchLeaveRequests = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/leaves');
+      const token = localStorage.getItem('authToken');
+      const res = await fetch('/api/leaves', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (!res.ok) throw new Error('Failed to fetch leave requests');
       const data = await res.json();
       setLeaveRequests(data.leaveRequests);
@@ -44,14 +55,19 @@ export function LeaveRequestClientPage() {
   };
 
   useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
     fetchLeaveRequests();
   }, []);
 
   const handleAction = async (id: number, action: 'approve' | 'reject', notes?: string) => {
     try {
+        const token = localStorage.getItem('authToken');
         const response = await fetch(`/api/leaves/${id}`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ action, notes }),
         });
 
@@ -67,7 +83,6 @@ export function LeaveRequestClientPage() {
             variant: result.success ? 'default' : 'destructive',
         });
         
-        // Refresh data
         startTransition(() => {
             fetchLeaveRequests();
         });
@@ -88,152 +103,153 @@ export function LeaveRequestClientPage() {
 
   const handleReject = (id: number) => {
     const notes = prompt('يرجى إدخال سبب الرفض:');
-    if (notes !== null) { // prompt returns null if cancelled
+    if (notes !== null) {
       handleAction(id, 'reject', notes);
     }
   };
 
   const getStatusVariant = (status: 'Pending' | 'Approved' | 'Rejected') => {
     switch (status) {
-      case 'Approved':
-        return 'default';
-      case 'Pending':
-        return 'secondary';
-      case 'Rejected':
-        return 'destructive';
+      case 'Approved': return 'default';
+      case 'Pending': return 'secondary';
+      case 'Rejected': return 'destructive';
     }
   };
   
   const getStatusText = (status: 'Pending' | 'Approved' | 'Rejected') => {
     switch (status) {
-      case 'Approved':
-        return 'موافق عليه';
-      case 'Pending':
-        return 'قيد الانتظار';
-      case 'Rejected':
-        return 'مرفوض';
+      case 'Approved': return 'موافق عليه';
+      case 'Pending': return 'قيد الانتظار';
+      case 'Rejected': return 'مرفوض';
     }
   };
 
   const getLeaveTypeText = (leaveType: string) => {
-    switch (leaveType) {
-      case 'Annual':
-        return 'سنوية';
-      case 'Sick':
-        return 'مرضية';
-      case 'Unpaid':
-        return 'غير مدفوعة';
-      case 'Maternity':
-        return 'أمومة';
-      default:
-        return leaveType;
-    }
+    const types: { [key: string]: string } = {
+      'Annual': 'سنوية', 'Sick': 'مرضية', 'Unpaid': 'غير مدفوعة', 'Maternity': 'أمومة'
+    };
+    return types[leaveType] || leaveType;
   };
+  
+  const canManage = user?.role !== 'Employee';
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle>إدارة الإجازات</CardTitle>
-          <CardDescription>مراجعة وإدارة طلبات إجازات الموظفين.</CardDescription>
-        </div>
-        <Button asChild size="sm" className="gap-1">
-          <Link href="#">
-            <PlusCircle className="h-3.5 w-3.5" />
-            <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">طلب إجازة</span>
-          </Link>
-        </Button>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-right">الموظف</TableHead>
-              <TableHead className="text-right">نوع الإجازة</TableHead>
-              <TableHead className="text-right">التواريخ</TableHead>
-              <TableHead className="text-right">الحالة</TableHead>
-              <TableHead>
-                <span className="sr-only">الإجراءات</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-                <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
-                        <Loader2 className="mx-auto h-8 w-8 animate-spin" />
-                    </TableCell>
-                </TableRow>
-            ) : leaveRequests.length > 0 ? (
-              leaveRequests.map((request) => (
-                <TableRow key={request.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3 justify-end">
-                      <div className='text-right'>
-                        <div className="font-medium">{request.employee.full_name}</div>
-                        <div className="text-sm text-muted-foreground">{`#${request.employee_id}`}</div>
-                      </div>
-                      <Avatar>
-                        <AvatarImage src={request.employee.avatar || undefined} alt={request.employee.full_name || ''} />
-                        <AvatarFallback>{request.employee.full_name?.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                    </div>
-                  </TableCell>
-                  <TableCell>{getLeaveTypeText(request.leave_type)}</TableCell>
-                  <TableCell>{`${new Date(request.start_date).toLocaleDateString('ar-EG')} - ${new Date(request.end_date).toLocaleDateString('ar-EG')}`}</TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant={getStatusVariant(request.status)}
-                      className={
-                          request.status === 'Approved' ? 'bg-green-100 text-green-800 border-green-200' 
-                        : request.status === 'Rejected' ? 'bg-red-100 text-red-800 border-red-200'
-                        : ''
-                      }
-                    >
-                      {getStatusText(request.status)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {request.status === 'Pending' && (
-                        <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button aria-haspopup="true" size="icon" variant="ghost">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Toggle menu</span>
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
-                            <DropdownMenuItem 
-                            onClick={() => handleApprove(request.id)}
-                            >
-                            <CheckCircle className="ml-2 h-4 w-4 text-green-500" />
-                            موافقة
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                            onClick={() => handleReject(request.id)}
-                            className="text-destructive focus:text-destructive"
-                            >
-                            <XCircle className="ml-2 h-4 w-4" />
-                            رفض
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                        </DropdownMenu>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
+    <>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>{canManage ? 'إدارة الإجازات' : 'إجازاتي'}</CardTitle>
+            <CardDescription>
+              {canManage ? 'مراجعة وإدارة طلبات إجازات الموظفين.' : 'عرض وتقديم طلبات الإجازة الخاصة بك.'}
+            </CardDescription>
+          </div>
+          {!canManage && (
+            <Button size="sm" className="gap-1" onClick={() => setIsRequestDialogOpen(true)}>
+              <PlusCircle className="h-3.5 w-3.5" />
+              <span>طلب إجازة</span>
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center">
-                  لا توجد طلبات إجازة حاليًا.
-                </TableCell>
+                {canManage && <TableHead className="text-right">الموظف</TableHead>}
+                <TableHead className="text-right">نوع الإجازة</TableHead>
+                <TableHead className="text-right">التواريخ</TableHead>
+                <TableHead className="text-right">الحالة</TableHead>
+                {canManage && <TableHead><span className="sr-only">الإجراءات</span></TableHead>}
+                {!canManage && <TableHead className="text-right">ملاحظات</TableHead>}
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                  <TableRow>
+                      <TableCell colSpan={canManage ? 5 : 4} className="h-24 text-center">
+                          <Loader2 className="mx-auto h-8 w-8 animate-spin" />
+                      </TableCell>
+                  </TableRow>
+              ) : leaveRequests.length > 0 ? (
+                leaveRequests.map((request) => (
+                  <TableRow key={request.id}>
+                    {canManage && (
+                      <TableCell>
+                        <div className="flex items-center gap-3 justify-end">
+                          <div className='text-right'>
+                            <div className="font-medium">{request.employee.full_name}</div>
+                            <div className="text-sm text-muted-foreground">{`#${request.employee_id}`}</div>
+                          </div>
+                          <Avatar>
+                            <AvatarImage src={request.employee.avatar || undefined} alt={request.employee.full_name || ''} />
+                            <AvatarFallback>{request.employee.full_name?.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                        </div>
+                      </TableCell>
+                    )}
+                    <TableCell>{getLeaveTypeText(request.leave_type)}</TableCell>
+                    <TableCell>{`${new Date(request.start_date).toLocaleDateString('ar-EG')} - ${new Date(request.end_date).toLocaleDateString('ar-EG')}`}</TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={getStatusVariant(request.status)}
+                        className={
+                            request.status === 'Approved' ? 'bg-green-100 text-green-800 border-green-200' 
+                          : request.status === 'Rejected' ? 'bg-red-100 text-red-800 border-red-200'
+                          : ''
+                        }
+                      >
+                        {getStatusText(request.status)}
+                      </Badge>
+                    </TableCell>
+                    {canManage && (
+                        <TableCell>
+                        {request.status === 'Pending' && (
+                            <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button aria-haspopup="true" size="icon" variant="ghost">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Toggle menu</span>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
+                                <DropdownMenuItem onClick={() => handleApprove(request.id)}>
+                                <CheckCircle className="ml-2 h-4 w-4 text-green-500" />
+                                موافقة
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleReject(request.id)} className="text-destructive focus:text-destructive">
+                                <XCircle className="ml-2 h-4 w-4" />
+                                رفض
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
+                        </TableCell>
+                    )}
+                    {!canManage && (
+                       <TableCell>{request.notes || '-'}</TableCell>
+                    )}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={canManage ? 5 : 4} className="h-24 text-center">
+                    لا توجد طلبات إجازة حاليًا.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+      <RequestLeaveDialog
+        open={isRequestDialogOpen}
+        onOpenChange={setIsRequestDialogOpen}
+        onSuccess={() => {
+          setIsRequestDialogOpen(false);
+          fetchLeaveRequests();
+        }}
+      />
+    </>
   );
 }
 

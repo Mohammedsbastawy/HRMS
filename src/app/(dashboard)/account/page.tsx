@@ -17,7 +17,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, KeyRound, ShieldCheck, User, Languages, Camera } from 'lucide-react';
+import { Loader2, KeyRound, ShieldCheck, Languages, Camera } from 'lucide-react';
 import type { AuditLog, Employee } from '@/lib/types';
 
 interface UserAccount {
@@ -102,7 +102,7 @@ export default function AccountSettingsPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-3xl font-bold tracking-tight">إعدادات الحساب</h1>
+        <h1 className="text-3xl font-bold tracking-tight">حسابي</h1>
         <p className="text-muted-foreground">إدارة معلومات ملفك الشخصي وإعدادات الأمان.</p>
       </header>
 
@@ -220,3 +220,5 @@ export default function AccountSettingsPage() {
     </div>
   );
 }
+
+    

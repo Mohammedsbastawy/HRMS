@@ -96,7 +96,7 @@ class Department(db.Model):
     parent_department_id = db.Column(db.Integer, db.ForeignKey('departments.id'))
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = dbColumn(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     job_titles = db.relationship('JobTitle', backref='department', lazy=True, cascade="all, delete-orphan")
 
     def to_dict(self):
@@ -441,6 +441,20 @@ class InAppNotification(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
+class EmployeeRequest(db.Model):
+    __tablename__ = 'employee_requests'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    type = db.Column(db.String, nullable=False) # e.g., Document, Expense Claim, Support
+    subject = db.Column(db.String, nullable=False)
+    description = db.Column(db.Text)
+    status = db.Column(db.String, default='Pending') # Pending, Approved, Rejected, Closed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    resolved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    resolved_at = db.Column(db.DateTime)
+
+    employee = db.relationship('Employee', backref='service_requests')
+    resolver = db.relationship('User', backref='resolved_requests')
 
 # --- Utility Functions ---
 def log_action(action, details, username="نظام", user_id=None):
@@ -514,7 +528,11 @@ def logout():
 @jwt_required()
 def get_my_account():
     current_user_identity = get_jwt_identity()
-    user = User.query.options(db.joinedload(User.employee)).get(current_user_identity['id'])
+    user = User.query.options(
+        db.joinedload(User.employee).joinedload(Employee.department),
+        db.joinedload(User.employee).joinedload(Employee.job_title)
+    ).get(current_user_identity['id'])
+
     if not user:
         return jsonify({"message": "المستخدم غير موجود"}), 404
 
@@ -692,15 +710,61 @@ def handle_locations():
     return jsonify({"locations": [loc.to_dict(include_manager=True) for loc in locations]})
 
 # --- Leaves API ---
-@app.route("/api/leaves", methods=['GET'])
-def get_leaves():
-    leave_requests = LeaveRequest.query.order_by(LeaveRequest.created_at.desc()).all()
+@app.route("/api/leaves", methods=['GET', 'POST'])
+@jwt_required()
+def handle_leaves():
+    current_user_identity = get_jwt_identity()
+    user = User.query.get(current_user_identity['id'])
+
+    if request.method == 'POST':
+        if not user.employee_id:
+            return jsonify({"message": "الحساب غير مربوط بموظف"}), 400
+        
+        data = request.get_json()
+        new_leave_request = LeaveRequest(
+            employee_id=user.employee_id,
+            leave_type=data.get('leave_type'),
+            start_date=data.get('start_date'),
+            end_date=data.get('end_date'),
+            notes=data.get('notes')
+        )
+        db.session.add(new_leave_request)
+        db.session.commit()
+        log_action("تقديم طلب إجازة", f"قدم الموظف {user.employee.full_name} طلب إجازة.", username=user.username, user_id=user.id)
+        
+        # Notify manager(s)
+        # This is a simplified notification. A real system would find the specific manager.
+        managers = User.query.filter(User.role.in_(['Admin', 'HR', 'Manager'])).all()
+        for manager in managers:
+             if manager.id != user.id:
+                create_notification(
+                    recipient_user_id=manager.id,
+                    title="طلب إجازة جديد",
+                    message=f"قدم الموظف {user.employee.full_name} طلب إجازة جديد.",
+                    type="LeaveRequest",
+                    related_link="/leaves"
+                )
+
+        return jsonify(new_leave_request.to_dict()), 201
+
+    # GET request
+    query = LeaveRequest.query
+    if user.role == 'Employee' and user.employee_id:
+        query = query.filter_by(employee_id=user.employee_id)
+        
+    leave_requests = query.order_by(LeaveRequest.created_at.desc()).all()
     return jsonify({"leaveRequests": [lr.to_dict() for lr in leave_requests]})
+
 
 @app.route("/api/leaves/<int:id>", methods=['PATCH'])
 @jwt_required()
 def update_leave(id):
     current_user_identity = get_jwt_identity()
+    user_role = current_user_identity.get('role', 'Employee')
+
+    if user_role not in ['Admin', 'HR', 'Manager']:
+        return jsonify({"success": False, "message": "صلاحيات غير كافية"}), 403
+
     leave_request = LeaveRequest.query.get_or_404(id)
     data = request.get_json()
     action = data.get('action')
@@ -716,7 +780,6 @@ def update_leave(id):
         details = f"تمت الموافقة على طلب الإجازة للموظف {leave_request.employee.full_name}"
         log_action("الموافقة على إجازة", details, username=approver_user.username, user_id=approver_user.id)
         
-        # Notify employee
         recipient = User.query.filter_by(employee_id=leave_request.employee_id).first()
         if recipient:
             create_notification(
@@ -736,14 +799,13 @@ def update_leave(id):
         details = f"تم رفض طلب الإجازة للموظف {leave_request.employee.full_name} بسبب: {leave_request.notes}"
         log_action("رفض إجازة", details, username=approver_user.username, user_id=approver_user.id)
 
-        # Notify employee
         recipient = User.query.filter_by(employee_id=leave_request.employee_id).first()
         if recipient:
             create_notification(
                 recipient_user_id=recipient.id,
                 title="تم رفض طلب الإجازة",
                 message=f"تم رفض طلب إجازتك. السبب: {leave_request.notes}",
-                type="LeaveApproval",
+                type="LeaveRejection",
                 related_link="/leaves"
             )
 

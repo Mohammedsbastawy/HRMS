@@ -1,7 +1,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   SidebarMenu,
   SidebarMenuItem,
@@ -27,27 +27,36 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import type { LucideIcon } from 'lucide-react';
 
+type User = {
+  id: number;
+  username: string;
+  role: 'Admin' | 'HR' | 'Manager' | 'Employee';
+}
+
 type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
+  roles?: User['role'][];
 };
 
 type NavGroup = {
   title?: string;
   items: NavItem[];
+  roles?: User['role'][];
 }
 
 const navConfig: (NavGroup | { separator: true })[] = [
   {
     items: [
       { href: '/', label: 'نظرة عامة', icon: LayoutDashboard },
-      { href: '/employees', label: 'الموظفين', icon: Users },
+      { href: '/employees', label: 'الموظفين', icon: Users, roles: ['Admin', 'HR', 'Manager'] },
     ],
   },
   { separator: true },
   {
     title: 'البيانات الرئيسية',
+    roles: ['Admin', 'HR'],
     items: [
       { href: '/departments', label: 'الأقسام', icon: Building },
       { href: '/locations', label: 'المواقع', icon: MapPin },
@@ -57,7 +66,7 @@ const navConfig: (NavGroup | { separator: true })[] = [
   {
     title: 'العمليات اليومية',
     items: [
-      { href: '/attendance', label: 'الحاضرين', icon: Clock },
+      { href: '/attendance', label: 'الحضور', icon: Clock },
       { href: '/leaves', label: 'الإجازات', icon: Calendar },
     ],
   },
@@ -81,21 +90,66 @@ const navConfig: (NavGroup | { separator: true })[] = [
   {
     title: 'النظام',
     items: [
-      { href: '/audit-log', label: 'سجل التدقيق', icon: ShieldCheck },
+      { href: '/audit-log', label: 'سجل التدقيق', icon: ShieldCheck, roles: ['Admin'] },
       { href: '/account', label: 'حسابي', icon: UserIcon },
-      { href: '/settings', label: 'الإعدادات', icon: Settings },
+      { href: '/settings', label: 'الإعدادات', icon: Settings, roles: ['Admin'] },
     ]
   }
 ];
 
+const getVisibleNavItems = (userRole: User['role']) => {
+  return navConfig.map(group => {
+    if ('separator' in group) {
+      return group;
+    }
+
+    if (group.roles && !group.roles.includes(userRole)) {
+      return null;
+    }
+
+    const visibleItems = group.items.filter(item => 
+      !item.roles || item.roles.includes(userRole)
+    );
+
+    if (visibleItems.length === 0) {
+      return null;
+    }
+
+    return { ...group, items: visibleItems };
+  }).filter(Boolean);
+};
+
 
 export function Nav() {
   const pathname = usePathname();
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        console.error("Failed to parse user from localStorage", e);
+        setUser(null);
+      }
+    }
+  }, []);
+
+  const visibleNav = user ? getVisibleNavItems(user.role) : [];
 
   return (
     <SidebarMenu>
-      {navConfig.map((group, index) => {
+      {visibleNav.map((group, index) => {
+        if (!group) return null;
+        
         if ('separator' in group) {
+          // Check if there are visible items before and after the separator
+          const hasVisibleItemsBefore = index > 0 && visibleNav[index - 1] && !('separator' in (visibleNav[index-1]!));
+          const hasVisibleItemsAfter = index < visibleNav.length - 1 && visibleNav[index + 1] && !('separator' in (visibleNav[index+1]!));
+          if (!hasVisibleItemsBefore || !hasVisibleItemsAfter) {
+            return null;
+          }
           return <SidebarMenuItem key={`sep-${index}`} className="!p-0"><SidebarSeparator className="my-2" /></SidebarMenuItem>;
         }
         
@@ -128,3 +182,5 @@ export function Nav() {
     </SidebarMenu>
   );
 }
+
+    
