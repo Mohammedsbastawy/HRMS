@@ -118,17 +118,22 @@ function TaxSchemeForm({ scheme, onSuccess, onCancel }: { scheme: Partial<TaxSch
 
                 {method === 'slab' && (
                     <div className="space-y-4">
-                        <Label>شرائح الضريبة</Label>
+                        <div>
+                          <Label>شرائح الضريبة</Label>
+                          <p className="text-sm text-muted-foreground">
+                            عرف نطاق الدخل السنوي ونسبة الضريبة لكل نطاق.
+                          </p>
+                        </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <div className="w-1/3">من مبلغ</div>
-                            <div className="w-1/3">إلى مبلغ</div>
+                            <div className="w-1/3">من مبلغ (الدخل السنوي)</div>
+                            <div className="w-1/3">إلى مبلغ (الدخل السنوي)</div>
                             <div className="w-1/4">النسبة %</div>
                         </div>
                         {fields.map((field, index) => (
                             <div key={field.id} className="flex items-center gap-2">
-                                <Input type="number" placeholder="من" {...register(`brackets.${index}.min_amount`)} className="w-1/3"/>
-                                <Input type="number" placeholder="إلى (اتركه فارغاً للنهاية)" {...register(`brackets.${index}.max_amount`)} className="w-1/3"/>
-                                <Input type="number" placeholder="النسبة %" {...register(`brackets.${index}.rate`)} className="w-1/4"/>
+                                <Input type="number" placeholder="مثال: 0" {...register(`brackets.${index}.min_amount`)} className="w-1/3"/>
+                                <Input type="number" placeholder="مثال: 30000" {...register(`brackets.${index}.max_amount`)} className="w-1/3"/>
+                                <Input type="number" placeholder="مثال: 10" {...register(`brackets.${index}.rate`)} className="w-1/4"/>
                                 <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
                                     <Trash2 className="h-4 w-4 text-destructive"/>
                                 </Button>
