@@ -329,6 +329,58 @@ class TrainingRecord(db.Model):
             'course': self.course.to_dict() if self.course else None
         }
 
+class Job(db.Model):
+    __tablename__ = 'jobs'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String, nullable=False)
+    description = db.Column(db.Text)
+    department_id = db.Column(db.Integer, db.ForeignKey('departments.id'))
+    status = db.Column(db.String, default='Open') # Open, Closed, On-Hold
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    department = db.relationship('Department', backref='jobs', lazy=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'description': self.description,
+            'department_id': self.department_id,
+            'department_name_ar': self.department.name_ar if self.department else None,
+            'status': self.status,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+class Applicant(db.Model):
+    __tablename__ = 'applicants'
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
+    name = db.Column(db.String, nullable=False)
+    email = db.Column(db.String)
+    phone = db.Column(db.String)
+    cv_path = db.Column(db.String)
+    stage = db.Column(db.String, default='Applied') # Applied, Screening, Interview, Offer, Hired, Rejected
+    applied_at = db.Column(db.DateTime, default=datetime.utcnow)
+    notes = db.Column(db.Text)
+    avatar = db.Column(db.String)
+
+    job = db.relationship('Job', backref='applicants', lazy=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'job_id': self.job_id,
+            'name': self.name,
+            'email': self.email,
+            'phone': self.phone,
+            'cv_path': self.cv_path,
+            'stage': self.stage,
+            'applied_at': self.applied_at.isoformat() if self.applied_at else None,
+            'notes': self.notes,
+            'avatar': self.avatar,
+            'job': {'title': self.job.title} if self.job else None,
+        }
+
 class AuditLog(db.Model):
     __tablename__ = 'audit_logs'
     id = db.Column(db.Integer, primary_key=True)
@@ -614,11 +666,11 @@ def get_dashboard_data():
 # --- Recruitment API ---
 @app.route("/api/recruitment", methods=['GET'])
 def get_recruitment_data():
-    jobs = [] #Job.query.order_by(Job.created_at.desc()).all()
-    applicants = [] #Applicant.query.all()
+    jobs = Job.query.order_by(Job.created_at.desc()).all()
+    applicants = Applicant.query.all()
     return jsonify({
-        "jobs": [], #[j.to_dict() for j in jobs],
-        "applicants": [] #[a.to_dict() for a in applicants]
+        "jobs": [j.to_dict() for j in jobs],
+        "applicants": [a.to_dict() for a in applicants]
     })
     
 # --- Other Read-only APIs ---

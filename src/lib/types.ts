@@ -2,6 +2,7 @@
 
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -142,7 +143,7 @@ export type Applicant = {
   cv_path?: string | null;
   stage?: 'Applied' | 'Screening' | 'Interview' | 'Offer' | 'Hired' | 'Rejected';
   applied_at?: string;
-notes?: string | null;
+  notes?: string | null;
   avatar?: string; // For UI display
   job?: Partial<Job>; // For UI display
 };
