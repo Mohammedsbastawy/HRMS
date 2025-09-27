@@ -316,30 +316,47 @@ class TrainingCourse(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String, nullable=False)
     provider = db.Column(db.String)
+    description = db.Column(db.Text)
     start_date = db.Column(db.String)
     end_date = db.Column(db.String)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
+    def to_dict(self):
+      return {
+        'id': self.id,
+        'title': self.title,
+        'provider': self.provider,
+        'description': self.description,
+        'start_date': self.start_date,
+        'end_date': self.end_date,
+        'participant_count': TrainingRecord.query.filter_by(course_id=self.id).count()
+      }
+
 class TrainingRecord(db.Model):
     __tablename__ = 'training_records'
     id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
-    course_id = db.Column(db.Integer, db.ForeignKey('training_courses.id'), nullable=False)
-    status = db.Column(db.String, default='Enrolled')
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('training_courses.id', ondelete='CASCADE'), nullable=False)
+    status = db.Column(db.String, default='Enrolled') # Enrolled, In Progress, Completed, Failed
     result = db.Column(db.String)
     completed_at = db.Column(db.String)
-    employee = db.relationship('Employee', backref='training_records', lazy=True)
-    course = db.relationship('TrainingCourse', backref='training_records', lazy=True)
     
+    employee = db.relationship('Employee', backref=db.backref('training_records', cascade="all, delete-orphan"))
+    course = db.relationship('TrainingCourse', backref=db.backref('training_records', cascade="all, delete-orphan"))
+
     def to_dict(self):
-      return {
-          'id': self.id,
-          'employee_id': self.employee_id,
-          'status': self.status,
-          'result': self.result,
-          'employeeName': self.employee.full_name if self.employee else None,
-          'courseTitle': self.course.title if self.course else None,
-      }
+        return {
+            'id': self.id,
+            'employee_id': self.employee_id,
+            'course_id': self.course_id,
+            'status': self.status,
+            'result': self.result,
+            'employee': {
+                'full_name': self.employee.full_name,
+                'department': self.employee.department.to_dict() if self.employee.department else None
+            } if self.employee else None,
+            'course': self.course.to_dict() if self.course else None,
+        }
 
 class AuditLog(db.Model):
     __tablename__ = 'audit_logs'
@@ -657,17 +674,6 @@ def get_performance():
     reviews = PerformanceReview.query.all()
     return jsonify({"performanceReviews": [r.to_dict() for r in reviews]})
 
-@app.route("/api/training", methods=['GET'])
-def get_training():
-    records = TrainingRecord.query.all()
-    employees = Employee.query.all()
-    reviews = PerformanceReview.query.all()
-    return jsonify({
-        "trainingRecords": [r.to_dict() for r in records],
-        "employees": [e.to_dict() for e in employees],
-        "performanceReviews": [pr.to_dict() for pr in reviews]
-    })
-    
 @app.route("/api/audit-log", methods=['GET'])
 def get_audit_logs():
     logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).all()
@@ -678,6 +684,93 @@ def get_attendance():
     # This is a simplified version. A real implementation would aggregate punches.
     attendance_records = Attendance.query.order_by(Attendance.timestamp.desc()).limit(50).all()
     return jsonify({"attendance": [att.to_dict() for att in attendance_records]})
+
+# --- Training Courses API ---
+@app.route('/api/training-courses', methods=['GET', 'POST'])
+def handle_training_courses():
+    if request.method == 'POST':
+        data = request.get_json()
+        new_course = TrainingCourse(
+            title=data['title'],
+            provider=data.get('provider'),
+            description=data.get('description'),
+            start_date=data.get('start_date') or None,
+            end_date=data.get('end_date') or None
+        )
+        db.session.add(new_course)
+        db.session.commit()
+        log_action("إضافة دورة تدريبية", f"تمت إضافة دورة: {new_course.title}")
+        return jsonify(new_course.to_dict()), 201
+
+    courses = TrainingCourse.query.order_by(TrainingCourse.created_at.desc()).all()
+    return jsonify({'courses': [c.to_dict() for c in courses]})
+
+@app.route('/api/training-courses/<int:id>', methods=['PUT', 'DELETE'])
+def handle_training_course(id):
+    course = TrainingCourse.query.get_or_404(id)
+    if request.method == 'PUT':
+        data = request.get_json()
+        course.title = data.get('title', course.title)
+        course.provider = data.get('provider', course.provider)
+        course.description = data.get('description', course.description)
+        course.start_date = data.get('start_date', course.start_date)
+        course.end_date = data.get('end_date', course.end_date)
+        db.session.commit()
+        log_action("تحديث دورة تدريبية", f"تم تحديث دورة: {course.title}")
+        return jsonify(course.to_dict())
+    
+    if request.method == 'DELETE':
+        log_action("حذف دورة تدريبية", f"تم حذف دورة: {course.title}")
+        db.session.delete(course)
+        db.session.commit()
+        return jsonify({'message': 'تم حذف الدورة بنجاح'})
+
+# --- Training Records API ---
+@app.route('/api/training-records', methods=['GET', 'POST'])
+def handle_training_records():
+    if request.method == 'POST':
+        data = request.get_json()
+        course_id = data.get('course_id')
+        employee_ids = data.get('employee_ids', [])
+
+        if not course_id or not employee_ids:
+            return jsonify({'message': 'بيانات غير مكتملة'}), 400
+
+        for emp_id in employee_ids:
+            existing = TrainingRecord.query.filter_by(employee_id=emp_id, course_id=course_id).first()
+            if not existing:
+                record = TrainingRecord(employee_id=emp_id, course_id=course_id, status='Enrolled')
+                db.session.add(record)
+        
+        db.session.commit()
+        log_action("تسجيل موظفين بدورة", f"تم تسجيل {len(employee_ids)} موظفين في الدورة ID: {course_id}")
+        return jsonify({'message': 'تم تسجيل الموظفين بنجاح'}), 201
+
+    course_id = request.args.get('course_id')
+    if course_id:
+        records = TrainingRecord.query.filter_by(course_id=course_id).options(db.joinedload(TrainingRecord.employee).joinedload(Employee.department)).all()
+        return jsonify({'records': [r.to_dict() for r in records]})
+    
+    return jsonify({'message': 'Please provide a course_id'}), 400
+
+@app.route('/api/training-records/<int:id>', methods=['PUT', 'DELETE'])
+def handle_training_record(id):
+    record = TrainingRecord.query.get_or_404(id)
+    if request.method == 'PUT':
+        data = request.get_json()
+        record.status = data.get('status', record.status)
+        record.result = data.get('result', record.result)
+        if record.status in ['Completed', 'Failed']:
+            record.completed_at = datetime.utcnow().isoformat()
+        db.session.commit()
+        log_action("تحديث سجل تدريب", f"تم تحديث حالة الموظف ID: {record.employee_id} في الدورة ID: {record.course_id}")
+        return jsonify(record.to_dict())
+
+    if request.method == 'DELETE':
+        log_action("حذف مشارك من دورة", f"تم حذف الموظف ID: {record.employee_id} من الدورة ID: {record.course_id}")
+        db.session.delete(record)
+        db.session.commit()
+        return jsonify({'message': 'تم حذف المشارك بنجاح'})
 
 # --- ZKTeco Devices API ---
 @app.route('/api/zkt-devices', methods=['GET', 'POST'])
@@ -780,7 +873,6 @@ def sync_all_devices():
             for att_log in attendance_logs:
                 exists = Attendance.query.filter_by(employee_uid=att_log.user_id, timestamp=att_log.timestamp).first()
                 if not exists:
-                    # pyzk uses punch, pyzatt uses punch_type
                     punch_value = att_log.punch if hasattr(att_log, 'punch') else 0 
                     new_att = Attendance(
                         employee_uid=str(att_log.user_id),
@@ -795,8 +887,6 @@ def sync_all_devices():
                 db.session.commit()
                 total_new_records += new_records_count
                 log_action("مزامنة ناجحة", f"تم سحب {new_records_count} سجلات جديدة من جهاز {device.name}")
-                # It is safer not to clear attendance automatically.
-                # conn.clear_attendance()
         except Exception as e:
             db.session.rollback()
             error_message = f"فشل الاتصال بجهاز {device.name} ({device.ip_address}): {e}"
@@ -814,7 +904,7 @@ def sync_all_devices():
         return jsonify({"message": "لا توجد سجلات جديدة للمزامنة من أي جهاز.", "total_records": 0, "errors": []})
     
     if errors:
-        return jsonify({"message": f"تمت المزامنة مع بعض المشاكل. إجمالي السجلات الجديدة: {total_new_records}", "total_records": total_new_records, "errors": errors}), 207 # Multi-Status
+        return jsonify({"message": f"تمت المزامنة مع بعض المشاكل. إجمالي السجلات الجديدة: {total_new_records}", "total_records": total_new_records, "errors": errors}), 207
         
     return jsonify({"message": f"تمت مزامنة {total_new_records} سجلات جديدة بنجاح من {len(devices)} أجهزة.", "total_records": total_new_records, "errors": []})
 
@@ -854,5 +944,3 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-    

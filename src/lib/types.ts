@@ -1,4 +1,5 @@
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -103,7 +104,7 @@ export type Payroll = {
   overtime?: number;
   deductions?: number;
   tax?: number;
-  insurance?: number;
+insurance?: number;
   net_salary: number;
   generated_at?: string;
   status?: string;
@@ -150,6 +151,8 @@ export type TrainingCourse = {
   provider?: string | null;
   start_date?: string | null;
   end_date?: string | null;
+  description?: string | null;
+  participant_count?: number; // Added for UI
 };
 
 export type TrainingRecord = {
@@ -158,8 +161,8 @@ export type TrainingRecord = {
   course_id: number;
   status?: 'Enrolled' | 'In Progress' | 'Completed' | 'Failed';
   result?: string | null;
-  employee?: Partial<Employee>; // For UI display
-  course?: Partial<TrainingCourse>; // For UI display
+  employee?: Partial<Employee>;
+  course?: Partial<TrainingCourse>;
 };
 
 export type SystemSettings = {
