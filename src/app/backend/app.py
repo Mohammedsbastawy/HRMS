@@ -224,6 +224,38 @@ class LeaveRequest(db.Model):
           data['created_at'] = created_at_val.isoformat()
       return data
 
+class Payroll(db.Model):
+    __tablename__ = 'payrolls'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    month = db.Column(db.Integer, nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    base_salary = db.Column(db.Float, nullable=False)
+    overtime = db.Column(db.Float)
+    deductions = db.Column(db.Float)
+    tax = db.Column(db.Float)
+    insurance = db.Column(db.Float)
+    net_salary = db.Column(db.Float, nullable=False)
+    generated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String, default='Generated')
+    employee = db.relationship('Employee', backref='payrolls')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'employee_id': self.employee_id,
+            'employee': {'full_name': self.employee.full_name} if self.employee else None,
+            'month': self.month,
+            'year': self.year,
+            'base_salary': self.base_salary,
+            'overtime': self.overtime,
+            'deductions': self.deductions,
+            'tax': self.tax,
+            'insurance': self.insurance,
+            'net_salary': self.net_salary,
+            'status': self.status
+        }
+
 class TrainingCourse(db.Model):
     __tablename__ = 'training_courses'
     id = db.Column(db.Integer, primary_key=True)
@@ -236,6 +268,7 @@ class TrainingCourse(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
+        participant_count = db.session.query(db.func.count(TrainingRecord.id)).filter_by(course_id=self.id).scalar()
         return {
             'id': self.id,
             'title': self.title,
@@ -243,19 +276,21 @@ class TrainingCourse(db.Model):
             'description': self.description,
             'start_date': self.start_date,
             'end_date': self.end_date,
-            'price': self.price
+            'price': self.price,
+            'participant_count': participant_count
         }
 
 class TrainingRecord(db.Model):
     __tablename__ = 'training_records'
     id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
-    course_id = db.Column(db.Integer, db.ForeignKey('training_courses.id'), nullable=False)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('training_courses.id', ondelete='CASCADE'), nullable=False)
     status = db.Column(db.String, default='Enrolled') # Enrolled, In Progress, Completed, Failed
     result = db.Column(db.String)
     completed_at = db.Column(db.String)
+    
     employee = db.relationship('Employee', backref='training_records')
-    course = db.relationship('TrainingCourse', backref='training_records')
+    course = db.relationship('TrainingCourse', backref=db.backref('training_records', cascade="all, delete-orphan"))
 
     def to_dict(self):
         return {
@@ -263,7 +298,12 @@ class TrainingRecord(db.Model):
             'employee_id': self.employee_id,
             'course_id': self.course_id,
             'status': self.status,
-            'result': self.result
+            'result': self.result,
+            'employee': {
+                'full_name': self.employee.full_name,
+                'department': self.employee.department.to_dict() if self.employee.department else None
+            } if self.employee else None,
+            'course': self.course.to_dict() if self.course else None
         }
 
 class AuditLog(db.Model):
@@ -561,8 +601,8 @@ def get_recruitment_data():
 # --- Other Read-only APIs ---
 @app.route("/api/payrolls", methods=['GET'])
 def get_payrolls():
-    payrolls = [] #Payroll.query.all()
-    return jsonify({"payrolls": []}) #[p.to_dict() for p in payrolls]})
+    payrolls = Payroll.query.options(db.joinedload(Payroll.employee)).order_by(Payroll.year.desc(), Payroll.month.desc()).all()
+    return jsonify({"payrolls": [p.to_dict() for p in payrolls]})
     
 @app.route("/api/performance", methods=['GET'])
 def get_performance():
@@ -679,7 +719,7 @@ def handle_training_records():
 
     course_id = request.args.get('course_id')
     if course_id:
-        records = TrainingRecord.query.options(db.joinedload(TrainingRecord.employee)).filter_by(course_id=course_id).all()
+        records = TrainingRecord.query.options(db.joinedload(TrainingRecord.employee).options(db.joinedload(Employee.department))).filter_by(course_id=course_id).all()
         return jsonify({'records': [r.to_dict() for r in records]})
     
     return jsonify({'message': 'Please provide a course_id'}), 400

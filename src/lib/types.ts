@@ -1,5 +1,6 @@
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -75,12 +76,12 @@ export type Document = {
 export type Attendance = {
   id: number;
   employee_id: number;
+  employeeName: string;
+  employeeAvatar?: string | null;
   date: string;
   check_in: string | null;
   check_out: string | null;
   status: 'Present' | 'Absent' | 'On Leave' | 'Late';
-  employeeName: string;
-  employeeAvatar?: string | null;
 };
 
 export type LeaveRequest = {
@@ -98,13 +99,13 @@ export type LeaveRequest = {
 export type Payroll = {
   id: number;
   employee_id: number;
-  month: string;
+  month: number;
   year: number;
   base_salary: number;
-  overtime?: number;
-  deductions?: number;
-  tax?: number;
-  insurance?: number;
+  overtime?: number | null;
+  deductions?: number | null;
+  tax?: number | null;
+  insurance?: number | null;
   net_salary: number;
   generated_at?: string;
   status?: string;
@@ -162,7 +163,7 @@ export type TrainingRecord = {
   course_id: number;
   status?: 'Enrolled' | 'In Progress' | 'Completed' | 'Failed';
   result?: string | null;
-  employee?: Partial<Employee>;
+  employee?: Partial<Employee & { department?: Partial<Department> }>;
   course?: Partial<TrainingCourse>;
 };
 
@@ -177,7 +178,7 @@ export type AuditLog = {
   action: string;
   details?: string | null;
   timestamp: string;
-  user?: Partial<User>; // for UI display
+  username?: string;
 };
 
 export type Location = {
@@ -196,5 +197,3 @@ export type Location = {
   updated_at?: string;
   manager?: Partial<Employee>; // for UI display
 };
-
-    

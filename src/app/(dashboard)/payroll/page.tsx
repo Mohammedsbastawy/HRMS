@@ -12,11 +12,12 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Download, Loader2 } from 'lucide-react';
+import { Download, Loader2, Settings2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import type { Payroll } from '@/lib/types';
 
 export default function PayrollPage() {
-  const [payrolls, setPayrolls] = useState<any[]>([]);
+  const [payrolls, setPayrolls] = useState<Payroll[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -43,6 +44,11 @@ export default function PayrollPage() {
     fetchPayrolls();
   }, [toast]);
 
+  const formatCurrency = (amount?: number | null) => {
+    if (amount === null || amount === undefined) return '-';
+    return new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(amount);
+  }
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -50,10 +56,16 @@ export default function PayrollPage() {
           <CardTitle>معالجة الرواتب</CardTitle>
           <CardDescription>إنشاء وإدارة كشوف رواتب الموظفين الشهرية.</CardDescription>
         </div>
-        <Button size="sm" className="gap-1">
-          <Download className="h-3.5 w-3.5" />
-          <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">إنشاء كشف رواتب يوليو</span>
-        </Button>
+        <div className="flex gap-2">
+            <Button size="sm" className="gap-1" variant="outline">
+                <Download className="h-3.5 w-3.5" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">تصدير</span>
+            </Button>
+            <Button size="sm" className="gap-1">
+                <Settings2 className="h-3.5 w-3.5" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">إنشاء كشف رواتب يوليو</span>
+            </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <Table>
@@ -61,9 +73,9 @@ export default function PayrollPage() {
             <TableRow>
               <TableHead className="text-right">الموظف</TableHead>
               <TableHead className="text-right">الراتب الأساسي</TableHead>
-              <TableHead className="text-right">المكافأة</TableHead>
+              <TableHead className="text-right">الإضافي</TableHead>
               <TableHead className="text-right">الخصومات</TableHead>
-              <TableHead className="text-right">صافي الراتب</TableHead>
+              <TableHead className="text-right">الصافي</TableHead>
               <TableHead className="text-right">الإجراء</TableHead>
             </TableRow>
           </TableHeader>
@@ -75,32 +87,28 @@ export default function PayrollPage() {
                     </TableCell>
                 </TableRow>
             ) : payrolls.length > 0 ? (
-                payrolls.map((payroll) => {
-                return (
+                payrolls.map((payroll) => (
                     <TableRow key={payroll.id}>
-                    <TableCell className="font-medium">{payroll.employeeName}</TableCell>
-                    <TableCell>
-                        {new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(payroll.base_salary)}
-                    </TableCell>
-                    <TableCell className="text-green-600">
-                        +{new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(payroll.overtime)}
-                    </TableCell>
-                    <TableCell className="text-destructive">
-                        -{new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(payroll.deductions)}
-                    </TableCell>
-                    <TableCell className="font-semibold">
-                        {new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(payroll.net_salary)}
-                    </TableCell>
-                    <TableCell>
-                        <Button variant="outline" size="sm">عرض القسيمة</Button>
-                    </TableCell>
+                        <TableCell className="font-medium">{payroll.employee?.full_name}</TableCell>
+                        <TableCell>{formatCurrency(payroll.base_salary)}</TableCell>
+                        <TableCell className="text-green-600">
+                            +{formatCurrency(payroll.overtime)}
+                        </TableCell>
+                        <TableCell className="text-destructive">
+                            -{formatCurrency(payroll.deductions)}
+                        </TableCell>
+                        <TableCell className="font-semibold">
+                            {formatCurrency(payroll.net_salary)}
+                        </TableCell>
+                        <TableCell>
+                            <Button variant="outline" size="sm">عرض القسيمة</Button>
+                        </TableCell>
                     </TableRow>
-                );
-                })
+                ))
             ) : (
                 <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center">
-                        لا توجد بيانات رواتب لعرضها.
+                        لا توجد بيانات رواتب لعرضها. ابدأ بإنشاء كشف رواتب جديد.
                     </TableCell>
                 </TableRow>
             )}
@@ -110,5 +118,3 @@ export default function PayrollPage() {
     </Card>
   );
 }
-
-    
