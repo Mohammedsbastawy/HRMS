@@ -15,9 +15,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { PlusCircle, Star, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/components/ui/use-toast';
+import type { PerformanceReview } from '@/lib/types';
 
 const ScoreBadge = ({ score }: { score: number }) => {
-  const colorClass = score >= 4.5 ? 'text-green-500' : score >= 3.5 ? 'text-yellow-500' : 'text-red-500';
+  const colorClass = score >= 4 ? 'text-green-500' : score >= 3 ? 'text-yellow-500' : 'text-red-500';
   const stars = Array(5).fill(0).map((_, i) => (
     <Star key={i} className={`h-4 w-4 ${i < Math.round(score) ? `fill-current ${colorClass}` : 'fill-muted stroke-muted-foreground'}`} />
   ));
@@ -25,7 +26,7 @@ const ScoreBadge = ({ score }: { score: number }) => {
 };
 
 export default function PerformancePage() {
-    const [performanceReviews, setPerformanceReviews] = useState<any[]>([]);
+    const [performanceReviews, setPerformanceReviews] = useState<PerformanceReview[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
 
@@ -84,7 +85,7 @@ export default function PerformancePage() {
             ) : performanceReviews.length > 0 ? (
                 performanceReviews.map((review) => (
                 <TableRow key={review.id}>
-                    <TableCell className="font-medium">{review.employeeName}</TableCell>
+                    <TableCell className="font-medium">{review.employee?.full_name}</TableCell>
                     <TableCell>{new Date(review.review_date).toLocaleDateString('ar-EG')}</TableCell>
                     <TableCell>
                     <div className="flex items-center gap-2 justify-end">
@@ -108,5 +109,3 @@ export default function PerformancePage() {
     </Card>
   );
 }
-
-    

@@ -255,6 +255,29 @@ class Payroll(db.Model):
             'net_salary': self.net_salary,
             'status': self.status
         }
+        
+class PerformanceReview(db.Model):
+    __tablename__ = 'performance_reviews'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    review_date = db.Column(db.String, nullable=False)
+    score = db.Column(db.Float, nullable=False)
+    reviewer_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+    comments = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    employee = db.relationship('Employee', foreign_keys=[employee_id], backref='reviews')
+    reviewer = db.relationship('Employee', foreign_keys=[reviewer_id])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'employee_id': self.employee_id,
+            'review_date': self.review_date,
+            'score': self.score,
+            'comments': self.comments,
+            'employee': {'full_name': self.employee.full_name} if self.employee else None,
+        }
 
 class TrainingCourse(db.Model):
     __tablename__ = 'training_courses'
@@ -606,8 +629,8 @@ def get_payrolls():
     
 @app.route("/api/performance", methods=['GET'])
 def get_performance():
-    reviews = [] #PerformanceReview.query.all()
-    return jsonify({"performanceReviews": []}) #[r.to_dict() for r in reviews]})
+    reviews = PerformanceReview.query.options(db.joinedload(PerformanceReview.employee)).order_by(PerformanceReview.review_date.desc()).all()
+    return jsonify({"performanceReviews": [r.to_dict() for r in reviews]})
 
 @app.route("/api/audit-log", methods=['GET'])
 def get_audit_logs():
@@ -933,5 +956,3 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-    
