@@ -196,3 +196,5 @@ export type Location = {
   updated_at?: string;
   manager?: Partial<Employee>; // for UI display
 };
+
+    
