@@ -8,6 +8,8 @@ import logging
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager
 from zk import ZK, const
+from collections import defaultdict
+from sqlalchemy import func
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -907,6 +909,43 @@ def get_attendance():
             })
 
     return jsonify({"attendance": processed_attendance})
+
+
+# --- Reports API ---
+@app.route("/api/reports", methods=['GET'])
+@jwt_required()
+def get_reports_data():
+    # KPIs
+    total_employees = db.session.query(func.count(Employee.id)).scalar()
+    pending_leaves = db.session.query(func.count(LeaveRequest.id)).filter(LeaveRequest.status == 'Pending').scalar()
+    open_jobs = db.session.query(func.count(Job.id)).filter(Job.status == 'Open').scalar()
+    avg_performance_score = db.session.query(func.avg(PerformanceReview.score)).scalar()
+
+    kpis = [
+        {'title': 'إجمالي الموظفين', 'value': total_employees, 'icon': 'Users'},
+        {'title': 'طلبات إجازة معلقة', 'value': pending_leaves, 'icon': 'CalendarClock'},
+        {'title': 'وظائف شاغرة', 'value': open_jobs, 'icon': 'Briefcase'},
+        {'title': 'متوسط تقييم الأداء', 'value': round(avg_performance_score, 1) if avg_performance_score else 'N/A', 'icon': 'Star'}
+    ]
+
+    # Chart Data
+    employees_by_dept_query = db.session.query(Department.name_ar, func.count(Employee.id)).join(Employee, Department.id == Employee.department_id).group_by(Department.name_ar).all()
+    employees_by_dept = [{'name': name, 'value': count} for name, count in employees_by_dept_query]
+
+    leaves_by_type_query = db.session.query(LeaveRequest.leave_type, func.count(LeaveRequest.id)).group_by(LeaveRequest.leave_type).all()
+    leave_type_translations = {'Annual': 'سنوية', 'Sick': 'مرضية', 'Unpaid': 'غير مدفوعة', 'Maternity': 'أمومة'}
+    leaves_by_type = [{'name': leave_type_translations.get(ltype, ltype), 'value': count} for ltype, count in leaves_by_type_query]
+
+
+    # Table Data
+    employees = Employee.query.options(db.joinedload(Employee.department), db.joinedload(Employee.job_title)).order_by(Employee.hire_date.desc()).limit(20).all()
+
+    return jsonify({
+        'kpis': kpis,
+        'employeesByDept': employees_by_dept,
+        'leavesByType': leaves_by_type,
+        'employees': [emp.to_dict() for emp in employees]
+    })
 
 
 # --- Training Courses & Records ---

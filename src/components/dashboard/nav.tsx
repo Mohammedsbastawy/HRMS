@@ -21,7 +21,8 @@ import {
   Settings,
   Building,
   MapPin,
-  User as UserIcon
+  User as UserIcon,
+  BarChart
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -66,16 +67,17 @@ const navConfig: (NavGroup | { separator: true })[] = [
   {
     title: 'العمليات اليومية',
     items: [
-      { href: '/attendance', label: 'الحضور', icon: Clock },
+      { href: '/attendance', label: 'الحضورو الانصراف', icon: Clock },
       { href: '/leaves', label: 'الإجازات', icon: Calendar },
     ],
   },
   { separator: true },
   {
-    title: 'الرواتب والأداء',
+    title: 'الرواتب والتحليل',
     items: [
       { href: '/payroll', label: 'الرواتب', icon: Wallet },
       { href: '/performance', label: 'الأداء', icon: Star },
+      { href: '/reports', label: 'التقارير', icon: BarChart, roles: ['Admin', 'HR', 'Manager'] },
     ]
   },
   { separator: true },
