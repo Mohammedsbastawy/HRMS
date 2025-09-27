@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Download, Upload, Loader2, ServerCog, AlertCircle } from 'lucide-react';
+import { Upload, Loader2, ServerCog, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -49,8 +49,10 @@ export default function AttendancePage() {
     setIsSyncing(true);
     setSyncResult(null);
     try {
+      const token = localStorage.getItem('authToken');
       const response = await fetch('/api/attendance/sync-all', {
         method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       const result = await response.json();
       setSyncResult(result);
@@ -95,31 +97,6 @@ export default function AttendancePage() {
       default: return status;
     }
   };
-
-  // Group by employee and date
-  const groupedAttendance = attendance.reduce((acc, record) => {
-    const key = `${record.employee_id}-${record.date}`;
-    if (!acc[key]) {
-      acc[key] = {
-        id: `${record.id}-${key}`, // unique key for react
-        employeeName: record.employeeName,
-        employeeAvatar: record.employeeAvatar,
-        date: record.date,
-        check_in: null,
-        check_out: null,
-        status: record.status, // Simplified for now
-      };
-    }
-    if (record.check_in) {
-      acc[key].check_in = acc[key].check_in ? Math.min(acc[key].check_in, record.check_in) : record.check_in;
-    }
-    if (record.check_out) {
-      acc[key].check_out = acc[key].check_out ? Math.max(acc[key].check_out, record.check_out) : record.check_out;
-    }
-    return acc;
-  }, {} as Record<string, any>);
-
-  const finalAttendance = Object.values(groupedAttendance);
 
   return (
     <div className="flex flex-col gap-6">
@@ -176,8 +153,8 @@ export default function AttendancePage() {
                     <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                   </TableCell>
                 </TableRow>
-              ) : finalAttendance.length > 0 ? (
-                finalAttendance.map((record) => (
+              ) : attendance.length > 0 ? (
+                attendance.map((record) => (
                   <TableRow key={record.id}>
                     <TableCell>
                       <div className="flex items-center justify-end gap-3">
@@ -210,5 +187,3 @@ export default function AttendancePage() {
     </div>
   );
 }
-
-    

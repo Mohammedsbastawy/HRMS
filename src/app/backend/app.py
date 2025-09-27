@@ -3,11 +3,12 @@ from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, date
 import logging
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager
 from zk import ZK, const
+from collections import defaultdict
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -136,6 +137,7 @@ class Employee(db.Model):
     address = db.Column(db.String)
     marital_status = db.Column(db.String)
     national_id = db.Column(db.String, unique=True)
+    zk_uid = db.Column(db.String, unique=True) # ZKTeco User ID
     department_id = db.Column(db.Integer, db.ForeignKey('departments.id'))
     job_title_id = db.Column(db.Integer, db.ForeignKey('job_titles.id'))
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
@@ -437,7 +439,7 @@ def login():
         if user.account_status != 'Active':
             return jsonify({"message": "الحساب غير نشط"}), 403
         
-        access_token = create_access_token(identity={'username': user.username, 'role': user.role})
+        access_token = create_access_token(identity={'username': user.username, 'role': user.role, 'id': user.id})
         response = jsonify({
             "message": "Login successful",
             "token": access_token,
@@ -463,8 +465,9 @@ def logout():
 @jwt_required()
 def handle_users():
     current_user_identity = get_jwt_identity()
-    # You might want to add role-based access control here
-    # For example: if current_user_identity['role'] != 'Admin': return jsonify(...), 403
+    user = User.query.get(current_user_identity['id'])
+    if not user or user.role != 'Admin':
+        return jsonify({"message": "صلاحيات غير كافية"}), 403
 
     if request.method == 'POST':
         data = request.get_json()
@@ -673,9 +676,48 @@ def get_audit_logs():
 
 @app.route("/api/attendance", methods=['GET'])
 def get_attendance():
-    # This is a simplified version. A real implementation would aggregate punches.
-    attendance_records = Attendance.query.order_by(Attendance.timestamp.desc()).limit(50).all()
-    return jsonify({"attendance": [att.to_dict() for att in attendance_records]})
+    raw_attendance_records = Attendance.query.options(db.joinedload(Attendance.employee)).order_by(Attendance.timestamp.desc()).all()
+    
+    # Group punches by employee and date
+    grouped_punches = defaultdict(lambda: defaultdict(list))
+    for record in raw_attendance_records:
+        if record.employee: # Only process records linked to an employee
+            punch_date = record.timestamp.date()
+            punch_time = record.timestamp.time()
+            grouped_punches[record.employee_id][punch_date].append(punch_time)
+
+    # Process into daily records
+    processed_attendance = []
+    processed_keys = set() # To avoid duplicates
+
+    for employee_id, date_punches in grouped_punches.items():
+        for day, punches in date_punches.items():
+            if not punches:
+                continue
+
+            employee = Employee.query.get(employee_id)
+            key = f"{employee_id}-{day.isoformat()}"
+            if key in processed_keys:
+                continue
+            
+            processed_keys.add(key)
+            
+            check_in_time = min(punches) if punches else None
+            check_out_time = max(punches) if len(punches) > 1 else None
+
+            processed_attendance.append({
+                'id': key,
+                'employee_id': employee_id,
+                'employeeName': employee.full_name,
+                'employeeAvatar': employee.avatar,
+                'date': day.isoformat(),
+                'check_in': check_in_time.strftime('%H:%M:%S') if check_in_time else None,
+                'check_out': check_out_time.strftime('%H:%M:%S') if check_out_time else None,
+                'status': 'Present' # Simplified status, can be enhanced
+            })
+
+    return jsonify({"attendance": processed_attendance})
+
 
 # --- Training Courses API ---
 @app.route('/api/training-courses', methods=['GET', 'POST'])
@@ -772,6 +814,11 @@ def handle_training_record(id):
 @app.route('/api/zkt-devices', methods=['GET', 'POST'])
 @jwt_required()
 def handle_zkt_devices():
+    current_user_identity = get_jwt_identity()
+    user = User.query.get(current_user_identity['id'])
+    if not user or user.role not in ['Admin', 'HR']:
+        return jsonify({"message": "صلاحيات غير كافية"}), 403
+
     if request.method == 'POST':
         data = request.get_json()
         if not data or not data.get('name') or not data.get('ip_address'):
@@ -791,7 +838,7 @@ def handle_zkt_devices():
         )
         db.session.add(new_device)
         db.session.commit()
-        log_action("إضافة جهاز بصمة", f"تمت إضافة جهاز جديد: {new_device.name} ({new_device.ip_address})")
+        log_action("إضافة جهاز بصمة", f"تمت إضافة جهاز جديد: {new_device.name} ({new_device.ip_address})", username=current_user_identity['username'])
         return jsonify(new_device.to_dict()), 201
 
     devices = ZktDevice.query.options(db.joinedload(ZktDevice.location)).order_by(ZktDevice.name).all()
@@ -800,6 +847,11 @@ def handle_zkt_devices():
 @app.route('/api/zkt-devices/<int:id>', methods=['PUT', 'DELETE'])
 @jwt_required()
 def handle_zkt_device(id):
+    current_user_identity = get_jwt_identity()
+    user = User.query.get(current_user_identity['id'])
+    if not user or user.role not in ['Admin', 'HR']:
+        return jsonify({"message": "صلاحيات غير كافية"}), 403
+    
     device = ZktDevice.query.get_or_404(id)
     if request.method == 'PUT':
         data = request.get_json()
@@ -810,11 +862,11 @@ def handle_zkt_device(id):
         device.password = data.get('password', device.password)
         device.location_id = int(data['location_id']) if data.get('location_id') else None
         db.session.commit()
-        log_action("تحديث جهاز بصمة", f"تم تحديث بيانات الجهاز: {device.name}")
+        log_action("تحديث جهاز بصمة", f"تم تحديث بيانات الجهاز: {device.name}", username=current_user_identity['username'])
         return jsonify(device.to_dict())
     
     if request.method == 'DELETE':
-        log_action("حذف جهاز بصمة", f"تم حذف الجهاز: {device.name} ({device.ip_address})")
+        log_action("حذف جهاز بصمة", f"تم حذف الجهاز: {device.name} ({device.ip_address})", username=current_user_identity['username'])
         db.session.delete(device)
         db.session.commit()
         return jsonify({'message': 'تم حذف الجهاز بنجاح'})
@@ -873,12 +925,15 @@ def sync_all_devices():
             for att_log in attendance_logs:
                 exists = Attendance.query.filter_by(employee_uid=att_log.user_id, timestamp=att_log.timestamp).first()
                 if not exists:
+                    # Link to employee if zk_uid matches
+                    employee = Employee.query.filter_by(zk_uid=str(att_log.user_id)).first()
                     punch_value = att_log.punch if hasattr(att_log, 'punch') else 0 
                     new_att = Attendance(
                         employee_uid=str(att_log.user_id),
                         timestamp=att_log.timestamp,
                         status=att_log.status,
                         punch=punch_value,
+                        employee_id=employee.id if employee else None
                     )
                     db.session.add(new_att)
                     new_records_count += 1
@@ -945,5 +1000,3 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-    
