@@ -133,7 +133,7 @@ class JobTitle(db.Model):
 
 class Employee(db.Model):
     __tablename__ = 'employees'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=False)
     full_name = db.Column(db.String, nullable=False)
     email = db.Column(db.String, unique=True, nullable=False)
     phone = db.Column(db.String)
@@ -362,7 +362,7 @@ class TimesheetLock(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     period = db.Column(db.String, nullable=False) # 'YYYY-MM'
     locked_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    locked_at = dbColumn(db.DateTime, default=datetime.utcnow)
+    locked_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 # --- End of Attendance Models ---
 
@@ -1936,6 +1936,8 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    
 
     
 
