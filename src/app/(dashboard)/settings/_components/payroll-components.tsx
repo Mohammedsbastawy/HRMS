@@ -18,11 +18,13 @@ import { useToast } from '@/components/ui/use-toast';
 import type { PayrollComponent } from '@/lib/types';
 import { ComponentFormDialog } from './component-form-dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { useRouter } from 'next/navigation';
 
 export function PayrollComponents() {
   const [components, setComponents] = useState<PayrollComponent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const router = useRouter();
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
@@ -31,7 +33,19 @@ export function PayrollComponents() {
   const fetchComponents = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/payroll-components');
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+      const response = await fetch('/api/payroll-components', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.status === 401) {
+        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+        router.push('/login');
+        return;
+      }
       if (!response.ok) throw new Error('فشل في جلب مكونات الرواتب');
       const data = await response.json();
       setComponents(data.components || []);
@@ -44,7 +58,7 @@ export function PayrollComponents() {
 
   useEffect(() => {
     fetchComponents();
-  }, [toast]);
+  }, []);
   
   const handleAddClick = () => {
     setSelectedComponent(null);
@@ -69,7 +83,15 @@ export function PayrollComponents() {
   const confirmDelete = async () => {
     if (!selectedComponent) return;
     try {
-      const response = await fetch(`/api/payroll-components/${selectedComponent.id}`, { method: 'DELETE' });
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+      const response = await fetch(`/api/payroll-components/${selectedComponent.id}`, { 
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (!response.ok) throw new Error('فشل حذف المكون');
       toast({ title: 'تم الحذف بنجاح' });
       fetchComponents();

@@ -14,17 +14,32 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import type { AuditLog } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 
 export default function AuditLogPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchAuditLogs() {
       setIsLoading(true);
       try {
-        const response = await fetch('/api/audit-log');
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          router.push('/login');
+          return;
+        }
+        const response = await fetch('/api/audit-log', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.status === 401) {
+            toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+            router.push('/login');
+            return;
+        }
         if (!response.ok) {
           throw new Error('فشل في جلب سجل التدقيق');
         }
@@ -41,7 +56,7 @@ export default function AuditLogPage() {
       }
     }
     fetchAuditLogs();
-  }, [toast]);
+  }, [toast, router]);
 
 
   return (

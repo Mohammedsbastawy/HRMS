@@ -37,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useRouter } from 'next/navigation';
 
 const taxBracketSchema = z.object({
     min_amount: z.coerce.number().min(0),
@@ -55,6 +56,7 @@ type TaxSchemeFormValues = z.infer<typeof taxSchemeSchema>;
 
 function TaxSchemeForm({ scheme, onSuccess, onCancel }: { scheme: Partial<TaxScheme> | null, onSuccess: () => void, onCancel: () => void }) {
     const { toast } = useToast();
+    const router = useRouter();
     const { register, control, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<TaxSchemeFormValues>({
         resolver: zodResolver(taxSchemeSchema),
         defaultValues: scheme || { name: '', method: 'slab', active: true, brackets: [{ min_amount: 0, max_amount: null, rate: 0 }] },
@@ -67,12 +69,20 @@ function TaxSchemeForm({ scheme, onSuccess, onCancel }: { scheme: Partial<TaxSch
     const onSubmit = async (data: TaxSchemeFormValues) => {
         // Validation for overlapping brackets can be added here
         try {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                router.push('/login');
+                return;
+            }
             const url = scheme?.id ? `/api/tax-schemes/${scheme.id}` : '/api/tax-schemes';
             const httpMethod = scheme?.id ? 'PUT' : 'POST';
 
             const response = await fetch(url, {
                 method: httpMethod,
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify(data),
             });
 
@@ -161,6 +171,7 @@ export function TaxRules() {
   const [schemes, setSchemes] = useState<TaxScheme[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const router = useRouter();
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedScheme, setSelectedScheme] = useState<TaxScheme | null>(null);
@@ -168,7 +179,19 @@ export function TaxRules() {
   const fetchSchemes = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/tax-schemes');
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+      const response = await fetch('/api/tax-schemes', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.status === 401) {
+        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+        router.push('/login');
+        return;
+      }
       if (!response.ok) throw new Error('فشل في جلب مخططات الضريبة');
       const data = await response.json();
       setSchemes(data.schemes || []);
@@ -189,8 +212,14 @@ export function TaxRules() {
   };
   
   const handleEditClick = async (scheme: TaxScheme) => {
-    // Fetch full scheme with brackets
-    const response = await fetch(`/api/tax-schemes/${scheme.id}`);
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+        router.push('/login');
+        return;
+    }
+    const response = await fetch(`/api/tax-schemes/${scheme.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
     const fullScheme = await response.json();
     setSelectedScheme(fullScheme);
     setIsFormOpen(true);
@@ -282,5 +311,3 @@ export function TaxRules() {
     </>
   );
 }
-
-    

@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
 import type { TrainingCourse } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 
 interface CourseFormDialogProps {
   open: boolean;
@@ -41,6 +42,7 @@ type CourseFormValues = z.infer<typeof courseFormSchema>;
 
 export function CourseFormDialog({ open, onOpenChange, onSuccess, course }: CourseFormDialogProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const {
     register,
     handleSubmit,
@@ -71,12 +73,20 @@ export function CourseFormDialog({ open, onOpenChange, onSuccess, course }: Cour
 
   const onSubmit = async (data: CourseFormValues) => {
     try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
       const url = course ? `/api/training-courses/${course.id}` : '/api/training-courses';
       const method = course ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(data),
       });
 

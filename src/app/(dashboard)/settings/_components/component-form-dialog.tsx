@@ -27,6 +27,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
 import type { PayrollComponent } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 
 interface ComponentFormDialogProps {
   open: boolean;
@@ -52,6 +53,7 @@ type ComponentFormValues = z.infer<typeof componentSchema>;
 
 export function ComponentFormDialog({ open, onOpenChange, onSuccess, component }: ComponentFormDialogProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const {
     control,
     register,
@@ -93,12 +95,20 @@ export function ComponentFormDialog({ open, onOpenChange, onSuccess, component }
 
   const onSubmit = async (data: ComponentFormValues) => {
     try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
       const url = component ? `/api/payroll-components/${component.id}` : '/api/payroll-components';
       const method = component ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(data),
       });
 

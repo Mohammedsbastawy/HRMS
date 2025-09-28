@@ -12,6 +12,7 @@ import type { TrainingCourse, Employee } from '@/lib/types';
 import { CoursesTable } from './courses-table';
 import { CourseFormDialog } from './course-form-dialog';
 import { AssignEmployeesDialog } from './assign-employees-dialog';
+import { useRouter } from 'next/navigation';
 
 export function TrainingClientPage() {
   const [courses, setCourses] = useState<TrainingCourse[]>([]);
@@ -19,6 +20,7 @@ export function TrainingClientPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
+  const router = useRouter();
 
   const [isCourseFormOpen, setIsCourseFormOpen] = useState(false);
   const [isAssignFormOpen, setIsAssignFormOpen] = useState(false);
@@ -27,11 +29,23 @@ export function TrainingClientPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
+      const token = localStorage.getItem('authToken');
+        if (!token) {
+          router.push('/login');
+          return;
+        }
       const [coursesRes, employeesRes] = await Promise.all([
-        fetch('/api/training-courses'),
-        fetch('/api/employees'),
+        fetch('/api/training-courses', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/employees', { headers: { 'Authorization': `Bearer ${token}` } }),
       ]);
+
+      if (coursesRes.status === 401 || employeesRes.status === 401) {
+        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+        router.push('/login');
+        return;
+      }
       if (!coursesRes.ok || !employeesRes.ok) throw new Error('فشل في جلب البيانات');
+      
       const coursesData = await coursesRes.json();
       const employeesData = await employeesRes.json();
       setCourses(coursesData.courses);
@@ -45,7 +59,7 @@ export function TrainingClientPage() {
 
   useEffect(() => {
     fetchData();
-  }, [toast]);
+  }, []);
 
   const handleEditCourse = (course: TrainingCourse) => {
     setEditingCourse(course);

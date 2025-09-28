@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
 import type { TrainingRecord } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 
 interface UpdateParticipantDialogProps {
   open: boolean;
@@ -46,6 +47,7 @@ const statusTranslations: { [key: string]: string } = {
 
 export function UpdateParticipantDialog({ open, onOpenChange, onSuccess, record }: UpdateParticipantDialogProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const {
     control,
     handleSubmit,
@@ -67,9 +69,17 @@ export function UpdateParticipantDialog({ open, onOpenChange, onSuccess, record 
 
   const onSubmit = async (data: StatusFormValues) => {
     try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
       const response = await fetch(`/api/training-records/${record.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(data),
       });
 

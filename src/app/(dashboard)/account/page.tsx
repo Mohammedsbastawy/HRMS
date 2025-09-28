@@ -19,6 +19,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, KeyRound, ShieldCheck, Languages, Camera } from 'lucide-react';
 import type { AuditLog, Employee } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 
 interface UserAccount {
   username: string;
@@ -35,16 +36,28 @@ export default function AccountSettingsPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchAccountData() {
       setIsLoading(true);
       try {
         const token = localStorage.getItem('authToken');
+        if (!token) {
+          router.push('/login');
+          return;
+        }
         const response = await fetch('/api/account/me', {
           headers: { 'Authorization': `Bearer ${token}` },
         });
+        
+        if (response.status === 401) {
+            toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+            router.push('/login');
+            return;
+        }
         if (!response.ok) throw new Error('فشل في جلب بيانات الحساب');
+
         const data = await response.json();
         setAccount(data);
       } catch (error: any) {
@@ -54,7 +67,7 @@ export default function AccountSettingsPage() {
       }
     }
     fetchAccountData();
-  }, [toast]);
+  }, [toast, router]);
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +78,10 @@ export default function AccountSettingsPage() {
     setIsPasswordLoading(true);
     try {
         const token = localStorage.getItem('authToken');
+        if (!token) {
+          router.push('/login');
+          return;
+        }
         const response = await fetch('/api/account/change-password', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -220,5 +237,3 @@ export default function AccountSettingsPage() {
     </div>
   );
 }
-
-    

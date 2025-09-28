@@ -17,6 +17,7 @@ import { Loader2, Edit, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import type { TrainingCourse, TrainingRecord } from '@/lib/types';
 import { UpdateParticipantDialog } from './update-participant-dialog';
+import { useRouter } from 'next/navigation';
 
 interface CourseDetailsDialogProps {
   open: boolean;
@@ -29,6 +30,7 @@ export function CourseDetailsDialog({ open, onOpenChange, course, onUpdate }: Co
   const [participants, setParticipants] = useState<TrainingRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const router = useRouter();
   
   const [isUpdateParticipantOpen, setUpdateParticipantOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<TrainingRecord | null>(null);
@@ -37,7 +39,19 @@ export function CourseDetailsDialog({ open, onOpenChange, course, onUpdate }: Co
     if (!course) return;
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/training-records?course_id=${course.id}`);
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+      const response = await fetch(`/api/training-records?course_id=${course.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.status === 401) {
+        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+        router.push('/login');
+        return;
+      }
       if (!response.ok) throw new Error('فشل في جلب المشاركين');
       const data = await response.json();
       setParticipants(data.records);
@@ -68,7 +82,15 @@ export function CourseDetailsDialog({ open, onOpenChange, course, onUpdate }: Co
   
   const handleDeleteParticipant = async (recordId: number) => {
      try {
-      const response = await fetch(`/api/training-records/${recordId}`, { method: 'DELETE' });
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+      const response = await fetch(`/api/training-records/${recordId}`, { 
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` } 
+      });
       if (!response.ok) throw new Error('فشل حذف المشارك');
       toast({ title: 'تم الحذف' });
       fetchParticipants();

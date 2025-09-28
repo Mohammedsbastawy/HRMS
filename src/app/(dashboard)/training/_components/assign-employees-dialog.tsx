@@ -26,6 +26,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { TrainingCourse, Employee } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 
 interface AssignEmployeesDialogProps {
   open: boolean;
@@ -44,6 +45,7 @@ type AssignFormValues = z.infer<typeof assignSchema>;
 
 export function AssignEmployeesDialog({ open, onOpenChange, onSuccess, courses, employees }: AssignEmployeesDialogProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const {
     control,
     handleSubmit,
@@ -60,9 +62,17 @@ export function AssignEmployeesDialog({ open, onOpenChange, onSuccess, courses, 
 
   const onSubmit = async (data: AssignFormValues) => {
     try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
       const response = await fetch('/api/training-records', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(data),
       });
 

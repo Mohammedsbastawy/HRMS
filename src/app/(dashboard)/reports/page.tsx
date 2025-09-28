@@ -42,6 +42,7 @@ import {
   ResponsiveContainer,
   BarChart as RechartsBarChart
 } from 'recharts';
+import { useRouter } from 'next/navigation';
 
 interface Kpi {
   title: string;
@@ -62,12 +63,26 @@ export default function ReportsPage() {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchReportData() {
       setIsLoading(true);
       try {
-        const response = await fetch('/api/reports');
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          router.push('/login');
+          return;
+        }
+        const response = await fetch('/api/reports', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.status === 401) {
+            toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+            router.push('/login');
+            return;
+        }
         if (!response.ok) {
           throw new Error('فشل في جلب بيانات التقارير');
         }
@@ -84,7 +99,7 @@ export default function ReportsPage() {
       }
     }
     fetchReportData();
-  }, [toast]);
+  }, [toast, router]);
 
   if (isLoading) {
     return (

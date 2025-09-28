@@ -16,6 +16,7 @@ import { PlusCircle, Star, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/components/ui/use-toast';
 import type { PerformanceReview } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 
 const ScoreBadge = ({ score }: { score: number }) => {
   const colorClass = score >= 4 ? 'text-green-500' : score >= 3 ? 'text-yellow-500' : 'text-red-500';
@@ -29,13 +30,28 @@ export default function PerformancePage() {
     const [performanceReviews, setPerformanceReviews] = useState<PerformanceReview[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
+    const router = useRouter();
 
     useEffect(() => {
         async function fetchReviews() {
             setIsLoading(true);
             try {
-                const response = await fetch('/api/performance');
+                const token = localStorage.getItem('authToken');
+                if (!token) {
+                  router.push('/login');
+                  return;
+                }
+                const response = await fetch('/api/performance', {
+                  headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.status === 401) {
+                  toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+                  router.push('/login');
+                  return;
+                }
                 if(!response.ok) throw new Error('فشل في جلب تقييمات الأداء');
+
                 const data = await response.json();
                 setPerformanceReviews(data.performanceReviews);
             } catch (error: any) {
@@ -49,7 +65,7 @@ export default function PerformancePage() {
             }
         }
         fetchReviews();
-    }, [toast]);
+    }, [toast, router]);
 
   return (
     <Card>

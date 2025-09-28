@@ -25,6 +25,7 @@ import {
 import { CourseDetailsDialog } from './course-details-dialog';
 import { useToast } from '@/components/ui/use-toast';
 import type { TrainingCourse } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 
 interface CoursesTableProps {
   courses: TrainingCourse[];
@@ -37,6 +38,7 @@ export function CoursesTable({ courses, onEdit, onDeleteSuccess }: CoursesTableP
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<TrainingCourse | null>(null);
   const { toast } = useToast();
+  const router = useRouter();
 
   const handleDeleteClick = (course: TrainingCourse) => {
     setSelectedCourse(course);
@@ -56,7 +58,15 @@ export function CoursesTable({ courses, onEdit, onDeleteSuccess }: CoursesTableP
   const confirmDelete = async () => {
     if (!selectedCourse) return;
     try {
-      const response = await fetch(`/api/training-courses/${selectedCourse.id}`, { method: 'DELETE' });
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+      const response = await fetch(`/api/training-courses/${selectedCourse.id}`, { 
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (!response.ok) throw new Error('فشل حذف الدورة');
       toast({ title: 'تم الحذف', description: `تم حذف دورة "${selectedCourse.title}".` });
       onDeleteSuccess();
