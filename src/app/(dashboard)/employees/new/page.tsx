@@ -13,6 +13,7 @@ import { EmployeeForm } from "./_components/employee-form";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function NewEmployeePage() {
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -21,22 +22,37 @@ export default function NewEmployeePage() {
   const [managers, setManagers] = useState<{ id: number, full_name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchFormData() {
       setIsLoading(true);
       try {
-        const [deptsRes, jobsRes, locsRes, mgrsRes] = await Promise.all([
-          fetch('/api/departments'),
-          fetch('/api/job-titles'),
-          fetch('/api/locations'),
-          fetch('/api/employees?is_manager=true'),
-        ]);
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+          router.push('/login');
+          return;
+        }
 
-        if (!deptsRes.ok) throw await deptsRes.json();
-        if (!jobsRes.ok) throw await jobsRes.json();
-        if (!locsRes.ok) throw await locsRes.json();
-        if (!mgrsRes.ok) throw await mgrsRes.json();
+        const headers = { 'Authorization': `Bearer ${token}` };
+
+        const [deptsRes, jobsRes, locsRes, mgrsRes] = await Promise.all([
+          fetch('/api/departments', { headers }),
+          fetch('/api/job-titles', { headers }),
+          fetch('/api/locations', { headers }),
+          fetch('/api/employees?is_manager=true', { headers }),
+        ]);
+        
+        const responses = [deptsRes, jobsRes, locsRes, mgrsRes];
+        for (const res of responses) {
+            if (res.status === 401) {
+                toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+                router.push('/login');
+                return;
+            }
+            if (!res.ok) throw await res.json();
+        }
 
         const deptsData = await deptsRes.json();
         const jobsData = await jobsRes.json();
@@ -52,7 +68,7 @@ export default function NewEmployeePage() {
         toast({
           variant: "destructive",
           title: "خطأ في تحميل بيانات النموذج",
-          description: error.message,
+          description: error.message || "فشل تحميل البيانات اللازمة للنموذج.",
           details: error
         });
       } finally {
@@ -61,7 +77,7 @@ export default function NewEmployeePage() {
     }
 
     fetchFormData();
-  }, [toast]);
+  }, [toast, router]);
 
   return (
     <Card className="max-w-4xl mx-auto">
