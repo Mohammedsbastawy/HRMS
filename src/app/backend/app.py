@@ -100,6 +100,8 @@ class Department(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     job_titles = db.relationship('JobTitle', backref='department', lazy=True, cascade="all, delete-orphan")
+    jobs = db.relationship('Job', backref='department_ref', lazy='dynamic')
+
 
     def to_dict(self):
         d = {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -1694,4 +1696,5 @@ if __name__ == '__main__':
 
     
 
+    
     
