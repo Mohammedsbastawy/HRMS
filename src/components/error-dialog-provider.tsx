@@ -2,6 +2,7 @@
 'use client';
 
 import { createContext, useState, useCallback, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -10,6 +11,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogCancel,
+  AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Copy } from 'lucide-react';
@@ -31,6 +33,7 @@ export const ErrorDialogContext = createContext<ErrorDialogContextType | null>(n
 export function ErrorDialogProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<ErrorDetails | null>(null);
   const { toast: simpleToast } = useToast();
+  const router = useRouter();
 
   const showError = useCallback((details: ErrorDetails) => {
     setError(details);
@@ -40,19 +43,29 @@ export function ErrorDialogProvider({ children }: { children: ReactNode }) {
     setError(null);
   };
   
+  const handleRedirectToLogin = () => {
+    setError(null);
+    router.push('/login');
+  };
+
   const handleCopy = () => {
-    const detailsString = typeof error?.details === 'object' ? JSON.stringify(error.details, null, 2) : String(error?.details);
+    if (!error?.details) return;
+    const detailsString = typeof error.details === 'object' 
+      ? JSON.stringify(error.details, null, 2) 
+      : String(error.details);
     navigator.clipboard.writeText(detailsString);
     simpleToast({
         title: "تم النسخ",
         description: "تم نسخ تفاصيل الخطأ إلى الحافظة."
     })
   }
+  
+  const isSessionExpiredError = error?.title === 'الجلسة منتهية';
 
   return (
     <ErrorDialogContext.Provider value={{ showError }}>
       {children}
-      <AlertDialog open={!!error} onOpenChange={(open) => !open && handleClose()}>
+      <AlertDialog open={!!error} onOpenChange={(open) => !open && (isSessionExpiredError ? handleRedirectToLogin() : handleClose())}>
         <AlertDialogContent className="max-w-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-destructive">{error?.title || 'حدث خطأ'}</AlertDialogTitle>
@@ -60,7 +73,7 @@ export function ErrorDialogProvider({ children }: { children: ReactNode }) {
               {error?.description || 'فشل تنفيذ الإجراء. يرجى مراجعة التفاصيل أدناه.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {error?.details && (
+          {error?.details && !isSessionExpiredError && (
             <div className="mt-4">
               <h3 className="font-semibold mb-2">التفاصيل الفنية:</h3>
               <ScrollArea className="h-60 w-full rounded-md border p-4 bg-muted/50">
@@ -73,12 +86,18 @@ export function ErrorDialogProvider({ children }: { children: ReactNode }) {
             </div>
           )}
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleClose}>إغلاق</AlertDialogCancel>
-            {error?.details && (
-                <Button variant="outline" onClick={handleCopy}>
-                    <Copy className="ml-2 h-4 w-4" />
-                    نسخ التفاصيل
-                </Button>
+            {isSessionExpiredError ? (
+                 <AlertDialogAction onClick={handleRedirectToLogin}>إعادة تسجيل الدخول</AlertDialogAction>
+            ) : (
+                <>
+                    <AlertDialogCancel onClick={handleClose}>إغلاق</AlertDialogCancel>
+                    {error?.details && (
+                        <Button variant="outline" onClick={handleCopy}>
+                            <Copy className="ml-2 h-4 w-4" />
+                            نسخ التفاصيل
+                        </Button>
+                    )}
+                </>
             )}
           </AlertDialogFooter>
         </AlertDialogContent>
