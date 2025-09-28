@@ -45,6 +45,10 @@ export function ErrorDialogProvider({ children }: { children: ReactNode }) {
   
   const handleRedirectToLogin = () => {
     setError(null);
+    // Clear the expired token from both localStorage and cookies before redirecting
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
+    document.cookie = "authToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     router.push('/login');
   };
 
