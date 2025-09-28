@@ -58,9 +58,10 @@ export default function NewJobPage() {
         setIsLoading(true);
         try {
             const token = localStorage.getItem('authToken');
+            const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
             const [deptsRes, jobsRes] = await Promise.all([
-                fetch('/api/departments', { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch('/api/job-titles', { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch('/api/departments', { headers }),
+                fetch('/api/job-titles', { headers }),
             ]);
             if (!deptsRes.ok || !jobsRes.ok) throw new Error('فشل تحميل بيانات الأقسام والمسميات');
 
