@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -25,16 +24,16 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { useState } from "react";
-import type { Department, JobTitle, Location } from "@/lib/types";
+import { useState, useEffect } from "react";
+import type { Department, JobTitle, Location, Employee } from "@/lib/types";
 
 const employeeFormSchema = z.object({
   zk_uid: z.string().min(1, { message: "ID الموظف مطلوب." }),
   full_name: z.string().min(2, { message: "الاسم الكامل مطلوب." }),
   email: z.string().email({ message: "بريد إلكتروني غير صالح." }),
-  department_id: z.string({ required_error: "القسم مطلوب." }),
-  job_title_id: z.string({ required_error: "المسمى الوظيفي مطلوب." }),
-  location_id: z.string({ required_error: "الموقع مطلوب." }),
+  department_id: z.coerce.string({ required_error: "القسم مطلوب." }),
+  job_title_id: z.coerce.string({ required_error: "المسمى الوظيفي مطلوب." }),
+  location_id: z.coerce.string({ required_error: "الموقع مطلوب." }),
   hire_date: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "تاريخ التعيين غير صالح."}),
   base_salary: z.coerce.number().min(0, { message: "الراتب يجب أن يكون رقمًا موجبًا." }),
   manager_id: z.string().optional(),
@@ -48,33 +47,58 @@ interface EmployeeFormProps {
     jobTitles: JobTitle[];
     locations: Location[];
     managers: { id: number, full_name: string }[];
+    employee?: Employee; // Make employee optional for new vs edit
 }
 
-export function EmployeeForm({ departments, jobTitles, locations, managers }: EmployeeFormProps) {
+export function EmployeeForm({ departments, jobTitles, locations, managers, employee }: EmployeeFormProps) {
   const { toast } = useToast();
   const router = useRouter();
-  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
-
-  const form = useForm<EmployeeFormValues>({
-    resolver: zodResolver(employeeFormSchema),
-    defaultValues: {
+  
+  const defaultValues: Partial<EmployeeFormValues> = employee ? {
+      ...employee,
+      department_id: String(employee.department_id),
+      job_title_id: String(employee.job_title_id),
+      location_id: String(employee.location_id),
+      manager_id: employee.manager_id ? String(employee.manager_id) : 'none',
+      hire_date: employee.hire_date ? employee.hire_date.split('T')[0] : '',
+  } : {
       zk_uid: "",
       full_name: "",
       email: "",
       hire_date: new Date().toISOString().split('T')[0],
       base_salary: 0,
       status: 'Active',
-    },
+      manager_id: 'none',
+  };
+
+  const form = useForm<EmployeeFormValues>({
+    resolver: zodResolver(employeeFormSchema),
+    defaultValues,
   });
+
+  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(employee ? String(employee.department_id) : null);
+
+  // When defaultValues are populated from the employee prop, useEffect can sync the form state.
+  useEffect(() => {
+    if (employee) {
+      form.reset(defaultValues);
+      setSelectedDepartment(String(employee.department_id));
+    }
+  }, [employee, form, defaultValues]);
+
 
   const filteredJobTitles = selectedDepartment
     ? jobTitles.filter(jt => String(jt.department_id) === selectedDepartment)
     : [];
 
   async function onSubmit(data: EmployeeFormValues) {
+    const isEditing = !!employee;
+    const url = isEditing ? `/api/employees/${employee.id}` : '/api/employees';
+    const method = isEditing ? 'PUT' : 'POST';
+
     try {
-        const response = await fetch('/api/employees', {
-            method: 'POST',
+        const response = await fetch(url, {
+            method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
         });
@@ -85,15 +109,16 @@ export function EmployeeForm({ departments, jobTitles, locations, managers }: Em
         }
 
         toast({
-            title: "تمت إضافة الموظف بنجاح!",
+            title: isEditing ? "تم تحديث بيانات الموظف!" : "تمت إضافة الموظف بنجاح!",
             description: `تم حفظ بيانات ${data.full_name} في النظام.`,
         });
         router.push('/employees');
+        router.refresh();
     } catch(error: any) {
         toast({
             variant: "destructive",
             title: "حدث خطأ!",
-            description: error.message || "فشل في إضافة الموظف.",
+            description: error.message || (isEditing ? "فشل في تحديث الموظف." : "فشل في إضافة الموظف."),
             details: error
         });
     }
@@ -154,7 +179,7 @@ export function EmployeeForm({ departments, jobTitles, locations, managers }: Em
                     setSelectedDepartment(value);
                     form.setValue('job_title_id', ''); // Reset job title
                   }} 
-                  defaultValue={field.value}
+                  value={field.value}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -206,7 +231,7 @@ export function EmployeeForm({ departments, jobTitles, locations, managers }: Em
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>الموقع/الفرع</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="اختر موقع عمل الموظف" />
@@ -232,7 +257,7 @@ export function EmployeeForm({ departments, jobTitles, locations, managers }: Em
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>المدير المباشر (اختياري)</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="اختر المدير المباشر" />
@@ -281,7 +306,7 @@ export function EmployeeForm({ departments, jobTitles, locations, managers }: Em
             render={({ field }) => (
                 <FormItem>
                     <FormLabel>حالة الموظف</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                             <SelectTrigger>
                                 <SelectValue placeholder="اختر حالة الموظف" />
@@ -304,7 +329,7 @@ export function EmployeeForm({ departments, jobTitles, locations, managers }: Em
                 <Link href="/employees">إلغاء</Link>
             </Button>
             <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? "جاري الحفظ..." : "إضافة موظف"}
+                {form.formState.isSubmitting ? "جاري الحفظ..." : employee ? "حفظ التعديلات" : "إضافة موظف"}
             </Button>
         </div>
       </form>

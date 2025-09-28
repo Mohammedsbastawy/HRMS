@@ -167,8 +167,8 @@ class Employee(db.Model):
     managed_locations = db.relationship('Location', foreign_keys=[Location.manager_id], backref='manager', lazy='dynamic')
 
 
-    def to_dict(self):
-        return {
+    def to_dict(self, full=False):
+        data = {
             'id': self.id,
             'zk_uid': self.zk_uid,
             'full_name': self.full_name,
@@ -179,6 +179,16 @@ class Employee(db.Model):
             'department': {'name_ar': self.department.name_ar, 'name_en': self.department.name_en} if self.department else None,
             'jobTitle': {'title_ar': self.job_title.title_ar} if self.job_title else None
         }
+        if full:
+            # Add all other fields for the edit form
+            for c in self.__table__.columns:
+                if c.name not in data:
+                    val = getattr(self, c.name)
+                    if isinstance(val, (datetime, date)):
+                        data[c.name] = val.isoformat()
+                    else:
+                        data[c.name] = val
+        return data
 
 class Attendance(db.Model):
     __tablename__ = 'attendance'
@@ -866,15 +876,65 @@ def handle_employees():
             app.logger.error(f"Error adding employee: {e}")
             if 'UNIQUE constraint failed: employees.zk_uid' in str(e):
                  return jsonify({"message": "ID الموظف موجود بالفعل. يرجى استخدام ID فريد."}), 409
+            if 'UNIQUE constraint failed: employees.email' in str(e):
+                 return jsonify({"message": "البريد الإلكتروني موجود بالفعل. يرجى استخدام بريد إلكتروني فريد."}), 409
             return jsonify({"message": "حدث خطأ داخلي"}), 500
 
+    exclude_id = request.args.get('exclude_id')
+    query = Employee.query
+    if exclude_id:
+        query = query.filter(Employee.id != exclude_id)
+        
     is_manager = request.args.get('is_manager')
     if is_manager == 'true':
-        managers = Employee.query.filter(Employee.id.in_(db.session.query(Employee.manager_id).distinct())).all()
-        return jsonify({"employees": [{'id': e.id, 'full_name': e.full_name} for e in managers]})
+        # Find employees who are managers of other employees
+        manager_ids = db.session.query(Employee.manager_id).distinct()
+        query = query.filter(Employee.id.in_([mid[0] for mid in manager_ids if mid[0] is not None]))
+        employees = query.all()
+        return jsonify({"employees": [{'id': e.id, 'full_name': e.full_name} for e in employees]})
 
-    employees = Employee.query.order_by(Employee.created_at.desc()).all()
+    employees = query.order_by(Employee.created_at.desc()).all()
     return jsonify({"employees": [e.to_dict() for e in employees]})
+
+@app.route("/api/employees/<int:id>", methods=['GET', 'PUT'])
+def handle_employee(id):
+    employee = Employee.query.get_or_404(id)
+    
+    if request.method == 'GET':
+        return jsonify(employee.to_dict(full=True))
+
+    if request.method == 'PUT':
+        data = request.get_json()
+        if not data:
+            return jsonify({"message": "No input data provided"}), 400
+        try:
+            manager_id = data.get('manager_id')
+            if manager_id == 'none' or manager_id == '':
+                employee.manager_id = None
+            else:
+                employee.manager_id = int(manager_id)
+
+            employee.zk_uid = data.get('zk_uid', employee.zk_uid)
+            employee.full_name = data.get('full_name', employee.full_name)
+            employee.email = data.get('email', employee.email)
+            employee.department_id = int(data.get('department_id', employee.department_id))
+            employee.job_title_id = int(data.get('job_title_id', employee.job_title_id))
+            employee.location_id = int(data.get('location_id', employee.location_id))
+            employee.hire_date = data.get('hire_date', employee.hire_date)
+            employee.base_salary = float(data.get('base_salary', employee.base_salary))
+            employee.status = data.get('status', employee.status)
+
+            db.session.commit()
+            log_action("تحديث موظف", f"تم تحديث بيانات الموظف: {employee.full_name}")
+            return jsonify(employee.to_dict(full=True)), 200
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error updating employee {id}: {e}")
+            if 'UNIQUE constraint failed: employees.zk_uid' in str(e):
+                 return jsonify({"message": "ID الموظف موجود بالفعل. يرجى استخدام ID فريد."}), 409
+            if 'UNIQUE constraint failed: employees.email' in str(e):
+                 return jsonify({"message": "البريد الإلكتروني موجود بالفعل. يرجى استخدام بريد إلكتروني فريد."}), 409
+            return jsonify({"message": "حدث خطأ داخلي أثناء التحديث"}), 500
 
 # --- Departments API ---
 @app.route("/api/departments", methods=['GET', 'POST'])
