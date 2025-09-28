@@ -574,8 +574,13 @@ class Applicant(db.Model):
     consent_at = db.Column(db.Text)
     notes = db.Column(db.Text)
     created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
+    avatar = db.Column(db.String)
     
     __table_args__ = (db.UniqueConstraint('job_id', 'email', name='_job_email_uc'),)
+
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
 
 class ApplicantFile(db.Model):
     __tablename__ = 'applicant_files'
@@ -1126,12 +1131,40 @@ def handle_recruitment_jobs():
             app.logger.error(f"Error creating job: {e}")
             return jsonify({'message': 'خطأ داخلي أثناء إنشاء الوظيفة.', 'details': str(e)}), 500
 
-@app.route("/api/recruitment/jobs/<int:job_id>/applicants", methods=['GET'])
+@app.route("/api/recruitment/applicants", methods=['GET', 'POST'])
 @jwt_required()
-def get_job_applicants(job_id):
-    applicants = Applicant.query.filter_by(job_id=job_id).order_by(Applicant.created_at.desc()).all()
-    # This will be expanded later
-    return jsonify({'applicants': []}) # [a.to_dict() for a in applicants]
+def handle_applicants():
+    claims = get_jwt()
+    username = claims.get('username')
+    user_id = get_jwt_identity()
+    
+    if request.method == 'POST':
+        data = request.get_json()
+        required_fields = ['job_id', 'full_name', 'email']
+        if not all(field in data for field in required_fields):
+            return jsonify({'message': 'بيانات ناقصة'}), 400
+        
+        # Check for duplicates
+        existing = Applicant.query.filter_by(job_id=data['job_id'], email=data['email']).first()
+        if existing:
+            return jsonify({'message': 'هذا المتقدم موجود بالفعل في هذه الوظيفة'}), 409
+            
+        new_applicant = Applicant(
+            job_id=data['job_id'],
+            full_name=data['full_name'],
+            email=data['email'],
+            phone=data.get('phone'),
+            stage='Applied',
+            source='manual'
+        )
+        db.session.add(new_applicant)
+        db.session.commit()
+        log_action("إضافة متقدم", f"أضاف المستخدم {username} المتقدم {data['full_name']} إلى الوظيفة ID {data['job_id']}", username=username, user_id=int(user_id))
+        return jsonify(new_applicant.to_dict()), 201
+
+    # GET all applicants
+    applicants = Applicant.query.order_by(Applicant.created_at.desc()).all()
+    return jsonify({'applicants': [a.to_dict() for a in applicants]})
     
 # --- Other Read-only APIs ---
 @app.route("/api/payrolls", methods=['GET'])
@@ -1712,6 +1745,7 @@ if __name__ == '__main__':
     
 
     
+
 
 
 
