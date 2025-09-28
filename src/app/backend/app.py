@@ -844,6 +844,7 @@ def handle_users():
 
 # --- Employees API ---
 @app.route("/api/employees", methods=['GET', 'POST'])
+@jwt_required()
 def handle_employees():
     if request.method == 'POST':
         data = request.get_json()
@@ -898,6 +899,7 @@ def handle_employees():
     return jsonify({"employees": [e.to_dict() for e in employees]})
 
 @app.route("/api/employees/<int:id>", methods=['GET', 'PUT'])
+@jwt_required()
 def handle_employee(id):
     employee = Employee.query.get_or_404(id)
     
@@ -937,6 +939,7 @@ def handle_employee(id):
 
 # --- Departments API ---
 @app.route("/api/departments", methods=['GET', 'POST'])
+@jwt_required()
 def handle_departments():
     if request.method == 'POST':
         data = request.get_json()
@@ -958,6 +961,7 @@ def handle_departments():
     
 # --- Job Titles API ---
 @app.route("/api/job-titles", methods=['GET', 'POST'])
+@jwt_required()
 def handle_job_titles():
     if request.method == 'POST':
         data = request.get_json()
@@ -976,6 +980,7 @@ def handle_job_titles():
 
 # --- Locations API ---
 @app.route("/api/locations", methods=['GET', 'POST'])
+@jwt_required()
 def handle_locations():
     if request.method == 'POST':
         data = request.get_json()
@@ -1000,6 +1005,7 @@ def handle_locations():
     return jsonify({"locations": [loc.to_dict(include_manager=True) for loc in locations]})
 
 @app.route("/api/locations/<int:id>", methods=['PUT', 'DELETE'])
+@jwt_required()
 def handle_location(id):
     location = Location.query.get_or_404(id)
     
@@ -1671,7 +1677,7 @@ def sync_all_devices():
             for (emp_id, log_date), punches in daily_punches.items():
                 employee = Employee.query.get(emp_id)
                 if not employee:
-                    continue
+                    continue # Skip if employee ID from device is not in our DB
                 
                 check_in_time = min(punches)
                 check_out_time = max(punches) if len(punches) > 1 else None
