@@ -19,13 +19,12 @@ import {
 import { Button } from '@/components/ui/button';
 import {
   Users,
-  CalendarCheck,
   Briefcase,
   Star,
   Loader2,
   FileDown,
-  BarChart,
-  CalendarClock
+  CalendarClock,
+  LucideIcon,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import type { Employee } from '@/lib/types';
@@ -44,10 +43,17 @@ import {
 } from 'recharts';
 import { useRouter } from 'next/navigation';
 
+const iconMap: { [key: string]: LucideIcon } = {
+  Users,
+  CalendarClock,
+  Briefcase,
+  Star,
+};
+
 interface Kpi {
   title: string;
   value: string | number;
-  icon: React.ElementType;
+  icon: string; // Icon name as string
 }
 
 interface ReportData {
@@ -124,17 +130,20 @@ export default function ReportsPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-        {kpis.map((kpi, index) => (
-          <Card key={index}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{kpi.title}</CardTitle>
-              <kpi.icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{kpi.value}</div>
-            </CardContent>
-          </Card>
-        ))}
+        {kpis.map((kpi, index) => {
+            const IconComponent = iconMap[kpi.icon];
+            return (
+              <Card key={index}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">{kpi.title}</CardTitle>
+                  {IconComponent && <IconComponent className="h-4 w-4 text-muted-foreground" />}
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{kpi.value}</div>
+                </CardContent>
+              </Card>
+            );
+        })}
       </div>
 
       {/* Charts */}
