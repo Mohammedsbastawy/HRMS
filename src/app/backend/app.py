@@ -190,7 +190,7 @@ class Employee(db.Model):
 # --- Attendance & Timesheets Models ---
 
 class ZktDevice(db.Model):
-    __tablename__ = 'devices'
+    __tablename__ = 'zkt_devices'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, nullable=False)
     provider = db.Column(db.String, default='zkteco', nullable=False)
@@ -199,7 +199,7 @@ class ZktDevice(db.Model):
     last_sync_at = db.Column(db.DateTime)
     status = db.Column(db.String, default='online') # online, offline, error
     
-    location = db.relationship('Location', backref='devices')
+    location = db.relationship('Location', backref='zkt_devices')
 
     def to_dict(self):
         return {
@@ -215,7 +215,7 @@ class ZktDevice(db.Model):
 class DeviceLog(db.Model):
     __tablename__ = 'device_logs'
     id = db.Column(db.Integer, primary_key=True)
-    device_id = db.Column(db.Integer, db.ForeignKey('devices.id'))
+    device_id = db.Column(db.Integer, db.ForeignKey('zkt_devices.id'))
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True) # Null if user_id from device not in DB
     log_datetime = db.Column(db.DateTime, nullable=False)
     log_type = db.Column(db.String, default='punch') # in, out, punch
@@ -1888,6 +1888,10 @@ def sync_all_devices():
                     continue
 
             for (emp_id, log_date), punches in daily_punches.items():
+                employee = Employee.query.get(emp_id)
+                if not employee:
+                    continue
+                
                 check_in_time = min(punches)
                 check_out_time = max(punches) if len(punches) > 1 else None
                 att_record = Attendance.query.filter_by(employee_id=emp_id, date=log_date).first()
