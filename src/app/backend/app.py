@@ -789,8 +789,6 @@ def change_password():
 def handle_users():
     claims = get_jwt()
     user_role = claims.get('role')
-    user_id = get_jwt_identity()
-    username = claims.get('username')
 
     if not user_role or user_role != 'Admin':
         return jsonify({"message": "صلاحيات غير كافية"}), 403
@@ -812,6 +810,9 @@ def handle_users():
         new_user.set_password(data['password'])
         db.session.add(new_user)
         db.session.commit()
+        
+        user_id = get_jwt_identity()
+        username = claims.get('username')
         log_action("إضافة مستخدم", f"تمت إضافة مستخدم جديد: {new_user.username}", username=username, user_id=int(user_id))
         create_notification(
             recipient_user_id=new_user.id,
@@ -949,9 +950,9 @@ def handle_location(id):
 @app.route("/api/leaves", methods=['GET', 'POST'])
 @jwt_required()
 def handle_leaves():
+    user_id = get_jwt_identity()
     claims = get_jwt()
     user_role = claims.get('role')
-    user_id = get_jwt_identity()
     
     user = User.query.get(int(user_id))
 
@@ -999,7 +1000,6 @@ def handle_leaves():
 def update_leave(id):
     claims = get_jwt()
     user_role = claims.get('role')
-    user_id = get_jwt_identity()
 
     if user_role not in ['Admin', 'HR', 'Manager']:
         return jsonify({"success": False, "message": "صلاحيات غير كافية"}), 403
@@ -1011,6 +1011,7 @@ def update_leave(id):
     if leave_request.status != 'Pending':
         return jsonify({"success": False, "message": "لم يتم العثور على الطلب أو تمت معالجته بالفعل."}), 404
     
+    user_id = get_jwt_identity()
     approver_user = User.query.get(int(user_id))
 
     if action == 'approve':
@@ -1322,8 +1323,6 @@ def handle_training_record(id):
 def handle_zkt_devices():
     claims = get_jwt()
     user_role = claims.get('role')
-    user_id = get_jwt_identity()
-    username = claims.get('username')
 
     if user_role not in ['Admin', 'HR']:
         return jsonify({"message": "صلاحيات غير كافية"}), 403
@@ -1347,6 +1346,9 @@ def handle_zkt_devices():
         )
         db.session.add(new_device)
         db.session.commit()
+        
+        user_id = get_jwt_identity()
+        username = claims.get('username')
         log_action("إضافة جهاز بصمة", f"تمت إضافة جهاز جديد: {new_device.name} ({new_device.ip_address})", username=username, user_id=int(user_id))
         return jsonify(new_device.to_dict()), 201
 
@@ -1358,9 +1360,7 @@ def handle_zkt_devices():
 def handle_zkt_device(id):
     claims = get_jwt()
     user_role = claims.get('role')
-    user_id = get_jwt_identity()
-    username = claims.get('username')
-
+    
     if user_role not in ['Admin', 'HR']:
         return jsonify({"message": "صلاحيات غير كافية"}), 403
     
@@ -1374,10 +1374,15 @@ def handle_zkt_device(id):
         device.password = data.get('password', device.password)
         device.location_id = int(data['location_id']) if data.get('location_id') and data.get('location_id') != 'none' else None
         db.session.commit()
+        
+        user_id = get_jwt_identity()
+        username = claims.get('username')
         log_action("تحديث جهاز بصمة", f"تم تحديث بيانات الجهاز: {device.name}", username=username, user_id=int(user_id))
         return jsonify(device.to_dict())
     
     if request.method == 'DELETE':
+        user_id = get_jwt_identity()
+        username = claims.get('username')
         log_action("حذف جهاز بصمة", f"تم حذف الجهاز: {device.name} ({device.ip_address})", username=username, user_id=int(user_id))
         db.session.delete(device)
         db.session.commit()
@@ -1389,8 +1394,6 @@ def handle_zkt_device(id):
 def handle_disciplinary_actions():
     claims = get_jwt()
     user_role = claims.get('role')
-    user_id = get_jwt_identity()
-    username = claims.get('username')
 
     if user_role not in ['Admin', 'HR']:
         return jsonify({"message": "صلاحيات غير كافية"}), 403
@@ -1408,6 +1411,9 @@ def handle_disciplinary_actions():
         )
         db.session.add(new_action)
         db.session.commit()
+        
+        user_id = get_jwt_identity()
+        username = claims.get('username')
         log_action("إجراء تأديبي يدوي", f"تم إنشاء إجراء يدوي '{new_action.title}' للموظف ID {new_action.employee_id}", username=username, user_id=int(user_id))
         return jsonify(new_action.to_dict()), 201
 
@@ -1420,8 +1426,6 @@ def handle_disciplinary_actions():
 def handle_payroll_components():
     claims = get_jwt()
     user_role = claims.get('role')
-    user_id = get_jwt_identity()
-    username = claims.get('username')
 
     if user_role not in ['Admin', 'HR']:
         return jsonify({"message": "صلاحيات غير كافية"}), 403
@@ -1446,6 +1450,9 @@ def handle_payroll_components():
         )
         db.session.add(new_component)
         db.session.commit()
+        
+        user_id = get_jwt_identity()
+        username = claims.get('username')
         log_action("إنشاء مكون راتب", f"تم إنشاء المكون: {new_component.name}", username=username, user_id=int(user_id))
         return jsonify(new_component.to_dict()), 201
 
@@ -1457,8 +1464,6 @@ def handle_payroll_components():
 def handle_payroll_component(id):
     claims = get_jwt()
     user_role = claims.get('role')
-    user_id = get_jwt_identity()
-    username = claims.get('username')
 
     if user_role not in ['Admin', 'HR']:
         return jsonify({"message": "صلاحيات غير كافية"}), 403
@@ -1471,10 +1476,15 @@ def handle_payroll_component(id):
             if hasattr(component, key) and key != 'id':
                 setattr(component, key, value)
         db.session.commit()
+        
+        user_id = get_jwt_identity()
+        username = claims.get('username')
         log_action("تحديث مكون راتب", f"تم تحديث المكون: {component.name}", username=username, user_id=int(user_id))
         return jsonify(component.to_dict())
 
     if request.method == 'DELETE':
+        user_id = get_jwt_identity()
+        username = claims.get('username')
         log_action("حذف مكون راتب", f"تم حذف المكون: {component.name}", username=username, user_id=int(user_id))
         db.session.delete(component)
         db.session.commit()
@@ -1486,8 +1496,6 @@ def handle_payroll_component(id):
 def handle_tax_schemes():
     claims = get_jwt()
     user_role = claims.get('role')
-    user_id = get_jwt_identity()
-    username = claims.get('username')
 
     if user_role not in ['Admin', 'HR']:
         return jsonify({"message": "صلاحيات غير كافية"}), 403
@@ -1512,6 +1520,8 @@ def handle_tax_schemes():
                 db.session.add(new_bracket)
             db.session.commit()
         
+        user_id = get_jwt_identity()
+        username = claims.get('username')
         log_action("إنشاء مخطط ضريبي", f"تم إنشاء مخطط: {new_scheme.name}", username=username, user_id=int(user_id))
         return jsonify(new_scheme.to_dict(include_brackets=True)), 201
 
