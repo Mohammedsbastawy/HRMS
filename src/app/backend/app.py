@@ -1797,6 +1797,13 @@ def get_today_view_data():
         'offline_devices': offline_devices_count
     }
 
+    def employee_to_dict_for_list(emp):
+        return {
+            'id': emp.id,
+            'full_name': emp.full_name,
+            'department': {'name_ar': emp.department.name_ar} if emp.department else None,
+        }
+
     # Lists for modals
     present_employees = Employee.query.join(Attendance).filter(Attendance.date == today, Attendance.status.in_(['Present', 'Late'])).all()
     late_employees = Employee.query.join(Attendance).filter(Attendance.date == today, Attendance.status == 'Late').all()
@@ -1837,9 +1844,9 @@ def get_today_view_data():
 
 
     lists = {
-        'present': [emp.to_dict(full=True) for emp in present_employees],
-        'late': [emp.to_dict(full=True) for emp in late_employees],
-        'absent': [emp.to_dict(full=True) for emp in absent_employees],
+        'present': [employee_to_dict_for_list(emp) for emp in present_employees],
+        'late': [employee_to_dict_for_list(emp) for emp in late_employees],
+        'absent': [employee_to_dict_for_list(emp) for emp in absent_employees],
         'live_punches': live_punches_data,
         'offline_devices': [dev.to_dict() for dev in offline_devices]
     }
