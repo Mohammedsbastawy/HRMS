@@ -1015,6 +1015,7 @@ def get_recruitment_data():
 def handle_recruitment_jobs():
     data = request.get_json()
     
+    # Robust validation
     if not data or not data.get('department_id') or not data.get('title'):
         return jsonify({"message": "بيانات غير مكتملة، القسم والمسمى الوظيفي مطلوبان"}), 422
     
@@ -1578,5 +1579,4 @@ init_db()
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
 
-    
     
