@@ -83,7 +83,6 @@ export default function NewJobPage() {
           variant: 'destructive',
           title: 'خطأ في تحميل البيانات',
           description: error.message,
-          details: error,
         });
       } finally {
         setIsLoading(false);
