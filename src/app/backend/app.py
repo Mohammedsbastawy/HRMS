@@ -1014,8 +1014,8 @@ def get_recruitment_data():
 @jwt_required()
 def handle_recruitment_jobs():
     data = request.get_json()
-    if not data or not data.get('department_id'):
-        return jsonify({"message": "بيانات غير مكتملة، القسم مطلوب"}), 422
+    if not data or not data.get('department_id') or not data.get('title'):
+        return jsonify({"message": "بيانات غير مكتملة، القسم والمسمى الوظيفي مطلوبان"}), 422
     
     try:
         department_id = int(data.get('department_id'))
@@ -1026,7 +1026,7 @@ def handle_recruitment_jobs():
         title=data.get('title'),
         department_id=department_id,
         description=data.get('description'),
-        status='Open' # Always open on creation
+        status='Open'
     )
     db.session.add(new_job)
     db.session.commit()
@@ -1577,4 +1577,5 @@ init_db()
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
 
+    
     
