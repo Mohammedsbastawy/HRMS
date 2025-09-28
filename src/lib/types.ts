@@ -1,5 +1,6 @@
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -285,7 +286,3 @@ export type TaxScheme = {
   active: boolean;
   brackets?: TaxBracket[];
 };
-
-    
-
-    

@@ -112,6 +112,9 @@ export default function AttendancePage() {
       case 'Late': return 'متأخر';
       case 'Absent': return 'غائب';
       case 'On Leave': return 'إجازة';
+      case 'EarlyLeave': return 'انصراف مبكر';
+      case 'Holiday': return 'يوم عطلة';
+      case 'WeeklyOff': return 'عطلة أسبوعية';
       default: return status;
     }
   };
