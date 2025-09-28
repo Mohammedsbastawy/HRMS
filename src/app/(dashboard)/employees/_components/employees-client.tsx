@@ -33,14 +33,20 @@ export function EmployeesPageClient() {
 
   useEffect(() => {
     async function fetchEmployees() {
+      setIsLoading(true);
       try {
-        setIsLoading(true);
-        const response = await fetch('/api/employees');
+        const token = localStorage.getItem('authToken');
+        const response = await fetch('/api/employees', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
         if (!response.ok) {
-          throw new Error('فشل في جلب بيانات الموظفين');
+          // Only throw an error for actual server errors, not for empty lists.
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'فشل في جلب بيانات الموظفين');
         }
         const data = await response.json();
-        setEmployees(data.employees);
+        // data.employees could be an empty array, which is a valid state.
+        setEmployees(data.employees || []);
       } catch (error: any) {
         toast({
           variant: 'destructive',
@@ -226,5 +232,3 @@ export function EmployeesPageClient() {
     </Card>
   );
 }
-
-    
