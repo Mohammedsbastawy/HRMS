@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
+import { useRouter } from 'next/navigation';
 
 export function EmployeesPageClient() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -28,6 +29,7 @@ export function EmployeesPageClient() {
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchEmployees() {
@@ -195,17 +197,13 @@ export function EmployeesPageClient() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => router.push(`/employees/${employee.id}`)}>
                           <Eye className="ml-2 h-4 w-4" />
                           عرض
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => router.push(`/employees/${employee.id}/edit`)}>
                           <Edit className="ml-2 h-4 w-4" />
                           تعديل
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive hover:!text-destructive">
-                          <Trash2 className="ml-2 h-4 w-4" />
-                          حذف
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
