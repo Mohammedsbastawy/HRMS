@@ -1069,6 +1069,7 @@ def get_dashboard_data():
 @app.route("/api/recruitment/jobs", methods=['GET', 'POST'])
 @jwt_required()
 def handle_recruitment_jobs():
+    current_user_identity = get_jwt_identity()
     if request.method == 'GET':
         jobs = Job.query.options(db.joinedload(Job.department)).order_by(Job.created_at.desc()).all()
         return jsonify({'jobs': [j.to_dict() for j in jobs]})
@@ -1076,7 +1077,6 @@ def handle_recruitment_jobs():
     if request.method == 'POST':
         data = request.get_json()
         
-        # Robust validation
         required_fields = ['title', 'dept_id', 'location', 'employment_type', 'openings']
         missing_fields = [field for field in required_fields if not data.get(field)]
         if missing_fields:
@@ -1102,7 +1102,7 @@ def handle_recruitment_jobs():
             )
             db.session.add(new_job)
             db.session.commit()
-            log_action("إضافة وظيفة", f"تمت إضافة وظيفة جديدة: {new_job.title}")
+            log_action("إضافة وظيفة", f"تمت إضافة وظيفة جديدة: {new_job.title}", username=current_user_identity.get('username'))
             return jsonify(new_job.to_dict()), 201
         except Exception as e:
             db.session.rollback()
@@ -1329,7 +1329,7 @@ def handle_zkt_devices():
         return jsonify(new_device.to_dict()), 201
 
     devices = ZktDevice.query.options(db.joinedload(ZktDevice.location)).order_by(ZktDevice.name).all()
-    return jsonify({'devices': [d.to_dict() for d in devices]})
+    return jsonify({'devices': [d.to_dict() for d in devices] or []})
 
 @app.route('/api/zkt-devices/<int:id>', methods=['PUT', 'DELETE'])
 @jwt_required()
