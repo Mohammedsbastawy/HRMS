@@ -18,7 +18,6 @@ import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
 import type { Department, JobTitle, Location } from '@/lib/types';
 
-// Updated and simplified schema to ensure data integrity
 const jobFormSchema = z.object({
   title: z.string().min(1, { message: 'المسمى الوظيفي مطلوب.' }),
   dept_id: z.string().min(1, { message: 'القسم مطلوب.' }),
@@ -91,7 +90,7 @@ export default function NewJobPage() {
       }
     }
     fetchInitialData();
-  }, [toast]);
+  }, []);
 
   const onSubmit = async (data: JobFormValues) => {
     try {
