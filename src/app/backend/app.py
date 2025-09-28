@@ -6,7 +6,7 @@ import os
 from datetime import datetime, date
 import logging
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager
+from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager, get_jwt
 from zk import ZK, const
 from collections import defaultdict
 from sqlalchemy import func, inspect, CheckConstraint
@@ -100,7 +100,6 @@ class Department(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     job_titles = db.relationship('JobTitle', backref='department', lazy=True, cascade="all, delete-orphan")
-    jobs = db.relationship('Job', backref='department', lazy=True)
 
     def to_dict(self):
         d = {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -536,7 +535,8 @@ class Job(db.Model):
     created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
     
     applicants = db.relationship('Applicant', backref='job', lazy='dynamic')
-    
+    department = db.relationship('Department', back_populates='jobs')
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -711,7 +711,9 @@ def login():
         if user.account_status != 'Active':
             return jsonify({"message": "الحساب غير نشط"}), 403
         
-        access_token = create_access_token(identity={'username': user.username, 'role': user.role, 'id': user.id})
+        additional_claims = {"username": user.username, "role": user.role}
+        access_token = create_access_token(identity=str(user.id), additional_claims=additional_claims)
+
         response = jsonify({
             "message": "Login successful",
             "token": access_token,
@@ -736,11 +738,11 @@ def logout():
 @app.route('/api/account/me', methods=['GET'])
 @jwt_required()
 def get_my_account():
-    current_user_identity = get_jwt_identity()
+    current_user_id = get_jwt_identity()
     user = User.query.options(
         db.joinedload(User.employee).joinedload(Employee.department),
         db.joinedload(User.employee).joinedload(Employee.job_title)
-    ).get(current_user_identity['id'])
+    ).get(int(current_user_id))
 
     if not user:
         return jsonify({"message": "المستخدم غير موجود"}), 404
@@ -762,8 +764,8 @@ def get_my_account():
 @app.route('/api/account/change-password', methods=['POST'])
 @jwt_required()
 def change_password():
-    current_user_identity = get_jwt_identity()
-    user = User.query.get(current_user_identity['id'])
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
     
     data = request.get_json()
     current_password = data.get('current_password')
@@ -783,9 +785,12 @@ def change_password():
 @app.route("/api/users", methods=['GET', 'POST'])
 @jwt_required()
 def handle_users():
-    current_user_identity = get_jwt_identity()
-    user = User.query.get(current_user_identity['id'])
-    if not user or user.role != 'Admin':
+    claims = get_jwt()
+    user_role = claims.get('role')
+    user_id = get_jwt_identity()
+    username = claims.get('username')
+
+    if not user_role or user_role != 'Admin':
         return jsonify({"message": "صلاحيات غير كافية"}), 403
 
     if request.method == 'POST':
@@ -805,7 +810,7 @@ def handle_users():
         new_user.set_password(data['password'])
         db.session.add(new_user)
         db.session.commit()
-        log_action("إضافة مستخدم", f"تمت إضافة مستخدم جديد: {new_user.username}", username=current_user_identity['username'], user_id=current_user_identity['id'])
+        log_action("إضافة مستخدم", f"تمت إضافة مستخدم جديد: {new_user.username}", username=username, user_id=int(user_id))
         create_notification(
             recipient_user_id=new_user.id,
             title="أهلاً بك في نظام HRMS!",
@@ -942,8 +947,11 @@ def handle_location(id):
 @app.route("/api/leaves", methods=['GET', 'POST'])
 @jwt_required()
 def handle_leaves():
-    current_user_identity = get_jwt_identity()
-    user = User.query.get(current_user_identity['id'])
+    claims = get_jwt()
+    user_role = claims.get('role')
+    user_id = get_jwt_identity()
+    
+    user = User.query.get(int(user_id))
 
     if request.method == 'POST':
         if not user.employee_id:
@@ -962,7 +970,6 @@ def handle_leaves():
         log_action("تقديم طلب إجازة", f"قدم الموظف {user.employee.full_name} طلب إجازة.", username=user.username, user_id=user.id)
         
         # Notify manager(s)
-        # This is a simplified notification. A real system would find the specific manager.
         managers = User.query.filter(User.role.in_(['Admin', 'HR', 'Manager'])).all()
         for manager in managers:
              if manager.id != user.id:
@@ -978,7 +985,7 @@ def handle_leaves():
 
     # GET request
     query = LeaveRequest.query
-    if user.role == 'Employee' and user.employee_id:
+    if user_role == 'Employee' and user.employee_id:
         query = query.filter_by(employee_id=user.employee_id)
         
     leave_requests = query.order_by(LeaveRequest.created_at.desc()).all()
@@ -988,8 +995,9 @@ def handle_leaves():
 @app.route("/api/leaves/<int:id>", methods=['PATCH'])
 @jwt_required()
 def update_leave(id):
-    current_user_identity = get_jwt_identity()
-    user_role = current_user_identity.get('role', 'Employee')
+    claims = get_jwt()
+    user_role = claims.get('role')
+    user_id = get_jwt_identity()
 
     if user_role not in ['Admin', 'HR', 'Manager']:
         return jsonify({"success": False, "message": "صلاحيات غير كافية"}), 403
@@ -1001,7 +1009,7 @@ def update_leave(id):
     if leave_request.status != 'Pending':
         return jsonify({"success": False, "message": "لم يتم العثور على الطلب أو تمت معالجته بالفعل."}), 404
     
-    approver_user = User.query.get(current_user_identity['id'])
+    approver_user = User.query.get(int(user_id))
 
     if action == 'approve':
         leave_request.status = 'Approved'
@@ -1046,6 +1054,7 @@ def update_leave(id):
 
 # --- Dashboard API ---
 @app.route("/api/dashboard", methods=['GET'])
+@jwt_required()
 def get_dashboard_data():
     employees = Employee.query.all()
     leave_requests = LeaveRequest.query.all()
@@ -1069,7 +1078,10 @@ def get_dashboard_data():
 @app.route("/api/recruitment/jobs", methods=['GET', 'POST'])
 @jwt_required()
 def handle_recruitment_jobs():
-    current_user_identity = get_jwt_identity()
+    claims = get_jwt()
+    username = claims.get('username')
+    user_id = get_jwt_identity()
+
     if request.method == 'GET':
         jobs = Job.query.options(db.joinedload(Job.department)).order_by(Job.created_at.desc()).all()
         return jsonify({'jobs': [j.to_dict() for j in jobs]})
@@ -1077,22 +1089,24 @@ def handle_recruitment_jobs():
     if request.method == 'POST':
         data = request.get_json()
         
+        # Stricter validation
         required_fields = ['title', 'dept_id', 'location', 'employment_type', 'openings']
         missing_fields = [field for field in required_fields if not data.get(field)]
         if missing_fields:
-            return jsonify({'message': f"الحقول التالية مطلوبة: {', '.join(missing_fields)}"}), 422
+            return jsonify({'message': f"بيانات غير مكتملة، الحقول التالية مطلوبة: {', '.join(missing_fields)}"}), 422
         
         try:
+            dept_id = int(data['dept_id'])
             openings = int(data['openings'])
             if openings < 1:
                  return jsonify({'message': 'عدد الشواغر يجب أن يكون 1 على الأقل.'}), 422
         except (ValueError, TypeError):
-            return jsonify({'message': 'عدد الشواغر يجب أن يكون رقمًا صحيحًا.'}), 422
+            return jsonify({'message': 'القسم وعدد الشواغر يجب أن يكونا أرقامًا صحيحة.'}), 422
 
         try:
             new_job = Job(
                 title=data['title'],
-                dept_id=int(data['dept_id']),
+                dept_id=dept_id,
                 location=data['location'],
                 employment_type=data['employment_type'],
                 openings=openings,
@@ -1102,7 +1116,7 @@ def handle_recruitment_jobs():
             )
             db.session.add(new_job)
             db.session.commit()
-            log_action("إضافة وظيفة", f"تمت إضافة وظيفة جديدة: {new_job.title}", username=current_user_identity.get('username'))
+            log_action("إضافة وظيفة", f"تمت إضافة وظيفة جديدة: {new_job.title}", username=username, user_id=int(user_id))
             return jsonify(new_job.to_dict()), 201
         except Exception as e:
             db.session.rollback()
@@ -1114,30 +1128,33 @@ def handle_recruitment_jobs():
 def get_job_applicants(job_id):
     applicants = Applicant.query.filter_by(job_id=job_id).order_by(Applicant.created_at.desc()).all()
     # This will be expanded later
-    return jsonify({'applicants': [a.to_dict() for a in applicants]})
+    return jsonify({'applicants': []}) # [a.to_dict() for a in applicants]
     
 # --- Other Read-only APIs ---
 @app.route("/api/payrolls", methods=['GET'])
+@jwt_required()
 def get_payrolls():
     payrolls = Payroll.query.options(db.joinedload(Payroll.employee)).order_by(Payroll.year.desc(), Payroll.month.desc()).all()
     return jsonify({"payrolls": [p.to_dict() for p in payrolls]})
     
 @app.route("/api/performance", methods=['GET'])
+@jwt_required()
 def get_performance():
     reviews = PerformanceReview.query.options(db.joinedload(PerformanceReview.employee)).order_by(PerformanceReview.review_date.desc()).all()
     return jsonify({"performanceReviews": [r.to_dict() for r in reviews]})
 
 @app.route("/api/audit-log", methods=['GET'])
+@jwt_required()
 def get_audit_logs():
     logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).all()
     return jsonify({"auditLogs": [log.to_dict() for log in logs]})
 
 @app.route("/api/attendance", methods=['GET'])
+@jwt_required()
 def get_attendance():
     raw_attendance_records = Attendance.query.options(db.joinedload(Attendance.employee)).order_by(Attendance.timestamp.desc()).all()
     
     # Group punches by employee and date
-    from collections import defaultdict
     grouped_punches = defaultdict(lambda: defaultdict(list))
     for record in raw_attendance_records:
         if record.employee: # Only process records linked to an employee
@@ -1301,9 +1318,12 @@ def handle_training_record(id):
 @app.route('/api/zkt-devices', methods=['GET', 'POST'])
 @jwt_required()
 def handle_zkt_devices():
-    current_user_identity = get_jwt_identity()
-    user = User.query.get(current_user_identity['id'])
-    if not user or user.role not in ['Admin', 'HR']:
+    claims = get_jwt()
+    user_role = claims.get('role')
+    user_id = get_jwt_identity()
+    username = claims.get('username')
+
+    if user_role not in ['Admin', 'HR']:
         return jsonify({"message": "صلاحيات غير كافية"}), 403
 
     if request.method == 'POST':
@@ -1325,7 +1345,7 @@ def handle_zkt_devices():
         )
         db.session.add(new_device)
         db.session.commit()
-        log_action("إضافة جهاز بصمة", f"تمت إضافة جهاز جديد: {new_device.name} ({new_device.ip_address})", username=current_user_identity['username'], user_id=current_user_identity['id'])
+        log_action("إضافة جهاز بصمة", f"تمت إضافة جهاز جديد: {new_device.name} ({new_device.ip_address})", username=username, user_id=int(user_id))
         return jsonify(new_device.to_dict()), 201
 
     devices = ZktDevice.query.options(db.joinedload(ZktDevice.location)).order_by(ZktDevice.name).all()
@@ -1334,9 +1354,12 @@ def handle_zkt_devices():
 @app.route('/api/zkt-devices/<int:id>', methods=['PUT', 'DELETE'])
 @jwt_required()
 def handle_zkt_device(id):
-    current_user_identity = get_jwt_identity()
-    user = User.query.get(current_user_identity['id'])
-    if not user or user.role not in ['Admin', 'HR']:
+    claims = get_jwt()
+    user_role = claims.get('role')
+    user_id = get_jwt_identity()
+    username = claims.get('username')
+
+    if user_role not in ['Admin', 'HR']:
         return jsonify({"message": "صلاحيات غير كافية"}), 403
     
     device = ZktDevice.query.get_or_404(id)
@@ -1349,11 +1372,11 @@ def handle_zkt_device(id):
         device.password = data.get('password', device.password)
         device.location_id = int(data['location_id']) if data.get('location_id') and data.get('location_id') != 'none' else None
         db.session.commit()
-        log_action("تحديث جهاز بصمة", f"تم تحديث بيانات الجهاز: {device.name}", username=current_user_identity['username'], user_id=current_user_identity['id'])
+        log_action("تحديث جهاز بصمة", f"تم تحديث بيانات الجهاز: {device.name}", username=username, user_id=int(user_id))
         return jsonify(device.to_dict())
     
     if request.method == 'DELETE':
-        log_action("حذف جهاز بصمة", f"تم حذف الجهاز: {device.name} ({device.ip_address})", username=current_user_identity['username'], user_id=current_user_identity['id'])
+        log_action("حذف جهاز بصمة", f"تم حذف الجهاز: {device.name} ({device.ip_address})", username=username, user_id=int(user_id))
         db.session.delete(device)
         db.session.commit()
         return jsonify({'message': 'تم حذف الجهاز بنجاح'})
@@ -1362,9 +1385,12 @@ def handle_zkt_device(id):
 @app.route('/api/disciplinary/actions', methods=['GET', 'POST'])
 @jwt_required()
 def handle_disciplinary_actions():
-    current_user_identity = get_jwt_identity()
-    user = User.query.get(current_user_identity['id'])
-    if user.role not in ['Admin', 'HR']:
+    claims = get_jwt()
+    user_role = claims.get('role')
+    user_id = get_jwt_identity()
+    username = claims.get('username')
+
+    if user_role not in ['Admin', 'HR']:
         return jsonify({"message": "صلاحيات غير كافية"}), 403
 
     if request.method == 'POST':
@@ -1380,7 +1406,7 @@ def handle_disciplinary_actions():
         )
         db.session.add(new_action)
         db.session.commit()
-        log_action("إجراء تأديبي يدوي", f"تم إنشاء إجراء يدوي '{new_action.title}' للموظف ID {new_action.employee_id}", username=user.username, user_id=user.id)
+        log_action("إجراء تأديبي يدوي", f"تم إنشاء إجراء يدوي '{new_action.title}' للموظف ID {new_action.employee_id}", username=username, user_id=int(user_id))
         return jsonify(new_action.to_dict()), 201
 
     actions = DisciplinaryAction.query.options(db.joinedload(DisciplinaryAction.employee)).order_by(DisciplinaryAction.created_at.desc()).all()
@@ -1390,9 +1416,12 @@ def handle_disciplinary_actions():
 @app.route('/api/payroll-components', methods=['GET', 'POST'])
 @jwt_required()
 def handle_payroll_components():
-    current_user_identity = get_jwt_identity()
-    user = User.query.get(current_user_identity['id'])
-    if user.role not in ['Admin', 'HR']:
+    claims = get_jwt()
+    user_role = claims.get('role')
+    user_id = get_jwt_identity()
+    username = claims.get('username')
+
+    if user_role not in ['Admin', 'HR']:
         return jsonify({"message": "صلاحيات غير كافية"}), 403
 
     if request.method == 'POST':
@@ -1415,7 +1444,7 @@ def handle_payroll_components():
         )
         db.session.add(new_component)
         db.session.commit()
-        log_action("إنشاء مكون راتب", f"تم إنشاء المكون: {new_component.name}", username=user.username, user_id=user.id)
+        log_action("إنشاء مكون راتب", f"تم إنشاء المكون: {new_component.name}", username=username, user_id=int(user_id))
         return jsonify(new_component.to_dict()), 201
 
     components = PayrollComponent.query.order_by(PayrollComponent.name).all()
@@ -1424,9 +1453,12 @@ def handle_payroll_components():
 @app.route('/api/payroll-components/<int:id>', methods=['PUT', 'DELETE'])
 @jwt_required()
 def handle_payroll_component(id):
-    current_user_identity = get_jwt_identity()
-    user = User.query.get(current_user_identity['id'])
-    if user.role not in ['Admin', 'HR']:
+    claims = get_jwt()
+    user_role = claims.get('role')
+    user_id = get_jwt_identity()
+    username = claims.get('username')
+
+    if user_role not in ['Admin', 'HR']:
         return jsonify({"message": "صلاحيات غير كافية"}), 403
 
     component = PayrollComponent.query.get_or_404(id)
@@ -1437,11 +1469,11 @@ def handle_payroll_component(id):
             if hasattr(component, key) and key != 'id':
                 setattr(component, key, value)
         db.session.commit()
-        log_action("تحديث مكون راتب", f"تم تحديث المكون: {component.name}", username=user.username, user_id=user.id)
+        log_action("تحديث مكون راتب", f"تم تحديث المكون: {component.name}", username=username, user_id=int(user_id))
         return jsonify(component.to_dict())
 
     if request.method == 'DELETE':
-        log_action("حذف مكون راتب", f"تم حذف المكون: {component.name}", username=user.username, user_id=user.id)
+        log_action("حذف مكون راتب", f"تم حذف المكون: {component.name}", username=username, user_id=int(user_id))
         db.session.delete(component)
         db.session.commit()
         return jsonify({'message': 'تم حذف المكون بنجاح'})
@@ -1450,9 +1482,12 @@ def handle_payroll_component(id):
 @app.route('/api/tax-schemes', methods=['GET', 'POST'])
 @jwt_required()
 def handle_tax_schemes():
-    current_user_identity = get_jwt_identity()
-    user = User.query.get(current_user_identity['id'])
-    if user.role not in ['Admin', 'HR']:
+    claims = get_jwt()
+    user_role = claims.get('role')
+    user_id = get_jwt_identity()
+    username = claims.get('username')
+
+    if user_role not in ['Admin', 'HR']:
         return jsonify({"message": "صلاحيات غير كافية"}), 403
     
     if request.method == 'POST':
@@ -1475,7 +1510,7 @@ def handle_tax_schemes():
                 db.session.add(new_bracket)
             db.session.commit()
         
-        log_action("إنشاء مخطط ضريبي", f"تم إنشاء مخطط: {new_scheme.name}", username=user.username, user_id=user.id)
+        log_action("إنشاء مخطط ضريبي", f"تم إنشاء مخطط: {new_scheme.name}", username=username, user_id=int(user_id))
         return jsonify(new_scheme.to_dict(include_brackets=True)), 201
 
     schemes = TaxScheme.query.order_by(TaxScheme.name).all()
@@ -1586,11 +1621,12 @@ def sync_all_devices():
 @app.route('/api/notifications', methods=['GET'])
 @jwt_required()
 def get_notifications():
-    current_user_identity = get_jwt_identity()
-    user_id = current_user_identity['id']
+    user_id = get_jwt_identity()
+    if not user_id:
+        return jsonify({"message": "Invalid token"}), 422
     
-    notifications = InAppNotification.query.filter_by(recipient_user_id=user_id).order_by(InAppNotification.created_at.desc()).all()
-    unread_count = InAppNotification.query.filter_by(recipient_user_id=user_id, status='Unread').count()
+    notifications = InAppNotification.query.filter_by(recipient_user_id=int(user_id)).order_by(InAppNotification.created_at.desc()).all()
+    unread_count = InAppNotification.query.filter_by(recipient_user_id=int(user_id), status='Unread').count()
 
     return jsonify({
         'notifications': [n.to_dict() for n in notifications],
@@ -1600,10 +1636,9 @@ def get_notifications():
 @app.route('/api/notifications/<int:id>/read', methods=['PATCH'])
 @jwt_required()
 def mark_notification_as_read(id):
-    current_user_identity = get_jwt_identity()
-    user_id = current_user_identity['id']
+    user_id = get_jwt_identity()
     
-    notification = InAppNotification.query.filter_by(id=id, recipient_user_id=user_id).first_or_404()
+    notification = InAppNotification.query.filter_by(id=id, recipient_user_id=int(user_id)).first_or_404()
     notification.status = 'Read'
     db.session.commit()
     
@@ -1612,10 +1647,9 @@ def mark_notification_as_read(id):
 @app.route('/api/notifications/read-all', methods=['POST'])
 @jwt_required()
 def mark_all_notifications_as_read():
-    current_user_identity = get_jwt_identity()
-    user_id = current_user_identity['id']
+    user_id = get_jwt_identity()
     
-    InAppNotification.query.filter_by(recipient_user_id=user_id, status='Unread').update({'status': 'Read'})
+    InAppNotification.query.filter_by(recipient_user_id=int(user_id), status='Unread').update({'status': 'Read'})
     db.session.commit()
     
     return jsonify({'message': 'All notifications marked as read.'})
@@ -1657,5 +1691,7 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    
 
     
