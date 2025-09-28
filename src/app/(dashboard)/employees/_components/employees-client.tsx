@@ -140,7 +140,7 @@ export function EmployeesPageClient() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="text-right">الرقم</TableHead>
+              <TableHead className="text-right">ID الموظف</TableHead>
               <TableHead className="text-right">الاسم</TableHead>
               <TableHead className="text-right">البريد الإلكتروني</TableHead>
               <TableHead className="text-right">القسم</TableHead>
@@ -163,7 +163,7 @@ export function EmployeesPageClient() {
             ) : filteredEmployees.length > 0 ? (
               filteredEmployees.map((employee) => (
                 <TableRow key={employee.id}>
-                  <TableCell className="font-medium">{employee.id}</TableCell>
+                  <TableCell className="font-medium">{employee.zk_uid}</TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-3">
                       <span>{employee.full_name}</span>

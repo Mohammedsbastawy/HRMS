@@ -29,6 +29,7 @@ import { useState } from "react";
 import type { Department, JobTitle, Location } from "@/lib/types";
 
 const employeeFormSchema = z.object({
+  zk_uid: z.string().min(1, { message: "ID الموظف مطلوب." }),
   full_name: z.string().min(2, { message: "الاسم الكامل مطلوب." }),
   email: z.string().email({ message: "بريد إلكتروني غير صالح." }),
   department_id: z.string({ required_error: "القسم مطلوب." }),
@@ -57,6 +58,7 @@ export function EmployeeForm({ departments, jobTitles, locations, managers }: Em
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema),
     defaultValues: {
+      zk_uid: "",
       full_name: "",
       email: "",
       hire_date: new Date().toISOString().split('T')[0],
@@ -102,6 +104,19 @@ export function EmployeeForm({ departments, jobTitles, locations, managers }: Em
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <FormField
+            control={form.control}
+            name="zk_uid"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>ID الموظف (للبصمة)</FormLabel>
+                <FormControl>
+                  <Input placeholder="مثال: 101" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+           <FormField
             control={form.control}
             name="full_name"
             render={({ field }) => (

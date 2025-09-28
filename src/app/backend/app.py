@@ -170,6 +170,7 @@ class Employee(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
+            'zk_uid': self.zk_uid,
             'full_name': self.full_name,
             'email': self.email,
             'hire_date': self.hire_date,
@@ -469,7 +470,6 @@ class PayrollAdjustment(db.Model):
     reason = db.Column(db.String, nullable=False)
     source = db.Column(db.String, default='disciplinary')
     source_id = db.Column(db.Integer)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     __table_args__ = (db.UniqueConstraint('employee_id', 'month', 'source', 'source_id', name='_employee_month_source_uc'),)
 
 class PayrollComponent(db.Model):
@@ -846,6 +846,7 @@ def handle_employees():
                 manager_id = int(manager_id)
 
             new_employee = Employee(
+                zk_uid=data['zk_uid'],
                 full_name=data['full_name'],
                 email=data['email'],
                 department_id=int(data['department_id']),
@@ -863,6 +864,8 @@ def handle_employees():
         except Exception as e:
             db.session.rollback()
             app.logger.error(f"Error adding employee: {e}")
+            if 'UNIQUE constraint failed: employees.zk_uid' in str(e):
+                 return jsonify({"message": "ID الموظف موجود بالفعل. يرجى استخدام ID فريد."}), 409
             return jsonify({"message": "حدث خطأ داخلي"}), 500
 
     is_manager = request.args.get('is_manager')

@@ -7,6 +7,7 @@
 
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -37,6 +38,7 @@ export type JobTitle = {
 
 export type Employee = {
   id: number;
+  zk_uid?: string;
   full_name: string;
   email: string;
   phone?: string | null;
