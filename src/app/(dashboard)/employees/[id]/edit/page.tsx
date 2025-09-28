@@ -21,7 +21,6 @@ interface EditEmployeePageProps {
 }
 
 export default function EditEmployeePage({ params }: EditEmployeePageProps) {
-  const { id } = params;
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [jobTitles, setJobTitles] = useState<JobTitle[]>([]);
@@ -34,11 +33,11 @@ export default function EditEmployeePage({ params }: EditEmployeePageProps) {
     setIsLoading(true);
     try {
         const [employeeRes, deptsRes, jobsRes, locsRes, mgrsRes] = await Promise.all([
-            fetch(`/api/employees/${id}`),
+            fetch(`/api/employees/${params.id}`),
             fetch('/api/departments'),
             fetch('/api/job-titles'),
             fetch('/api/locations'),
-            fetch(`/api/employees?is_manager=true&exclude_id=${id}`),
+            fetch(`/api/employees?is_manager=true&exclude_id=${params.id}`),
         ]);
 
         if (!employeeRes.ok) throw await employeeRes.json();
@@ -69,7 +68,7 @@ export default function EditEmployeePage({ params }: EditEmployeePageProps) {
       } finally {
         setIsLoading(false);
       }
-  }, [id, toast]);
+  }, [params.id, toast]);
 
   useEffect(() => {
     fetchFormData();
