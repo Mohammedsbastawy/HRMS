@@ -16,22 +16,38 @@ import { PlusCircle, Edit, Trash2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import type { Department, JobTitle } from '@/lib/types';
 import { useToast } from '@/components/ui/use-toast';
+import { useRouter } from 'next/navigation';
 
 export default function DepartmentsPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [jobTitles, setJobTitles] = useState<JobTitle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchData() {
       try {
         setIsLoading(true);
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          router.push('/login');
+          return;
+        }
+
+        const headers = { 'Authorization': `Bearer ${token}` };
+        
         const [deptsResponse, jobsResponse] = await Promise.all([
-          fetch('/api/departments'),
-          fetch('/api/job-titles')
+          fetch('/api/departments', { headers }),
+          fetch('/api/job-titles', { headers })
         ]);
         
+        if (deptsResponse.status === 401 || jobsResponse.status === 401) {
+          toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+          router.push('/login');
+          return;
+        }
+
         if (!deptsResponse.ok || !jobsResponse.ok) {
           throw new Error('فشل في جلب البيانات');
         }
@@ -51,7 +67,7 @@ export default function DepartmentsPage() {
       }
     }
     fetchData();
-  }, [toast]);
+  }, [router, toast]);
 
   return (
     <div className="flex flex-col gap-8">
