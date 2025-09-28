@@ -1,3 +1,4 @@
+
 // Inspired by react-hot-toast library
 import * as React from "react"
 
@@ -5,6 +6,7 @@ import type {
   ToastActionElement,
   ToastProps,
 } from "@/components/ui/toast"
+import { ErrorDialogContext } from "@/components/error-dialog-provider";
 
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000000
@@ -14,6 +16,7 @@ type ToasterToast = ToastProps & {
   title?: React.ReactNode
   description?: React.ReactNode
   action?: ToastActionElement
+  details?: any; // To hold detailed error info
 }
 
 const actionTypes = {
@@ -171,6 +174,8 @@ function toast({ ...props }: Toast) {
 
 function useToast() {
   const [state, setState] = React.useState<State>(memoryState)
+  const errorDialog = React.useContext(ErrorDialogContext);
+
 
   React.useEffect(() => {
     listeners.push(setState)
@@ -182,9 +187,21 @@ function useToast() {
     }
   }, [state])
 
+  const customToast = (props: Toast) => {
+    if (props.variant === 'destructive' && errorDialog) {
+        errorDialog.showError({
+            title: props.title as string,
+            description: props.description as string,
+            details: props.details
+        });
+    } else {
+        toast(props);
+    }
+  }
+
   return {
     ...state,
-    toast,
+    toast: customToast,
     dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
   }
 }

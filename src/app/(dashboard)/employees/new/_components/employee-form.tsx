@@ -79,7 +79,7 @@ export function EmployeeForm({ departments, jobTitles, locations, managers }: Em
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.message || 'فشل في إضافة الموظف');
+            throw errorData;
         }
 
         toast({
@@ -91,7 +91,8 @@ export function EmployeeForm({ departments, jobTitles, locations, managers }: Em
         toast({
             variant: "destructive",
             title: "حدث خطأ!",
-            description: error.message || "فشل في إضافة الموظف. يرجى المحاولة مرة أخرى.",
+            description: error.message || "فشل في إضافة الموظف.",
+            details: error
         });
     }
   }

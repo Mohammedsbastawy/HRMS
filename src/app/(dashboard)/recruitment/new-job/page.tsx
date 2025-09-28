@@ -20,13 +20,19 @@ import type { Department, JobTitle, Location } from '@/lib/types';
 
 // Updated and simplified schema to ensure data integrity
 const jobFormSchema = z.object({
-  title: z.string().min(1, { message: "المسمى الوظيفي مطلوب." }),
-  dept_id: z.string().min(1, { message: "القسم مطلوب." }),
+  title: z.string().min(1, { message: 'المسمى الوظيفي مطلوب.' }),
+  dept_id: z.string().min(1, { message: 'القسم مطلوب.' }),
   description: z.string().optional(),
-  location: z.string().min(1, { message: "الموقع مطلوب." }),
-  employment_type: z.enum(['full-time', 'part-time', 'contract', 'intern', 'temporary'], { required_error: "نوع التوظيف مطلوب."}),
+  location: z.string().min(1, { message: 'الموقع مطلوب.' }),
+  employment_type: z.enum(['full-time', 'part-time', 'contract', 'intern', 'temporary'], {
+    required_error: 'نوع التوظيف مطلوب.',
+  }),
   seniority: z.enum(['junior', 'mid', 'senior', 'lead', 'manager', 'director']).optional(),
-  openings: z.coerce.number({invalid_type_error: "يجب أن يكون رقمًا"}).int("يجب أن يكون رقمًا صحيحًا").min(1, "يجب أن يكون هناك شاغر واحد على الأقل").default(1),
+  openings: z.coerce
+    .number({ invalid_type_error: 'يجب أن يكون رقمًا' })
+    .int('يجب أن يكون رقمًا صحيحًا')
+    .min(1, 'يجب أن يكون هناك شاغر واحد على الأقل')
+    .default(1),
   status: z.enum(['Open', 'On-Hold', 'Closed']).default('Open'),
 });
 
@@ -58,14 +64,14 @@ export default function NewJobPage() {
       setIsLoading(true);
       try {
         const token = localStorage.getItem('authToken');
-        const headers = { 'Authorization': `Bearer ${token}` };
+        const headers = { Authorization: `Bearer ${token}` };
         const [deptsRes, jobsRes, locsRes] = await Promise.all([
           fetch('/api/departments', { headers }),
           fetch('/api/job-titles', { headers }),
           fetch('/api/locations', { headers }),
         ]);
         if (!deptsRes.ok || !jobsRes.ok || !locsRes.ok) throw new Error('فشل في جلب البيانات');
-        
+
         const deptsData = await deptsRes.json();
         const jobsData = await jobsRes.json();
         const locsData = await locsRes.json();
@@ -73,9 +79,13 @@ export default function NewJobPage() {
         setDepartments(deptsData.departments);
         setJobTitles(jobsData);
         setLocations(locsData.locations);
-
       } catch (error: any) {
-        toast({ variant: 'destructive', title: 'خطأ', description: error.message });
+        toast({
+          variant: 'destructive',
+          title: 'خطأ في تحميل البيانات',
+          description: error.message,
+          details: error,
+        });
       } finally {
         setIsLoading(false);
       }
@@ -88,26 +98,30 @@ export default function NewJobPage() {
       const token = localStorage.getItem('authToken');
       const response = await fetch('/api/recruitment/jobs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(data),
       });
 
       const responseData = await response.json();
       if (!response.ok) {
-        throw new Error(responseData.message || 'فشل في إنشاء الوظيفة');
+        throw responseData;
       }
-      
+
       toast({ title: 'تم إنشاء الوظيفة بنجاح' });
       router.push('/recruitment');
-      
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'خطأ في إنشاء الوظيفة', description: error.message });
+      toast({
+        variant: 'destructive',
+        title: 'فشل في إنشاء الوظيفة',
+        description: error.message || 'يرجى مراجعة البيانات المدخلة والمحاولة مرة أخرى.',
+        details: error,
+      });
     }
   };
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-40">
+      <div className="flex h-40 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
         <p>جاري تحميل البيانات...</p>
       </div>
@@ -115,7 +129,7 @@ export default function NewJobPage() {
   }
 
   return (
-    <Card className="max-w-4xl mx-auto">
+    <Card className="mx-auto max-w-4xl">
       <CardHeader>
         <CardTitle>إضافة وظيفة شاغرة جديدة</CardTitle>
         <CardDescription>املأ تفاصيل الوظيفة لنشرها داخليًا.</CardDescription>
@@ -123,8 +137,8 @@ export default function NewJobPage() {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               <FormField
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <FormField
                 control={form.control}
                 name="dept_id"
                 render={({ field }) => (
@@ -137,7 +151,11 @@ export default function NewJobPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {departments.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name_ar}</SelectItem>)}
+                        {departments.map((d) => (
+                          <SelectItem key={d.id} value={String(d.id)}>
+                            {d.name_ar}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -150,14 +168,18 @@ export default function NewJobPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>المسمى الوظيفي</FormLabel>
-                     <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="اختر المسمى الوظيفي" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {jobTitles.map(jt => <SelectItem key={jt.id} value={jt.title_ar}>{jt.title_ar}</SelectItem>)}
+                        {jobTitles.map((jt) => (
+                          <SelectItem key={jt.id} value={jt.title_ar}>
+                            {jt.title_ar}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -180,7 +202,7 @@ export default function NewJobPage() {
               )}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
               <FormField
                 control={form.control}
                 name="location"
@@ -194,7 +216,11 @@ export default function NewJobPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {locations.map(loc => <SelectItem key={loc.id} value={loc.name_ar}>{loc.name_ar}</SelectItem>)}
+                        {locations.map((loc) => (
+                          <SelectItem key={loc.id} value={loc.name_ar}>
+                            {loc.name_ar}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -208,7 +234,11 @@ export default function NewJobPage() {
                   <FormItem>
                     <FormLabel>نوع التوظيف</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
                       <SelectContent>
                         <SelectItem value="full-time">دوام كامل</SelectItem>
                         <SelectItem value="part-time">دوام جزئي</SelectItem>
@@ -235,7 +265,7 @@ export default function NewJobPage() {
                 )}
               />
             </div>
-            
+
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" asChild>
                 <Link href="/recruitment">إلغاء</Link>

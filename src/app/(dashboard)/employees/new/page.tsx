@@ -33,9 +33,10 @@ export default function NewEmployeePage() {
           fetch('/api/employees?is_manager=true'),
         ]);
 
-        if (!deptsRes.ok || !jobsRes.ok || !locsRes.ok || !mgrsRes.ok) {
-          throw new Error('فشل في تحميل بيانات النموذج');
-        }
+        if (!deptsRes.ok) throw await deptsRes.json();
+        if (!jobsRes.ok) throw await jobsRes.json();
+        if (!locsRes.ok) throw await locsRes.json();
+        if (!mgrsRes.ok) throw await mgrsRes.json();
 
         const deptsData = await deptsRes.json();
         const jobsData = await jobsRes.json();
@@ -50,8 +51,9 @@ export default function NewEmployeePage() {
       } catch (error: any) {
         toast({
           variant: "destructive",
-          title: "خطأ",
+          title: "خطأ في تحميل بيانات النموذج",
           description: error.message,
+          details: error
         });
       } finally {
         setIsLoading(false);

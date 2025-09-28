@@ -62,7 +62,7 @@ export default function NewDepartmentPage() {
       });
 
       if (!response.ok) {
-        throw new Error('فشل في إنشاء القسم');
+        throw await response.json();
       }
 
       toast({
@@ -70,11 +70,12 @@ export default function NewDepartmentPage() {
         description: `تمت إضافة قسم "${data.name_ar}" إلى قاعدة البيانات.`,
       });
       router.push('/departments');
-    } catch (error) {
+    } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "حدث خطأ!",
-        description: "فشل في إنشاء القسم. يرجى المحاولة مرة أخرى.",
+        title: "فشل في إنشاء القسم",
+        description: error.message || "يرجى المحاولة مرة أخرى.",
+        details: error
       });
     }
   }

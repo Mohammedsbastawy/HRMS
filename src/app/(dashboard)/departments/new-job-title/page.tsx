@@ -53,8 +53,13 @@ export default function NewJobTitlePage() {
         const res = await fetch('/api/departments');
         const data = await res.json();
         setDepartments(data.departments);
-      } catch (error) {
-        toast({ variant: 'destructive', title: 'فشل في جلب الأقسام' });
+      } catch (error: any) {
+        toast({
+          variant: 'destructive',
+          title: 'فشل في جلب الأقسام',
+          description: error.message,
+          details: error,
+        });
       }
     }
     fetchDepartments();
@@ -78,7 +83,7 @@ export default function NewJobTitlePage() {
       });
 
       if (!response.ok) {
-        throw new Error('فشل في إنشاء المسمى الوظيفي');
+        throw await response.json();
       }
 
       toast({
@@ -86,11 +91,12 @@ export default function NewJobTitlePage() {
         description: `تمت إضافة "${data.title_ar}".`,
       });
       router.push('/departments');
-    } catch (error) {
+    } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "حدث خطأ!",
-        description: "فشل في إنشاء المسمى الوظيفي.",
+        title: "فشل في إنشاء المسمى الوظيفي",
+        description: error.message,
+        details: error
       });
     }
   }

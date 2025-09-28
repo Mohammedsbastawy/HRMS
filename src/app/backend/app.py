@@ -1077,18 +1077,17 @@ def handle_recruitment_jobs():
         data = request.get_json()
         
         # Robust validation
-        if not data:
-            return jsonify({'message': 'لم يتم إرسال أي بيانات.'}), 400
-        if not data.get('title'):
-            return jsonify({'message': 'المسمى الوظيفي مطلوب.'}), 422
-        if not data.get('dept_id'):
-            return jsonify({'message': 'القسم مطلوب.'}), 422
-        if not data.get('location'):
-            return jsonify({'message': 'الموقع مطلوب.'}), 422
-        if not data.get('employment_type'):
-            return jsonify({'message': 'نوع التوظيف مطلوب.'}), 422
-        if not data.get('openings') or not str(data.get('openings')).isdigit() or int(data.get('openings')) < 1:
-            return jsonify({'message': 'عدد الشواغر يجب أن يكون رقمًا صحيحًا أكبر من صفر.'}), 422
+        required_fields = ['title', 'dept_id', 'location', 'employment_type', 'openings']
+        missing_fields = [field for field in required_fields if not data.get(field)]
+        if missing_fields:
+            return jsonify({'message': f"الحقول التالية مطلوبة: {', '.join(missing_fields)}"}), 422
+        
+        try:
+            openings = int(data['openings'])
+            if openings < 1:
+                 return jsonify({'message': 'عدد الشواغر يجب أن يكون 1 على الأقل.'}), 422
+        except (ValueError, TypeError):
+            return jsonify({'message': 'عدد الشواغر يجب أن يكون رقمًا صحيحًا.'}), 422
 
         try:
             new_job = Job(
@@ -1096,13 +1095,9 @@ def handle_recruitment_jobs():
                 dept_id=int(data['dept_id']),
                 location=data['location'],
                 employment_type=data['employment_type'],
-                openings=int(data['openings']),
+                openings=openings,
                 description=data.get('description'),
                 seniority=data.get('seniority'),
-                salary_min=float(data.get('salary_min')) if data.get('salary_min') else None,
-                salary_max=float(data.get('salary_max')) if data.get('salary_max') else None,
-                currency=data.get('currency', 'SAR'),
-                remote_allowed=bool(data.get('remote_allowed', False)),
                 status=data.get('status', 'Open')
             )
             db.session.add(new_job)
@@ -1112,7 +1107,7 @@ def handle_recruitment_jobs():
         except Exception as e:
             db.session.rollback()
             app.logger.error(f"Error creating job: {e}")
-            return jsonify({'message': f'خطأ داخلي أثناء إنشاء الوظيفة: {e}'}), 500
+            return jsonify({'message': 'خطأ داخلي أثناء إنشاء الوظيفة.', 'details': str(e)}), 500
 
 @app.route("/api/recruitment/jobs/<int:job_id>/applicants", methods=['GET'])
 @jwt_required()
