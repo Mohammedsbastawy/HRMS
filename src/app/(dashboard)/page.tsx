@@ -29,6 +29,7 @@ import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/components/ui/use-toast';
+import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<any[]>([]);
@@ -36,6 +37,7 @@ export default function DashboardPage() {
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const router = useRouter();
 
   const fetchDashboardData = useCallback(async () => {
     setIsLoading(true);
@@ -44,6 +46,17 @@ export default function DashboardPage() {
       const response = await fetch('/api/dashboard', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
+      if (response.status === 401) {
+        toast({
+            variant: 'destructive',
+            title: 'الجلسة منتهية',
+            description: 'انتهت صلاحية جلسة الدخول. يرجى تسجيل الدخول مرة أخرى.',
+        });
+        router.push('/login');
+        return;
+      }
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'فشل في جلب بيانات لوحة التحكم' }));
         throw errorData;
@@ -76,7 +89,7 @@ export default function DashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, router]);
 
   useEffect(() => {
     fetchDashboardData();
