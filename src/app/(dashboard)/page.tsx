@@ -27,7 +27,7 @@ import {
 import type { Employee, LeaveRequest, PerformanceReview } from '@/lib/types';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 
 export default function DashboardPage() {
@@ -37,49 +37,50 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  useEffect(() => {
-    async function fetchDashboardData() {
-      setIsLoading(true);
-      try {
-        const token = localStorage.getItem('authToken');
-        const response = await fetch('/api/dashboard', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ message: 'فشل في جلب بيانات لوحة التحكم' }));
-          throw new Error(errorData.message);
-        }
-        const data = await response.json();
-        
-        const averagePerformance = data.performanceReviews.length > 0 
-          ? (data.performanceReviews.reduce((acc: number, r: PerformanceReview) => acc + r.score, 0) / data.performanceReviews.length).toFixed(1) 
-          : "0";
-        
-        const openJobsCount = data.jobs?.length || 0;
-
-        setStats([
-          { title: 'إجمالي الموظفين', value: data.employees.length, icon: Users, change: `+${data.employees.filter((e: Employee) => e.hire_date && new Date(e.hire_date).getMonth() === new Date().getMonth()).length} هذا الشهر` },
-          { title: 'طلبات الإجازة المعلقة', value: data.leaveRequests.filter((l: LeaveRequest) => l.status === 'Pending').length, icon: CalendarCheck, change: `${data.leaveRequests.filter((l: LeaveRequest) => l.status === 'Approved').length} موافق عليها` },
-          { title: 'وظائف شاغرة', value: openJobsCount, icon: Briefcase },
-          { title: 'متوسط تقييم الأداء', value: averagePerformance, icon: Star, change: 'مقارنة بالربع الماضي' },
-        ]);
-
-        setPendingLeaves(data.leaveRequests.filter((l: LeaveRequest) => l.status === 'Pending').slice(0, 5));
-        setRecentActivities(data.recentActivities);
-
-      } catch (error: any) {
-        toast({
-          variant: 'destructive',
-          title: 'خطأ',
-          description: error.message,
-          details: error
-        });
-      } finally {
-        setIsLoading(false);
+  const fetchDashboardData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/dashboard', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'فشل في جلب بيانات لوحة التحكم' }));
+        throw new Error(errorData.message);
       }
+      const data = await response.json();
+      
+      const averagePerformance = data.performanceReviews.length > 0 
+        ? (data.performanceReviews.reduce((acc: number, r: PerformanceReview) => acc + r.score, 0) / data.performanceReviews.length).toFixed(1) 
+        : "0";
+      
+      const openJobsCount = data.jobs?.length || 0;
+
+      setStats([
+        { title: 'إجمالي الموظفين', value: data.employees.length, icon: Users, change: `+${data.employees.filter((e: Employee) => e.hire_date && new Date(e.hire_date).getMonth() === new Date().getMonth()).length} هذا الشهر` },
+        { title: 'طلبات الإجازة المعلقة', value: data.leaveRequests.filter((l: LeaveRequest) => l.status === 'Pending').length, icon: CalendarCheck, change: `${data.leaveRequests.filter((l: LeaveRequest) => l.status === 'Approved').length} موافق عليها` },
+        { title: 'وظائف شاغرة', value: openJobsCount, icon: Briefcase },
+        { title: 'متوسط تقييم الأداء', value: averagePerformance, icon: Star, change: 'مقارنة بالربع الماضي' },
+      ]);
+
+      setPendingLeaves(data.leaveRequests.filter((l: LeaveRequest) => l.status === 'Pending').slice(0, 5));
+      setRecentActivities(data.recentActivities);
+
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'خطأ',
+        description: error.message,
+        details: error
+      });
+    } finally {
+      setIsLoading(false);
     }
+  }, [toast]);
+
+  useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [fetchDashboardData]);
   
   if (isLoading) {
     return (
