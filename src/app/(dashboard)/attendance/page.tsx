@@ -30,7 +30,10 @@ export default function AttendancePage() {
   const fetchAttendance = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/attendance');
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/attendance', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (!response.ok) throw new Error('فشل في جلب سجلات الحضور');
       const data = await response.json();
       setAttendance(data.attendance);
