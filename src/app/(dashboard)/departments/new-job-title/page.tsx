@@ -50,7 +50,19 @@ export default function NewJobTitlePage() {
   useEffect(() => {
     async function fetchDepartments() {
       try {
-        const res = await fetch('/api/departments');
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          router.push('/login');
+          return;
+        }
+        const res = await fetch('/api/departments', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.status === 401) {
+          toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+          router.push('/login');
+          return;
+        }
         const data = await res.json();
         setDepartments(data.departments);
       } catch (error: any) {
@@ -63,7 +75,7 @@ export default function NewJobTitlePage() {
       }
     }
     fetchDepartments();
-  }, [toast]);
+  }, [toast, router]);
 
   const form = useForm<JobTitleFormValues>({
     resolver: zodResolver(jobTitleFormSchema),
@@ -76,11 +88,26 @@ export default function NewJobTitlePage() {
 
   async function onSubmit(data: JobTitleFormValues) {
     try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+        router.push('/login');
+        return;
+      }
       const response = await fetch('/api/job-titles', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(data),
       });
+
+      if (response.status === 401) {
+        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+        router.push('/login');
+        return;
+      }
 
       if (!response.ok) {
         throw await response.json();
