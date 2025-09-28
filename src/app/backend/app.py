@@ -1014,6 +1014,7 @@ def get_recruitment_data():
 @jwt_required()
 def handle_recruitment_jobs():
     data = request.get_json()
+    
     if not data or not data.get('department_id') or not data.get('title'):
         return jsonify({"message": "بيانات غير مكتملة، القسم والمسمى الوظيفي مطلوبان"}), 422
     
