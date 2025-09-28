@@ -16,10 +16,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
-import type { Department } from '@/lib/types';
+import type { Department, JobTitle, Location } from '@/lib/types';
 
 const jobFormSchema = z.object({
-  title: z.string().min(3, { message: "المسمى الوظيفي مطلوب." }),
+  title: z.string().min(1, { message: "المسمى الوظيفي مطلوب." }),
   dept_id: z.string({ required_error: "القسم مطلوب." }),
   description: z.string().optional(),
   location: z.string().optional(),
@@ -33,6 +33,8 @@ type JobFormValues = z.infer<typeof jobFormSchema>;
 
 export default function NewJobPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [jobTitles, setJobTitles] = useState<JobTitle[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
@@ -54,12 +56,22 @@ export default function NewJobPage() {
       setIsLoading(true);
       try {
         const token = localStorage.getItem('authToken');
-        const [deptsRes] = await Promise.all([
-          fetch('/api/departments', { headers: { 'Authorization': `Bearer ${token}` } }),
+        const headers = { 'Authorization': `Bearer ${token}` };
+        const [deptsRes, jobsRes, locsRes] = await Promise.all([
+          fetch('/api/departments', { headers }),
+          fetch('/api/job-titles', { headers }),
+          fetch('/api/locations', { headers }),
         ]);
-        if (!deptsRes.ok) throw new Error('فشل في جلب بيانات الأقسام');
+        if (!deptsRes.ok || !jobsRes.ok || !locsRes.ok) throw new Error('فشل في جلب البيانات');
+        
         const deptsData = await deptsRes.json();
+        const jobsData = await jobsRes.json();
+        const locsData = await locsRes.json();
+
         setDepartments(deptsData.departments);
+        setJobTitles(jobsData);
+        setLocations(locsData.locations);
+
       } catch (error: any) {
         toast({ variant: 'destructive', title: 'خطأ', description: error.message });
       } finally {
@@ -110,20 +122,7 @@ export default function NewJobPage() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>المسمى الوظيفي</FormLabel>
-                    <FormControl>
-                      <Input placeholder="مثال: مطور واجهات أمامية" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
+               <FormField
                 control={form.control}
                 name="dept_id"
                 render={({ field }) => (
@@ -137,6 +136,26 @@ export default function NewJobPage() {
                       </FormControl>
                       <SelectContent>
                         {departments.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name_ar}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>المسمى الوظيفي</FormLabel>
+                     <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="اختر المسمى الوظيفي" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {jobTitles.map(jt => <SelectItem key={jt.id} value={jt.title_ar}>{jt.title_ar}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -166,9 +185,16 @@ export default function NewJobPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>الموقع</FormLabel>
-                    <FormControl>
-                      <Input placeholder="الرياض، السعودية" {...field} />
-                    </FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="اختر موقع العمل" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {locations.map(loc => <SelectItem key={loc.id} value={loc.name_ar}>{loc.name_ar}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
