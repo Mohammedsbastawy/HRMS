@@ -20,7 +20,6 @@ import { Button } from '@/components/ui/button';
 import {
   Users,
   CalendarCheck,
-  Briefcase,
   Star,
   Loader2
 } from 'lucide-react';
@@ -54,7 +53,6 @@ export default function DashboardPage() {
         setStats([
           { title: 'إجمالي الموظفين', value: data.employees.length, icon: Users, change: `+${data.employees.filter((e: Employee) => e.hire_date && new Date(e.hire_date).getMonth() === new Date().getMonth()).length} هذا الشهر` },
           { title: 'طلبات الإجازة المعلقة', value: data.leaveRequests.filter((l: LeaveRequest) => l.status === 'Pending').length, icon: CalendarCheck, change: `${data.leaveRequests.filter((l: LeaveRequest) => l.status === 'Approved').length} موافق عليها` },
-          { title: 'وظائف شاغرة', value: data.jobs.length, icon: Briefcase, change: `+${data.jobs.filter((j: Job) => j.created_at && new Date(j.created_at).getMonth() === new Date().getMonth()).length} جديدة` },
           { title: 'متوسط تقييم الأداء', value: averagePerformance, icon: Star, change: 'مقارنة بالربع الماضي' },
         ]);
 
@@ -85,7 +83,7 @@ export default function DashboardPage() {
   return (
     <div className="flex min-h-screen w-full flex-col">
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
-        <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
           {stats.map(stat => (
             <Card key={stat.title}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -177,5 +175,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
