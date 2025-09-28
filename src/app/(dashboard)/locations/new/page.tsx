@@ -58,15 +58,29 @@ export default function NewLocationPage() {
   useEffect(() => {
     async function fetchEmployees() {
        try {
-        const response = await fetch('/api/employees?is_manager=true');
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          router.push('/login');
+          return;
+        }
+        const response = await fetch('/api/employees?is_manager=true', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.status === 401) {
+             toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+             router.push('/login');
+             return;
+        }
+        if (!response.ok) throw new Error('فشل في جلب المدراء');
+        
         const data = await response.json();
         setEmployees(data.employees);
-       } catch (error) {
-         toast({ variant: 'destructive', title: 'فشل في جلب بيانات المدراء' });
+       } catch (error: any) {
+         toast({ variant: 'destructive', title: 'فشل في جلب بيانات المدراء', description: error.message });
        }
     }
     fetchEmployees();
-  }, [toast]);
+  }, [toast, router]);
 
 
   const form = useForm<LocationFormValues>({
@@ -87,24 +101,32 @@ export default function NewLocationPage() {
 
   async function onSubmit(data: LocationFormValues) {
     try {
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          router.push('/login');
+          return;
+        }
         const response = await fetch('/api/locations', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify(data)
         });
         if (!response.ok) {
-            throw new Error('فشل في إنشاء الموقع');
+            throw await response.json();
         }
         toast({
             title: "تم إنشاء الموقع بنجاح!",
             description: `تمت إضافة موقع "${data.name_ar}" إلى قاعدة البيانات.`,
         });
         router.push('/locations');
-    } catch (error) {
+    } catch (error: any) {
         toast({
             variant: "destructive",
             title: "حدث خطأ!",
-            description: "فشل في إنشاء الموقع. يرجى المحاولة مرة أخرى.",
+            description: error.message || "فشل في إنشاء الموقع. يرجى المحاولة مرة أخرى.",
         });
     }
   }
@@ -281,5 +303,3 @@ export default function NewLocationPage() {
     </Card>
   );
 }
-
-    

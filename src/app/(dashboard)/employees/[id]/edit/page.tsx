@@ -13,6 +13,7 @@ import { EmployeeForm } from "../../new/_components/employee-form";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface EditEmployeePageProps {
     params: {
@@ -28,23 +29,35 @@ export default function EditEmployeePage({ params }: EditEmployeePageProps) {
   const [managers, setManagers] = useState<{ id: number, full_name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const router = useRouter();
   
   const fetchFormData = useCallback(async () => {
     setIsLoading(true);
     try {
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+            router.push('/login');
+            return;
+        }
+        const headers = { 'Authorization': `Bearer ${token}` };
+
         const [employeeRes, deptsRes, jobsRes, locsRes, mgrsRes] = await Promise.all([
-            fetch(`/api/employees/${params.id}`),
-            fetch('/api/departments'),
-            fetch('/api/job-titles'),
-            fetch('/api/locations'),
-            fetch(`/api/employees?is_manager=true&exclude_id=${params.id}`),
+            fetch(`/api/employees/${params.id}`, { headers }),
+            fetch('/api/departments', { headers }),
+            fetch('/api/job-titles', { headers }),
+            fetch('/api/locations', { headers }),
+            fetch(`/api/employees?is_manager=true&exclude_id=${params.id}`, { headers }),
         ]);
 
-        if (!employeeRes.ok) throw await employeeRes.json();
-        if (!deptsRes.ok) throw await deptsRes.json();
-        if (!jobsRes.ok) throw await jobsRes.json();
-        if (!locsRes.ok) throw await locsRes.json();
-        if (!mgrsRes.ok) throw await mgrsRes.json();
+        const responses = [employeeRes, deptsRes, jobsRes, locsRes, mgrsRes];
+        for (const res of responses) {
+            if (res.status === 401) {
+                toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+                router.push('/login');
+                return;
+            }
+            if (!res.ok) throw await res.json();
+        }
         
         const employeeData = await employeeRes.json();
         const deptsData = await deptsRes.json();
@@ -68,7 +81,7 @@ export default function EditEmployeePage({ params }: EditEmployeePageProps) {
       } finally {
         setIsLoading(false);
       }
-  }, [params.id, toast]);
+  }, [params.id, toast, router]);
 
   useEffect(() => {
     fetchFormData();

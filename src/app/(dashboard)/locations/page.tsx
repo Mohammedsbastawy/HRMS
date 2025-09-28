@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Table,
   TableBody,
@@ -22,11 +22,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useRouter } from 'next/navigation';
 
 const LocationForm = ({ location, onSave, onCancel, employees }: { location: Partial<Location>, onSave: () => void, onCancel: () => void, employees: Employee[] }) => {
     const [formData, setFormData] = useState<Partial<Location>>(location);
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
+    const router = useRouter();
 
     useEffect(() => {
         setFormData(location);
@@ -45,11 +47,19 @@ const LocationForm = ({ location, onSave, onCancel, employees }: { location: Par
         setIsLoading(true);
         const method = formData.id ? 'PUT' : 'POST';
         const url = formData.id ? `/api/locations/${formData.id}` : '/api/locations';
-
+        
         try {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                router.push('/login');
+                return;
+            }
             const response = await fetch(url, {
                 method,
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify(formData),
             });
             const result = await response.json();
@@ -107,40 +117,51 @@ export default function LocationsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const { toast } = useToast();
+    const router = useRouter();
 
     const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
 
-    const fetchLocations = async () => {
+    const fetchData = useCallback(async () => {
+        setIsLoading(true);
         try {
-            setIsLoading(true);
-            const response = await fetch('/api/locations');
-            if (!response.ok) throw new Error('فشل في جلب المواقع');
-            const data = await response.json();
-            setLocations(data.locations);
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                router.push('/login');
+                return;
+            }
+            const headers = { 'Authorization': `Bearer ${token}` };
+
+            const [locationsRes, employeesRes] = await Promise.all([
+                fetch('/api/locations', { headers }),
+                fetch('/api/employees?is_manager=true', { headers })
+            ]);
+
+            if (locationsRes.status === 401 || employeesRes.status === 401) {
+                toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+                router.push('/login');
+                return;
+            }
+            
+            if (!locationsRes.ok) throw new Error('فشل في جلب المواقع');
+            if (!employeesRes.ok) throw new Error('فشل في جلب المدراء');
+
+            const locationsData = await locationsRes.json();
+            const employeesData = await employeesRes.json();
+            setLocations(locationsData.locations || []);
+            setEmployees(employeesData.employees || []);
+
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'خطأ', description: error.message });
         } finally {
             setIsLoading(false);
         }
-    };
-    
-    const fetchEmployees = async () => {
-         try {
-            const response = await fetch('/api/employees?is_manager=true');
-            if (!response.ok) throw new Error('فشل في جلب المدراء');
-            const data = await response.json();
-            setEmployees(data.employees);
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'خطأ', description: error.message });
-        }
-    }
+    }, [router, toast]);
 
     useEffect(() => {
-        fetchLocations();
-        fetchEmployees();
-    }, [toast]);
+        fetchData();
+    }, [fetchData]);
 
     const handleEditClick = (location: Location) => {
         setSelectedLocation(location);
@@ -154,16 +175,24 @@ export default function LocationsPage() {
     
     const handleFormSave = () => {
         setIsEditModalOpen(false);
-        fetchLocations();
+        fetchData();
     }
 
     const confirmDelete = async () => {
         if (!selectedLocation) return;
         try {
-            const response = await fetch(`/api/locations/${selectedLocation.id}`, { method: 'DELETE' });
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                router.push('/login');
+                return;
+            }
+            const response = await fetch(`/api/locations/${selectedLocation.id}`, { 
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             if (!response.ok) throw new Error('فشل حذف الموقع');
             toast({ title: 'تم الحذف بنجاح' });
-            fetchLocations();
+            fetchData();
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'خطأ', description: error.message });
         } finally {
