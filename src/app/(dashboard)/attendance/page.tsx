@@ -18,6 +18,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import type { Attendance } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 
 
 export default function AttendancePage() {
@@ -26,14 +27,24 @@ export default function AttendancePage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ message: string; errors: string[] } | null>(null);
   const { toast } = useToast();
+  const router = useRouter();
 
   const fetchAttendance = async () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
       const response = await fetch('/api/attendance', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (response.status === 401) {
+        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+        router.push('/login');
+        return;
+      }
       if (!response.ok) throw new Error('فشل في جلب سجلات الحضور');
       const data = await response.json();
       setAttendance(data.attendance);
@@ -46,13 +57,17 @@ export default function AttendancePage() {
 
   useEffect(() => {
     fetchAttendance();
-  }, [toast]);
+  }, [toast, router]);
 
   const handleSyncAll = async () => {
     setIsSyncing(true);
     setSyncResult(null);
     try {
       const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
       const response = await fetch('/api/attendance/sync-all', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
@@ -169,8 +184,8 @@ export default function AttendancePage() {
                       </div>
                     </TableCell>
                     <TableCell>{new Date(record.date).toLocaleDateString('ar-EG')}</TableCell>
-                    <TableCell>{record.check_in}</TableCell>
-                    <TableCell>{record.check_out}</TableCell>
+                    <TableCell>{record.check_in || '-'}</TableCell>
+                    <TableCell>{record.check_out || '-'}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(record.status)}>{getStatusText(record.status)}</Badge>
                     </TableCell>
