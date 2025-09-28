@@ -46,7 +46,7 @@ export default function AttendancePage() {
 
   useEffect(() => {
     fetchAttendance();
-  }, []);
+  }, [toast]);
 
   const handleSyncAll = async () => {
     setIsSyncing(true);
@@ -161,10 +161,10 @@ export default function AttendancePage() {
                   <TableRow key={record.id}>
                     <TableCell>
                       <div className="flex items-center justify-end gap-3">
-                        <div className="font-medium">{record.employeeName}</div>
+                        <div className="font-medium">{record.employee_name}</div>
                         <Avatar>
-                          <AvatarImage src={record.employeeAvatar || undefined} />
-                          <AvatarFallback>{record.employeeName?.charAt(0)}</AvatarFallback>
+                          <AvatarImage src={record.employee_avatar || undefined} />
+                          <AvatarFallback>{record.employee_name?.charAt(0)}</AvatarFallback>
                         </Avatar>
                       </div>
                     </TableCell>

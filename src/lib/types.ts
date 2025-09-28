@@ -9,6 +9,7 @@
 
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -82,10 +83,10 @@ export type Document = {
 };
 
 export type Attendance = {
-  id: string;
+  id: number;
   employee_id: number;
-  employeeName: string;
-  employeeAvatar?: string | null;
+  employee_name?: string;
+  employee_avatar?: string | null;
   date: string;
   check_in: string | null;
   check_out: string | null;

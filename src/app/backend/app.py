@@ -3,13 +3,13 @@ from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 import os
-from datetime import datetime, date
+from datetime import datetime, date, time
 import logging
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager, get_jwt
 from zk import ZK, const
 from collections import defaultdict
-from sqlalchemy import func, inspect, CheckConstraint
+from sqlalchemy import func, inspect, CheckConstraint, Time, Date, cast
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -191,24 +191,27 @@ class Employee(db.Model):
 class Attendance(db.Model):
     __tablename__ = 'attendance'
     id = db.Column(db.Integer, primary_key=True)
-    employee_uid = db.Column(db.String, nullable=False) # UID from ZKTeco device
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True) # Link to our employee table
-    timestamp = db.Column(db.DateTime, nullable=False)
-    status = db.Column(db.Integer, nullable=False) # Status code from device
-    punch = db.Column(db.Integer, nullable=False) # Punch type from device
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    date = db.Column(Date, nullable=False)
+    check_in = db.Column(Time, nullable=True)
+    check_out = db.Column(Time, nullable=True)
+    status = db.Column(db.String, default='Present')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    employee = db.relationship('Employee', backref='attendance_logs')
-    
+
+    employee = db.relationship('Employee', backref='attendance_records')
+
+    __table_args__ = (db.UniqueConstraint('employee_id', 'date', name='_employee_date_uc'),)
+
     def to_dict(self):
         return {
             'id': self.id,
             'employee_id': self.employee_id,
-            'employeeName': self.employee.full_name if self.employee else f'UID: {self.employee_uid}',
-            'employeeAvatar': self.employee.avatar if self.employee else None,
-            'date': self.timestamp.strftime('%Y-%m-%d'),
-            'check_in': self.timestamp.strftime('%H:%M:%S') if self.punch == 0 else None,
-            'check_out': self.timestamp.strftime('%H:%M:%S') if self.punch == 1 else None,
-            'status': 'Present' # Simplified status
+            'employee_name': self.employee.full_name if self.employee else None,
+            'employee_avatar': self.employee.avatar if self.employee else None,
+            'date': self.date.isoformat() if self.date else None,
+            'check_in': self.check_in.strftime('%H:%M:%S') if self.check_in else None,
+            'check_out': self.check_out.strftime('%H:%M:%S') if self.check_out else None,
+            'status': self.status
         }
 
 class LeaveRequest(db.Model):
@@ -1261,47 +1264,8 @@ def get_audit_logs():
 @app.route("/api/attendance", methods=['GET'])
 @jwt_required()
 def get_attendance():
-    raw_attendance_records = Attendance.query.options(db.joinedload(Attendance.employee)).order_by(Attendance.timestamp.desc()).all()
-    
-    # Group punches by employee and date
-    grouped_punches = defaultdict(lambda: defaultdict(list))
-    for record in raw_attendance_records:
-        if record.employee: # Only process records linked to an employee
-            punch_date = record.timestamp.date()
-            punch_time = record.timestamp.time()
-            grouped_punches[record.employee_id][punch_date].append(punch_time)
-
-    # Process into daily records
-    processed_attendance = []
-    processed_keys = set() # To avoid duplicates
-
-    for employee_id, date_punches in grouped_punches.items():
-        for day, punches in date_punches.items():
-            if not punches:
-                continue
-
-            employee = Employee.query.get(employee_id)
-            key = f"{employee_id}-{day.isoformat()}"
-            if key in processed_keys:
-                continue
-            
-            processed_keys.add(key)
-            
-            check_in_time = min(punches) if punches else None
-            check_out_time = max(punches) if len(punches) > 1 else None
-
-            processed_attendance.append({
-                'id': key,
-                'employee_id': employee_id,
-                'employeeName': employee.full_name,
-                'employeeAvatar': employee.avatar,
-                'date': day.isoformat(),
-                'check_in': check_in_time.strftime('%H:%M:%S') if check_in_time else None,
-                'check_out': check_out_time.strftime('%H:%M:%S') if check_out_time else None,
-                'status': 'Present' # Simplified status, can be enhanced
-            })
-
-    return jsonify({"attendance": processed_attendance})
+    attendance_records = Attendance.query.options(db.joinedload(Attendance.employee)).order_by(Attendance.date.desc(), Attendance.check_in.desc()).all()
+    return jsonify({"attendance": [record.to_dict() for record in attendance_records]})
 
 
 # --- Reports API ---
@@ -1679,6 +1643,7 @@ def test_connection_route():
 def sync_all_devices():
     devices = ZktDevice.query.all()
     total_new_records = 0
+    total_updated_records = 0
     errors = []
     
     for device in devices:
@@ -1692,27 +1657,51 @@ def sync_all_devices():
             if not attendance_logs:
                 continue
 
-            new_records_count = 0
-            for att_log in attendance_logs:
-                exists = Attendance.query.filter_by(employee_uid=att_log.user_id, timestamp=att_log.timestamp).first()
-                if not exists:
-                    # Link to employee if id matches
-                    employee = Employee.query.filter_by(id=int(att_log.user_id)).first()
-                    punch_value = att_log.punch if hasattr(att_log, 'punch') else 0 
+            # Group logs by employee and date
+            daily_punches = defaultdict(list)
+            for log in attendance_logs:
+                try:
+                    emp_id = int(log.user_id)
+                    log_date = log.timestamp.date()
+                    daily_punches[(emp_id, log_date)].append(log.timestamp.time())
+                except (ValueError, TypeError):
+                    continue # Skip if user_id is not a valid integer
+
+            # Process grouped punches
+            for (emp_id, log_date), punches in daily_punches.items():
+                employee = Employee.query.get(emp_id)
+                if not employee:
+                    continue
+                
+                check_in_time = min(punches)
+                check_out_time = max(punches) if len(punches) > 1 else None
+
+                # Find existing record for that employee on that day
+                att_record = Attendance.query.filter_by(employee_id=emp_id, date=log_date).first()
+
+                if att_record:
+                    # Update existing record if new times are found
+                    if att_record.check_in != check_in_time or att_record.check_out != check_out_time:
+                        att_record.check_in = check_in_time
+                        if check_out_time:
+                            att_record.check_out = check_out_time
+                        total_updated_records += 1
+                else:
+                    # Create new record
                     new_att = Attendance(
-                        employee_uid=str(att_log.user_id),
-                        timestamp=att_log.timestamp,
-                        status=att_log.status,
-                        punch=punch_value,
-                        employee_id=employee.id if employee else None
+                        employee_id=emp_id,
+                        date=log_date,
+                        check_in=check_in_time,
+                        check_out=check_out_time,
+                        status='Present' # Simplified status
                     )
                     db.session.add(new_att)
-                    new_records_count += 1
+                    total_new_records += 1
             
-            if new_records_count > 0:
-                db.session.commit()
-                total_new_records += new_records_count
-                log_action("مزامنة ناجحة", f"تم سحب {new_records_count} سجلات جديدة من جهاز {device.name}")
+            if total_new_records > 0 or total_updated_records > 0:
+                 db.session.commit()
+                 log_action("مزامنة ناجحة", f"جهاز {device.name}: {total_new_records} سجلات جديدة, {total_updated_records} سجلات محدثة.")
+
         except Exception as e:
             db.session.rollback()
             error_message = f"فشل الاتصال بجهاز {device.name} ({device.ip_address}): {e}"
@@ -1726,13 +1715,15 @@ def sync_all_devices():
                 except Exception as e:
                     app.logger.error(f"Error during ZK disconnect/enable for {device.name}: {e}")
 
-    if not errors and total_new_records == 0:
-        return jsonify({"message": "لا توجد سجلات جديدة للمزامنة من أي جهاز.", "total_records": 0, "errors": []})
+    final_message = f"إجمالي السجلات الجديدة: {total_new_records}. إجمالي السجلات المحدثة: {total_updated_records}."
+
+    if not errors and total_new_records == 0 and total_updated_records == 0:
+        return jsonify({"message": "لا توجد سجلات جديدة أو تغييرات للمزامنة من أي جهاز.", "errors": []})
     
     if errors:
-        return jsonify({"message": f"تمت المزامنة مع بعض المشاكل. إجمالي السجلات الجديدة: {total_new_records}", "total_records": total_new_records, "errors": errors}), 207
+        return jsonify({"message": f"تمت المزامنة مع بعض المشاكل. {final_message}", "errors": errors}), 207
         
-    return jsonify({"message": f"تمت مزامنة {total_new_records} سجلات جديدة بنجاح من {len(devices)} أجهزة.", "total_records": total_new_records, "errors": []})
+    return jsonify({"message": f"تمت المزامنة بنجاح. {final_message}", "errors": []})
 
 
 # --- Notifications API ---
