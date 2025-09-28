@@ -86,6 +86,7 @@ const navConfig: (NavGroup | { separator: true })[] = [
   {
     title: 'التوظيف والتطوير',
     items: [
+      { href: '/recruitment', label: 'التوظيف', icon: Briefcase, roles: ['Admin', 'HR', 'Manager'] },
       { href: '/training', label: 'التدريب', icon: BookUser },
     ]
   },

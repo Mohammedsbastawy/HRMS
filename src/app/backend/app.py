@@ -9,7 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager
 from zk import ZK, const
 from collections import defaultdict
-from sqlalchemy import func, inspect
+from sqlalchemy import func, inspect, CheckConstraint
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -325,59 +325,6 @@ class TrainingRecord(db.Model):
             'course': { 'title': self.course.title } if self.course else None
         }
 
-
-class Job(db.Model):
-    __tablename__ = 'jobs'
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String, nullable=False)
-    description = db.Column(db.Text)
-    department_id = db.Column(db.Integer, db.ForeignKey('departments.id'))
-    status = db.Column(db.String, default='Open') # Open, Closed, On-Hold
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    department = db.relationship('Department', backref='jobs')
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'title': self.title,
-            'description': self.description,
-            'department_id': self.department_id,
-            'department_name_ar': self.department.name_ar if self.department else None,
-            'status': self.status,
-            'created_at': self.created_at.isoformat() if self.created_at else None
-        }
-
-class Applicant(db.Model):
-    __tablename__ = 'applicants'
-    id = db.Column(db.Integer, primary_key=True)
-    job_id = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
-    name = db.Column(db.String, nullable=False)
-    email = db.Column(db.String)
-    phone = db.Column(db.String)
-    cv_path = db.Column(db.String)
-    stage = db.Column(db.String, default='Applied') # Applied, Screening, Interview, Offer, Hired, Rejected
-    applied_at = db.Column(db.DateTime, default=datetime.utcnow)
-    notes = db.Column(db.Text)
-    avatar = db.Column(db.String)
-
-    job = db.relationship('Job', backref='applicants', lazy=True)
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'job_id': self.job_id,
-            'name': self.name,
-            'email': self.email,
-            'phone': self.phone,
-            'cv_path': self.cv_path,
-            'stage': self.stage,
-            'applied_at': self.applied_at.isoformat() if self.applied_at else None,
-            'notes': self.notes,
-            'avatar': self.avatar,
-            'job': {'title': self.job.title} if self.job else None,
-        }
-
 class AuditLog(db.Model):
     __tablename__ = 'audit_logs'
     id = db.Column(db.Integer, primary_key=True)
@@ -565,6 +512,125 @@ class TaxBracket(db.Model):
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
+# --- Recruitment Models ---
+class Job(db.Model):
+    __tablename__ = 'jobs'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.Text, nullable=False)
+    dept_id = db.Column(db.Integer, db.ForeignKey('departments.id'), nullable=False)
+    description = db.Column(db.Text)
+    location = db.Column(db.Text)
+    employment_type = db.Column(db.Text, CheckConstraint("employment_type IN ('full-time','part-time','contract','intern','temporary')"), default='full-time')
+    seniority = db.Column(db.Text, CheckConstraint("seniority IN ('junior','mid','senior','lead','manager','director')"))
+    openings = db.Column(db.Integer, default=1)
+    hires_count = db.Column(db.Integer, default=0)
+    salary_min = db.Column(db.REAL)
+    salary_max = db.Column(db.REAL)
+    currency = db.Column(db.Text, default='SAR')
+    remote_allowed = db.Column(db.Integer, default=0)
+    status = db.Column(db.Text, CheckConstraint("status IN ('Open','On-Hold','Closed')"), default='Open')
+    publish_external = db.Column(db.Integer, default=0)
+    external_slug = db.Column(db.Text, unique=True)
+    external_url = db.Column(db.Text)
+    created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
+    
+    department = db.relationship('Department', backref='jobs')
+    applicants = db.relationship('Applicant', backref='job', lazy='dynamic')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'dept_id': self.dept_id,
+            'department': {'name_ar': self.department.name_ar} if self.department else None,
+            'openings': self.openings,
+            'hires_count': self.hires_count,
+            'status': self.status,
+            'created_at': self.created_at,
+            'applicants_count': self.applicants.count()
+        }
+
+class Applicant(db.Model):
+    __tablename__ = 'applicants'
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
+    full_name = db.Column(db.Text, nullable=False)
+    email = db.Column(db.Text, nullable=False)
+    phone = db.Column(db.Text)
+    source = db.Column(db.Text, default='manual')
+    stage = db.Column(db.Text, CheckConstraint("stage IN ('Applied','Screening','Interview','Offer','Hired','Rejected')"), default='Applied')
+    years_experience = db.Column(db.REAL)
+    current_title = db.Column(db.Text)
+    current_company = db.Column(db.Text)
+    expected_salary = db.Column(db.REAL)
+    linkedin_url = db.Column(db.Text)
+    portfolio_url = db.Column(db.Text)
+    cv_path = db.Column(db.Text)
+    rating = db.Column(db.Integer, default=0)
+    score = db.Column(db.REAL, default=0)
+    email_verified = db.Column(db.Integer, default=0)
+    consent_at = db.Column(db.Text)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
+    
+    __table_args__ = (db.UniqueConstraint('job_id', 'email', name='_job_email_uc'),)
+
+class ApplicantFile(db.Model):
+    __tablename__ = 'applicant_files'
+    id = db.Column(db.Integer, primary_key=True)
+    applicant_id = db.Column(db.Integer, db.ForeignKey('applicants.id', ondelete='CASCADE'), nullable=False)
+    file_path = db.Column(db.Text, nullable=False)
+    type = db.Column(db.Text, CheckConstraint("type IN ('cv','cover_letter','portfolio','other')"), default='other')
+    uploaded_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
+
+class ApplicantNote(db.Model):
+    __tablename__ = 'applicant_notes'
+    id = db.Column(db.Integer, primary_key=True)
+    applicant_id = db.Column(db.Integer, db.ForeignKey('applicants.id', ondelete='CASCADE'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    note = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
+
+class Interview(db.Model):
+    __tablename__ = 'interviews'
+    id = db.Column(db.Integer, primary_key=True)
+    applicant_id = db.Column(db.Integer, db.ForeignKey('applicants.id', ondelete='CASCADE'), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
+    title = db.Column(db.Text, default='Interview')
+    start_datetime = db.Column(db.Text, nullable=False)
+    end_datetime = db.Column(db.Text, nullable=False)
+    location = db.Column(db.Text)
+    video_link = db.Column(db.Text)
+    interviewer_user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    calendar_provider = db.Column(db.Text)
+    provider_event_id = db.Column(db.Text)
+    status = db.Column(db.Text, CheckConstraint("status IN ('Scheduled','Completed','Cancelled')"), default='Scheduled')
+    created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
+
+class Scorecard(db.Model):
+    __tablename__ = 'scorecards'
+    id = db.Column(db.Integer, primary_key=True)
+    applicant_id = db.Column(db.Integer, db.ForeignKey('applicants.id', ondelete='CASCADE'), nullable=False)
+    reviewer_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    criterion = db.Column(db.Text, nullable=False)
+    weight = db.Column(db.REAL, default=1.0)
+    score = db.Column(db.REAL, nullable=False)
+    comments = db.Column(db.Text)
+    created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
+
+class Offer(db.Model):
+    __tablename__ = 'offers'
+    id = db.Column(db.Integer, primary_key=True)
+    applicant_id = db.Column(db.Integer, db.ForeignKey('applicants.id', ondelete='CASCADE'), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
+    salary_offer = db.Column(db.REAL, nullable=False)
+    currency = db.Column(db.Text, nullable=False)
+    start_date = db.Column(db.Text, nullable=False)
+    benefits_text = db.Column(db.Text)
+    status = db.Column(db.Text, CheckConstraint("status IN ('Draft','Sent','Accepted','Declined','Withdrawn')"), default='Draft')
+    offer_letter_path = db.Column(db.Text)
+    created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
+# --- End of Recruitment Models ---
 
 # --- Utility Functions ---
 def log_action(action, details, username="نظام", user_id=None):
@@ -984,7 +1050,6 @@ def get_dashboard_data():
     employees = Employee.query.all()
     leave_requests = LeaveRequest.query.all()
     performance_reviews = PerformanceReview.query.all()
-    jobs = Job.query.filter_by(status='Open').all()
     logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(5).all()
 
     recent_activities = [{
@@ -996,58 +1061,52 @@ def get_dashboard_data():
         "employees": [e.to_dict() for e in employees],
         "leaveRequests": [lr.to_dict() for lr in leave_requests],
         "performanceReviews": [pr.to_dict() for pr in performance_reviews],
-        "jobs": [j.to_dict() for j in jobs],
         "recentActivities": recent_activities
     })
 
 # --- Recruitment API ---
-@app.route("/api/recruitment", methods=['GET'])
-def get_recruitment_data():
-    jobs = Job.query.order_by(Job.created_at.desc()).all()
-    applicants = Applicant.query.all()
-    return jsonify({
-        "jobs": [j.to_dict() for j in jobs],
-        "applicants": [a.to_dict() for a in applicants]
-    })
-
-@app.route("/api/recruitment/jobs", methods=['POST'])
+@app.route("/api/recruitment/jobs", methods=['GET', 'POST'])
 @jwt_required()
 def handle_recruitment_jobs():
-    current_user = get_jwt_identity()
-    data = request.get_json()
+    if request.method == 'GET':
+        jobs = Job.query.options(db.joinedload(Job.department)).order_by(Job.created_at.desc()).all()
+        return jsonify({'jobs': [j.to_dict() for j in jobs]})
 
-    # --- Robust Validation ---
-    if not data:
-        return jsonify({"message": "No data provided"}), 400
-    
-    title = data.get('title')
-    department_id_str = data.get('department_id')
+    if request.method == 'POST':
+        data = request.get_json()
+        if not data or not data.get('title') or not data.get('dept_id'):
+            return jsonify({'message': 'بيانات غير مكتملة، العنوان والقسم مطلوبان'}), 422
+        
+        try:
+            new_job = Job(
+                title=data['title'],
+                dept_id=int(data['dept_id']),
+                description=data.get('description'),
+                location=data.get('location'),
+                employment_type=data.get('employment_type', 'full-time'),
+                seniority=data.get('seniority'),
+                openings=int(data.get('openings', 1)),
+                salary_min=float(data.get('salary_min')) if data.get('salary_min') else None,
+                salary_max=float(data.get('salary_max')) if data.get('salary_max') else None,
+                currency=data.get('currency', 'SAR'),
+                remote_allowed=bool(data.get('remote_allowed', False)),
+                status=data.get('status', 'Open')
+            )
+            db.session.add(new_job)
+            db.session.commit()
+            log_action("إضافة وظيفة", f"تمت إضافة وظيفة جديدة: {new_job.title}")
+            return jsonify(new_job.to_dict()), 201
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error creating job: {e}")
+            return jsonify({'message': 'خطأ داخلي أثناء إنشاء الوظيفة'}), 500
 
-    if not title or not department_id_str:
-        return jsonify({"message": "بيانات غير مكتملة، القسم والمسمى الوظيفي مطلوبان"}), 422
-    
-    try:
-        department_id = int(department_id_str)
-    except (ValueError, TypeError):
-        return jsonify({"message": "معرف القسم غير صالح"}), 422
-    # --- End Validation ---
-
-    new_job = Job(
-        title=title,
-        department_id=department_id,
-        description=data.get('description', ''), # Safely get description
-        status='Open'
-    )
-    db.session.add(new_job)
-    db.session.commit()
-    
-    log_action(
-        "إضافة وظيفة", 
-        f"أضاف المستخدم {current_user['username']} وظيفة جديدة: {new_job.title}", 
-        username=current_user['username'], 
-        user_id=current_user['id']
-    )
-    return jsonify(new_job.to_dict()), 201
+@app.route("/api/recruitment/jobs/<int:job_id>/applicants", methods=['GET'])
+@jwt_required()
+def get_job_applicants(job_id):
+    applicants = Applicant.query.filter_by(job_id=job_id).order_by(Applicant.created_at.desc()).all()
+    # This will be expanded later
+    return jsonify({'applicants': [a.to_dict() for a in applicants]})
     
 # --- Other Read-only APIs ---
 @app.route("/api/payrolls", methods=['GET'])
@@ -1118,13 +1177,13 @@ def get_reports_data():
     # KPIs
     total_employees = db.session.query(func.count(Employee.id)).scalar()
     pending_leaves = db.session.query(func.count(LeaveRequest.id)).filter(LeaveRequest.status == 'Pending').scalar()
-    open_jobs = db.session.query(func.count(Job.id)).filter(Job.status == 'Open').scalar()
+    open_jobs_count = db.session.query(func.count(Job.id)).filter(Job.status == 'Open').scalar()
     avg_performance_score = db.session.query(func.avg(PerformanceReview.score)).scalar()
 
     kpis = [
         {'title': 'إجمالي الموظفين', 'value': total_employees, 'icon': 'Users'},
         {'title': 'طلبات إجازة معلقة', 'value': pending_leaves, 'icon': 'CalendarClock'},
-        {'title': 'وظائف شاغرة', 'value': open_jobs, 'icon': 'Briefcase'},
+        {'title': 'وظائف شاغرة', 'value': open_jobs_count, 'icon': 'Briefcase'},
         {'title': 'متوسط تقييم الأداء', 'value': round(avg_performance_score, 1) if avg_performance_score else 'N/A', 'icon': 'Star'}
     ]
 

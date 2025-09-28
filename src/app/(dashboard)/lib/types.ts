@@ -1,5 +1,6 @@
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -124,25 +125,38 @@ export type PerformanceReview = {
 export type Job = {
   id: number;
   title: string;
+  dept_id: number;
   description?: string | null;
-  department_id?: number | null;
-  status?: 'Open' | 'Closed' | 'On-Hold';
-  created_at?: string;
-  department?: Partial<Department>; // For UI display
+  location?: string | null;
+  employment_type: 'full-time' | 'part-time' | 'contract' | 'intern' | 'temporary';
+  seniority?: 'junior' | 'mid' | 'senior' | 'lead' | 'manager' | 'director' | null;
+  openings: number;
+  hires_count: number;
+  salary_min?: number | null;
+  salary_max?: number | null;
+  currency: string;
+  remote_allowed: boolean;
+  status: 'Open' | 'On-Hold' | 'Closed';
+  created_at: string;
+  department?: { name_ar: string }; // For UI
+  applicants_count?: number; // For UI
 };
+
 
 export type Applicant = {
   id: number;
   job_id: number;
-  name: string;
-  email?: string | null;
+  full_name: string;
+  email: string;
   phone?: string | null;
+  source: string;
+  stage: 'Applied' | 'Screening' | 'Interview' | 'Offer' | 'Hired' | 'Rejected';
   cv_path?: string | null;
-  stage?: 'Applied' | 'Screening' | 'Interview' | 'Offer' | 'Hired' | 'Rejected';
-  applied_at?: string;
+  rating?: number;
   notes?: string | null;
-  avatar?: string; // For UI display
-  job?: Partial<Job>; // For UI display
+  created_at: string;
+  avatar?: string;
+  job?: Partial<Job>;
 };
 
 export type TrainingCourse = {
@@ -195,4 +209,45 @@ export type Location = {
   created_at?: string;
   updated_at?: string;
   manager?: Partial<Employee>; // for UI display
+};
+
+export type DisciplinaryAction = {
+  id: number;
+  employee_id: number;
+  employee_name?: string;
+  title: string;
+  description?: string;
+  type: 'warning' | 'deduction' | 'suspension';
+  severity: 'low' | 'medium' | 'high';
+  status: 'Draft' | 'PendingApproval' | 'Approved' | 'Applied' | 'Rejected' | 'Reversed';
+  issue_date: string;
+};
+
+export type PayrollComponent = {
+  id: number;
+  code: string;
+  name: string;
+  component_type: 'earning' | 'deduction' | 'benefit' | 'insurance';
+  calculation_type: 'fixed' | 'percent' | 'slab' | 'formula';
+  value?: number | null;
+  rate?: number | null;
+  base?: 'base' | 'gross' | 'custom';
+  taxable: boolean;
+  pre_tax: boolean;
+  active: boolean;
+};
+
+export type TaxBracket = {
+  id?: number;
+  min_amount: number;
+  max_amount: number | null;
+  rate: number;
+};
+
+export type TaxScheme = {
+  id: number;
+  name: string;
+  method: 'slab' | 'flat';
+  active: boolean;
+  brackets?: TaxBracket[];
 };

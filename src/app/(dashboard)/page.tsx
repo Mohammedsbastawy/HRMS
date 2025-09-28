@@ -21,9 +21,10 @@ import {
   Users,
   CalendarCheck,
   Star,
-  Loader2
+  Loader2,
+  Briefcase,
 } from 'lucide-react';
-import type { Employee, LeaveRequest, PerformanceReview, Job } from '@/lib/types';
+import type { Employee, LeaveRequest, PerformanceReview } from '@/lib/types';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useState, useEffect } from 'react';
@@ -49,10 +50,13 @@ export default function DashboardPage() {
         const averagePerformance = data.performanceReviews.length > 0 
           ? (data.performanceReviews.reduce((acc: number, r: PerformanceReview) => acc + r.score, 0) / data.performanceReviews.length).toFixed(1) 
           : "0";
+        
+        const openJobsCount = data.jobs?.length || 0;
 
         setStats([
           { title: 'إجمالي الموظفين', value: data.employees.length, icon: Users, change: `+${data.employees.filter((e: Employee) => e.hire_date && new Date(e.hire_date).getMonth() === new Date().getMonth()).length} هذا الشهر` },
           { title: 'طلبات الإجازة المعلقة', value: data.leaveRequests.filter((l: LeaveRequest) => l.status === 'Pending').length, icon: CalendarCheck, change: `${data.leaveRequests.filter((l: LeaveRequest) => l.status === 'Approved').length} موافق عليها` },
+          { title: 'وظائف شاغرة', value: openJobsCount, icon: Briefcase },
           { title: 'متوسط تقييم الأداء', value: averagePerformance, icon: Star, change: 'مقارنة بالربع الماضي' },
         ]);
 
@@ -83,7 +87,7 @@ export default function DashboardPage() {
   return (
     <div className="flex min-h-screen w-full flex-col">
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
-        <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
           {stats.map(stat => (
             <Card key={stat.title}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -92,7 +96,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stat.value}</div>
-                <p className="text-xs text-muted-foreground">{stat.change}</p>
+                {stat.change && <p className="text-xs text-muted-foreground">{stat.change}</p>}
               </CardContent>
             </Card>
           ))}
