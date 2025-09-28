@@ -80,7 +80,7 @@ export default function DashboardPage() {
     };
 
     fetchDashboardData();
-  }, [toast]);
+  }, []);
   
   if (isLoading) {
     return (

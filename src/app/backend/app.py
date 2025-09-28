@@ -1059,9 +1059,9 @@ def update_leave(id):
 @app.route("/api/dashboard", methods=['GET'])
 @jwt_required()
 def get_dashboard_data():
-    user_id = get_jwt_identity() # This will now correctly get the user ID string
+    user_id = get_jwt_identity()
     if not user_id:
-        return jsonify({"message": "Invalid token identity"}), 422
+        return jsonify({"message": "Invalid token"}), 422
 
     employees = Employee.query.all()
     leave_requests = LeaveRequest.query.all()
@@ -1716,5 +1716,6 @@ if __name__ == '__main__':
     
 
     
+
 
 
