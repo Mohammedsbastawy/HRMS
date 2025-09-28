@@ -100,6 +100,7 @@ class Department(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     job_titles = db.relationship('JobTitle', backref='department', lazy=True, cascade="all, delete-orphan")
+    jobs = db.relationship('Job', backref='department', lazy=True)
 
     def to_dict(self):
         d = {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -534,7 +535,6 @@ class Job(db.Model):
     external_url = db.Column(db.Text)
     created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
     
-    department = db.relationship('Department', backref='jobs')
     applicants = db.relationship('Applicant', backref='job', lazy='dynamic')
     
     def to_dict(self):
@@ -1075,18 +1075,30 @@ def handle_recruitment_jobs():
 
     if request.method == 'POST':
         data = request.get_json()
-        if not data or not data.get('title') or not data.get('dept_id'):
-            return jsonify({'message': 'بيانات غير مكتملة، العنوان والقسم مطلوبان'}), 422
         
+        # Robust validation
+        if not data:
+            return jsonify({'message': 'لم يتم إرسال أي بيانات.'}), 400
+        if not data.get('title'):
+            return jsonify({'message': 'المسمى الوظيفي مطلوب.'}), 422
+        if not data.get('dept_id'):
+            return jsonify({'message': 'القسم مطلوب.'}), 422
+        if not data.get('location'):
+            return jsonify({'message': 'الموقع مطلوب.'}), 422
+        if not data.get('employment_type'):
+            return jsonify({'message': 'نوع التوظيف مطلوب.'}), 422
+        if not data.get('openings') or not str(data.get('openings')).isdigit() or int(data.get('openings')) < 1:
+            return jsonify({'message': 'عدد الشواغر يجب أن يكون رقمًا صحيحًا أكبر من صفر.'}), 422
+
         try:
             new_job = Job(
                 title=data['title'],
                 dept_id=int(data['dept_id']),
+                location=data['location'],
+                employment_type=data['employment_type'],
+                openings=int(data['openings']),
                 description=data.get('description'),
-                location=data.get('location'),
-                employment_type=data.get('employment_type', 'full-time'),
                 seniority=data.get('seniority'),
-                openings=int(data.get('openings', 1)),
                 salary_min=float(data.get('salary_min')) if data.get('salary_min') else None,
                 salary_max=float(data.get('salary_max')) if data.get('salary_max') else None,
                 currency=data.get('currency', 'SAR'),
@@ -1100,7 +1112,7 @@ def handle_recruitment_jobs():
         except Exception as e:
             db.session.rollback()
             app.logger.error(f"Error creating job: {e}")
-            return jsonify({'message': 'خطأ داخلي أثناء إنشاء الوظيفة'}), 500
+            return jsonify({'message': f'خطأ داخلي أثناء إنشاء الوظيفة: {e}'}), 500
 
 @app.route("/api/recruitment/jobs/<int:job_id>/applicants", methods=['GET'])
 @jwt_required()

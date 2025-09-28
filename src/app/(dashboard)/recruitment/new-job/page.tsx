@@ -18,14 +18,15 @@ import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
 import type { Department, JobTitle, Location } from '@/lib/types';
 
+// Updated and simplified schema to ensure data integrity
 const jobFormSchema = z.object({
   title: z.string().min(1, { message: "المسمى الوظيفي مطلوب." }),
-  dept_id: z.string({ required_error: "القسم مطلوب." }),
+  dept_id: z.string().min(1, { message: "القسم مطلوب." }),
   description: z.string().optional(),
-  location: z.string().optional(),
-  employment_type: z.enum(['full-time', 'part-time', 'contract', 'intern', 'temporary']).default('full-time'),
+  location: z.string().min(1, { message: "الموقع مطلوب." }),
+  employment_type: z.enum(['full-time', 'part-time', 'contract', 'intern', 'temporary'], { required_error: "نوع التوظيف مطلوب."}),
   seniority: z.enum(['junior', 'mid', 'senior', 'lead', 'manager', 'director']).optional(),
-  openings: z.coerce.number().int().min(1).default(1),
+  openings: z.coerce.number({invalid_type_error: "يجب أن يكون رقمًا"}).int("يجب أن يكون رقمًا صحيحًا").min(1, "يجب أن يكون هناك شاغر واحد على الأقل").default(1),
   status: z.enum(['Open', 'On-Hold', 'Closed']).default('Open'),
 });
 
@@ -43,6 +44,7 @@ export default function NewJobPage() {
     resolver: zodResolver(jobFormSchema),
     defaultValues: {
       title: '',
+      dept_id: '',
       description: '',
       location: '',
       employment_type: 'full-time',
@@ -90,16 +92,16 @@ export default function NewJobPage() {
         body: JSON.stringify(data),
       });
 
+      const responseData = await response.json();
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'فشل في إنشاء الوظيفة');
+        throw new Error(responseData.message || 'فشل في إنشاء الوظيفة');
       }
       
       toast({ title: 'تم إنشاء الوظيفة بنجاح' });
       router.push('/recruitment');
       
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'خطأ', description: error.message });
+      toast({ variant: 'destructive', title: 'خطأ في إنشاء الوظيفة', description: error.message });
     }
   };
 
