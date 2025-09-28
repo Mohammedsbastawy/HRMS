@@ -28,7 +28,7 @@ import { useState, useEffect } from "react";
 import type { Department, JobTitle, Location, Employee } from "@/lib/types";
 
 const employeeFormSchema = z.object({
-  zk_uid: z.string().min(1, { message: "ID الموظف مطلوب." }),
+  id: z.coerce.number({invalid_type_error: "ID الموظف يجب أن يكون رقمًا."}).min(1, { message: "ID الموظف مطلوب." }),
   full_name: z.string().min(2, { message: "الاسم الكامل مطلوب." }),
   email: z.string().email({ message: "بريد إلكتروني غير صالح." }),
   department_id: z.coerce.string({ required_error: "القسم مطلوب." }),
@@ -57,16 +57,16 @@ export function EmployeeForm({ departments, jobTitles, locations, managers, empl
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema),
     defaultValues: {
-      zk_uid: employee?.zk_uid || "",
-      full_name: employee?.full_name || "",
-      email: employee?.email || "",
-      department_id: employee ? String(employee.department_id) : undefined,
-      job_title_id: employee ? String(employee.job_title_id) : undefined,
-      location_id: employee ? String(employee.location_id) : undefined,
-      hire_date: employee?.hire_date ? employee.hire_date.split('T')[0] : new Date().toISOString().split('T')[0],
-      base_salary: employee?.base_salary || 0,
-      manager_id: employee?.manager_id ? String(employee.manager_id) : 'none',
-      status: employee?.status || 'Active',
+      id: undefined,
+      full_name: "",
+      email: "",
+      department_id: undefined,
+      job_title_id: undefined,
+      location_id: undefined,
+      hire_date: new Date().toISOString().split('T')[0],
+      base_salary: 0,
+      manager_id: 'none',
+      status: 'Active',
     },
   });
 
@@ -75,7 +75,7 @@ export function EmployeeForm({ departments, jobTitles, locations, managers, empl
   useEffect(() => {
     if (employee) {
       form.reset({
-        zk_uid: employee.zk_uid || "",
+        id: employee.id || undefined,
         full_name: employee.full_name || "",
         email: employee.email || "",
         department_id: String(employee.department_id) || undefined,
@@ -134,12 +134,12 @@ export function EmployeeForm({ departments, jobTitles, locations, managers, empl
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <FormField
             control={form.control}
-            name="zk_uid"
+            name="id"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>ID الموظف (للبصمة)</FormLabel>
                 <FormControl>
-                  <Input placeholder="مثال: 101" {...field} value={field.value || ''} />
+                  <Input placeholder="مثال: 101" {...field} value={field.value || ''} type="number" disabled={!!employee} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -340,3 +340,5 @@ export function EmployeeForm({ departments, jobTitles, locations, managers, empl
     </Form>
   );
 }
+
+    

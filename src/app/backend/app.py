@@ -142,7 +142,6 @@ class Employee(db.Model):
     address = db.Column(db.String)
     marital_status = db.Column(db.String)
     national_id = db.Column(db.String, unique=True)
-    zk_uid = db.Column(db.String, unique=True) # ZKTeco User ID
     department_id = db.Column(db.Integer, db.ForeignKey('departments.id'))
     job_title_id = db.Column(db.Integer, db.ForeignKey('job_titles.id'))
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
@@ -170,7 +169,6 @@ class Employee(db.Model):
     def to_dict(self, full=False):
         data = {
             'id': self.id,
-            'zk_uid': self.zk_uid,
             'full_name': self.full_name,
             'email': self.email,
             'hire_date': self.hire_date,
@@ -856,7 +854,7 @@ def handle_employees():
                 manager_id = int(manager_id)
 
             new_employee = Employee(
-                zk_uid=data['zk_uid'],
+                id=int(data['id']),
                 full_name=data['full_name'],
                 email=data['email'],
                 department_id=int(data['department_id']),
@@ -874,7 +872,7 @@ def handle_employees():
         except Exception as e:
             db.session.rollback()
             app.logger.error(f"Error adding employee: {e}")
-            if 'UNIQUE constraint failed: employees.zk_uid' in str(e):
+            if 'UNIQUE constraint failed: employees.id' in str(e):
                  return jsonify({"message": "ID الموظف موجود بالفعل. يرجى استخدام ID فريد."}), 409
             if 'UNIQUE constraint failed: employees.email' in str(e):
                  return jsonify({"message": "البريد الإلكتروني موجود بالفعل. يرجى استخدام بريد إلكتروني فريد."}), 409
@@ -914,7 +912,7 @@ def handle_employee(id):
             else:
                 employee.manager_id = int(manager_id)
 
-            employee.zk_uid = data.get('zk_uid', employee.zk_uid)
+            # ID is not editable after creation
             employee.full_name = data.get('full_name', employee.full_name)
             employee.email = data.get('email', employee.email)
             employee.department_id = int(data.get('department_id', employee.department_id))
@@ -930,8 +928,6 @@ def handle_employee(id):
         except Exception as e:
             db.session.rollback()
             app.logger.error(f"Error updating employee {id}: {e}")
-            if 'UNIQUE constraint failed: employees.zk_uid' in str(e):
-                 return jsonify({"message": "ID الموظف موجود بالفعل. يرجى استخدام ID فريد."}), 409
             if 'UNIQUE constraint failed: employees.email' in str(e):
                  return jsonify({"message": "البريد الإلكتروني موجود بالفعل. يرجى استخدام بريد إلكتروني فريد."}), 409
             return jsonify({"message": "حدث خطأ داخلي أثناء التحديث"}), 500
@@ -1700,8 +1696,8 @@ def sync_all_devices():
             for att_log in attendance_logs:
                 exists = Attendance.query.filter_by(employee_uid=att_log.user_id, timestamp=att_log.timestamp).first()
                 if not exists:
-                    # Link to employee if zk_uid matches
-                    employee = Employee.query.filter_by(zk_uid=str(att_log.user_id)).first()
+                    # Link to employee if id matches
+                    employee = Employee.query.filter_by(id=int(att_log.user_id)).first()
                     punch_value = att_log.punch if hasattr(att_log, 'punch') else 0 
                     new_att = Attendance(
                         employee_uid=str(att_log.user_id),
@@ -1813,3 +1809,5 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    

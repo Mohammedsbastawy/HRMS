@@ -163,7 +163,7 @@ export function EmployeesPageClient() {
             ) : filteredEmployees.length > 0 ? (
               filteredEmployees.map((employee) => (
                 <TableRow key={employee.id}>
-                  <TableCell className="font-medium">{employee.zk_uid}</TableCell>
+                  <TableCell className="font-medium">{employee.id}</TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-3">
                       <span>{employee.full_name}</span>
@@ -226,3 +226,5 @@ export function EmployeesPageClient() {
     </Card>
   );
 }
+
+    
