@@ -557,7 +557,7 @@ class TaxScheme(db.Model):
 class TaxBracket(db.Model):
     __tablename__ = 'tax_brackets'
     id = db.Column(db.Integer, primary_key=True)
-    scheme_id = dbColumn(db.Integer, db.ForeignKey('tax_schemes.id', ondelete='CASCADE'), nullable=False)
+    scheme_id = db.Column(db.Integer, db.ForeignKey('tax_schemes.id', ondelete='CASCADE'), nullable=False)
     min_amount = db.Column(db.Float, nullable=False)
     max_amount = db.Column(db.Float)
     rate = db.Column(db.Float, nullable=False)
@@ -1590,5 +1590,3 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-    
