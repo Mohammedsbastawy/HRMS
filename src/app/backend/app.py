@@ -100,7 +100,7 @@ class Department(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     job_titles = db.relationship('JobTitle', backref='department', lazy=True, cascade="all, delete-orphan")
-    jobs = db.relationship('Job', backref='department_ref', lazy='dynamic')
+    jobs = db.relationship('Job', backref='department', lazy='dynamic')
 
 
     def to_dict(self):
@@ -537,7 +537,7 @@ class Job(db.Model):
     created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
     
     applicants = db.relationship('Applicant', backref='job', lazy='dynamic')
-    department = db.relationship('Department', back_populates='jobs')
+    
 
     def to_dict(self):
         return {
@@ -596,7 +596,7 @@ class ApplicantNote(db.Model):
 class Interview(db.Model):
     __tablename__ = 'interviews'
     id = db.Column(db.Integer, primary_key=True)
-    applicant_id = db.Column(db.Integer, db.ForeignKey('applicants.id', ondelete='CASCADE'), nullable=False)
+    applicant_id = dbColumn(db.Integer, db.ForeignKey('applicants.id', ondelete='CASCADE'), nullable=False)
     job_id = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
     title = db.Column(db.Text, default='Interview')
     start_datetime = db.Column(db.Text, nullable=False)
@@ -1276,7 +1276,7 @@ def handle_training_course(id):
         db.session.commit()
         return jsonify({'message': 'Course deleted'})
 
-@app.route('/api/training-records', methods=['GET', 'POST'])
+@app-route('/api/training-records', methods=['GET', 'POST'])
 @jwt_required()
 def handle_training_records():
     if request.method == 'POST': # Assign employees
@@ -1697,4 +1697,6 @@ if __name__ == '__main__':
     
 
     
+    
+
     
