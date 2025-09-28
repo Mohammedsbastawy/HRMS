@@ -1059,8 +1059,6 @@ def update_leave(id):
 @app.route("/api/dashboard", methods=['GET'])
 @jwt_required()
 def get_dashboard_data():
-    user_id = get_jwt_identity()
-
     employees = Employee.query.all()
     leave_requests = LeaveRequest.query.all()
     performance_reviews = PerformanceReview.query.all()
@@ -1714,6 +1712,7 @@ if __name__ == '__main__':
     
 
     
+
 
 
 
