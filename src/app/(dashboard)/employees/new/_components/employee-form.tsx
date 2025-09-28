@@ -101,9 +101,17 @@ export function EmployeeForm({ departments, jobTitles, locations, managers, empl
     const method = isEditing ? 'PUT' : 'POST';
 
     try {
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+            router.push('/login');
+            return;
+        }
         const response = await fetch(url, {
             method: method,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify(data),
         });
 
@@ -340,5 +348,3 @@ export function EmployeeForm({ departments, jobTitles, locations, managers, empl
     </Form>
   );
 }
-
-    
