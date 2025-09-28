@@ -41,9 +41,13 @@ export default function DashboardPage() {
     async function fetchDashboardData() {
       setIsLoading(true);
       try {
-        const response = await fetch('/api/dashboard');
+        const token = localStorage.getItem('authToken');
+        const response = await fetch('/api/dashboard', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         if (!response.ok) {
-          throw new Error('فشل في جلب بيانات لوحة التحكم');
+          const errorData = await response.json().catch(() => ({ message: 'فشل في جلب بيانات لوحة التحكم' }));
+          throw new Error(errorData.message);
         }
         const data = await response.json();
         
@@ -68,13 +72,14 @@ export default function DashboardPage() {
           variant: 'destructive',
           title: 'خطأ',
           description: error.message,
+          details: error
         });
       } finally {
         setIsLoading(false);
       }
     }
     fetchDashboardData();
-  }, [toast]);
+  }, []);
   
   if (isLoading) {
     return (
