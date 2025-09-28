@@ -46,8 +46,9 @@ export default function LoginPage() {
         description: `أهلاً بك، ${data.user.username}!`,
       });
 
-      router.push('/'); // Redirect to the dashboard
-      router.refresh(); // Refresh the page to update layout
+      // Refresh first to update middleware state, then push to the new route.
+      router.refresh();
+      router.push('/');
 
     } catch (error: any) {
       toast({
