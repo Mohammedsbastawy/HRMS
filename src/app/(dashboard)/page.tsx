@@ -46,7 +46,7 @@ export default function DashboardPage() {
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'فشل في جلب بيانات لوحة التحكم' }));
-        throw new Error(errorData.message);
+        throw errorData;
       }
       const data = await response.json();
       

@@ -1,4 +1,3 @@
-
 // Inspired by react-hot-toast library
 import * as React from "react"
 
@@ -176,7 +175,6 @@ function useToast() {
   const [state, setState] = React.useState<State>(memoryState)
   const errorDialog = React.useContext(ErrorDialogContext);
 
-
   React.useEffect(() => {
     listeners.push(setState)
     return () => {
@@ -186,8 +184,8 @@ function useToast() {
       }
     }
   }, [state])
-
-  const customToast = (props: Toast) => {
+  
+  const customToast = React.useCallback((props: Toast) => {
     if (props.variant === 'destructive' && errorDialog) {
         errorDialog.showError({
             title: props.title as string,
@@ -197,7 +195,8 @@ function useToast() {
     } else {
         toast(props);
     }
-  }
+  }, [errorDialog]);
+
 
   return {
     ...state,
