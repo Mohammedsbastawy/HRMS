@@ -30,15 +30,16 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { Textarea } from "@/components/ui/textarea";
-import type { Department, JobTitle } from "@/lib/types";
+import type { Department } from "@/lib/types";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 const jobFormSchema = z.object({
   title: z.string().min(1, "المسمى الوظيفي مطلوب."),
   department_id: z.string().min(1, "القسم مطلوب."),
-  description: z.string().optional().or(z.literal('')),
+  description: z.string().optional(),
 });
 
 type JobFormValues = z.infer<typeof jobFormSchema>;
@@ -46,10 +47,8 @@ type JobFormValues = z.infer<typeof jobFormSchema>;
 export default function NewJobPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [jobTitles, setJobTitles] = useState<JobTitle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -58,17 +57,12 @@ export default function NewJobPage() {
         try {
             const token = localStorage.getItem('authToken');
             const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const [deptsRes, jobsRes] = await Promise.all([
-                fetch('/api/departments', { headers }),
-                fetch('/api/job-titles', { headers }),
-            ]);
-            if (!deptsRes.ok || !jobsRes.ok) throw new Error('فشل تحميل بيانات الأقسام والمسميات');
+            const deptsRes = await fetch('/api/departments', { headers });
+            
+            if (!deptsRes.ok) throw new Error('فشل تحميل بيانات الأقسام');
 
             const deptsData = await deptsRes.json();
-            const jobsData = await jobsRes.json();
-
             setDepartments(deptsData.departments || []);
-            setJobTitles(jobsData || []);
 
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'خطأ', description: error.message });
@@ -88,10 +82,6 @@ export default function NewJobPage() {
       description: "",
     },
   });
-
-  const filteredJobTitles = selectedDepartment
-    ? jobTitles.filter(jt => String(jt.department_id) === selectedDepartment)
-    : [];
 
   async function onSubmit(data: JobFormValues) {
      try {
@@ -147,11 +137,7 @@ export default function NewJobPage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>القسم</FormLabel>
-                  <Select onValueChange={(value) => {
-                    field.onChange(value);
-                    setSelectedDepartment(value);
-                    form.setValue('title', '');
-                  }} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="اختر القسم المسؤول" />
@@ -178,21 +164,9 @@ export default function NewJobPage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>المسمى الوظيفي</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={!selectedDepartment}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="اختر المسمى الوظيفي" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {filteredJobTitles.map(jt => (
-                        <SelectItem key={jt.id} value={jt.title_ar}>{jt.title_ar}</SelectItem>
-                      ))}
-                      {selectedDepartment && filteredJobTitles.length === 0 && (
-                          <SelectItem value="no-jobs" disabled>لا توجد مسميات وظيفية لهذا القسم</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Input placeholder="مثال: مهندس برمجيات" {...field} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
