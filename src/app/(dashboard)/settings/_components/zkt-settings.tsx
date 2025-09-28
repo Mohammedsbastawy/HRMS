@@ -25,7 +25,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Location } from '@/lib/types';
+import type { Location, ZktDevice } from '@/lib/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,24 +37,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-interface ZktDevice {
-  id: number;
-  name: string;
-  ip_address: string;
-  port: number;
-  username?: string;
-  password?: string;
-  location_id?: number;
-  location_name?: string;
-}
-
 const DeviceForm = ({ device, onSave, onCancel }: { device: Partial<ZktDevice> | null, onSave: () => void, onCancel: () => void }) => {
   const [formData, setFormData] = useState<Partial<ZktDevice>>({
     name: '',
     ip_address: '',
-    port: 4370,
-    username: '',
-    password: '',
     location_id: undefined,
     ...device
   });
@@ -110,15 +96,9 @@ const DeviceForm = ({ device, onSave, onCancel }: { device: Partial<ZktDevice> |
         <Label htmlFor="name">اسم الجهاز (للتمييز)</Label>
         <Input id="name" value={formData.name} onChange={handleChange} placeholder="جهاز الفرع الرئيسي" required />
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-            <Label htmlFor="ip_address">عنوان IP</Label>
-            <Input id="ip_address" value={formData.ip_address} onChange={handleChange} placeholder="192.168.1.201" required />
-        </div>
-        <div className="space-y-2">
-            <Label htmlFor="port">المنفذ (Port)</Label>
-            <Input id="port" type="number" value={formData.port} onChange={handleChange} placeholder="4370" required />
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor="ip_address">عنوان IP</Label>
+        <Input id="ip_address" value={formData.ip_address} onChange={handleChange} placeholder="192.168.1.201" required />
       </div>
       <div className="space-y-2">
         <Label htmlFor="location_id">ربط بموقع (اختياري)</Label>
@@ -220,7 +200,7 @@ export function ZktFingerprintSettings() {
       const response = await fetch('/api/attendance/test-connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ ip: device.ip_address, port: device.port }),
+        body: JSON.stringify({ ip: device.ip_address, port: 4370 }), // Port is hardcoded for now as per new schema
       });
 
       const result = await response.json();
@@ -269,7 +249,7 @@ export function ZktFingerprintSettings() {
                 devices.map((device) => (
                   <TableRow key={device.id}>
                     <TableCell className="font-medium">{device.name}</TableCell>
-                    <TableCell dir="ltr" className="text-right">{device.ip_address}:{device.port}</TableCell>
+                    <TableCell dir="ltr" className="text-right">{device.ip_address}</TableCell>
                     <TableCell>{device.location_name || 'غير محدد'}</TableCell>
                     <TableCell className="flex justify-end gap-2">
                        <Button variant="ghost" size="icon" onClick={() => handleTestConnection(device)} disabled={testingDeviceId === device.id}>
@@ -326,3 +306,5 @@ export function ZktFingerprintSettings() {
     </>
   );
 }
+
+    

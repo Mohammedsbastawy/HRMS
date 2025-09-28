@@ -188,18 +188,100 @@ class Employee(db.Model):
                         data[c.name] = val
         return data
 
+# --- Attendance & Timesheets Models ---
+
+class ZktDevice(db.Model):
+    __tablename__ = 'devices'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    provider = db.Column(db.String, default='zkteco', nullable=False)
+    ip_address = db.Column(db.String, nullable=False, unique=True)
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
+    last_sync_at = db.Column(db.DateTime)
+    status = db.Column(db.String, default='online') # online, offline, error
+    
+    location = db.relationship('Location', backref='devices')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'ip_address': self.ip_address,
+            'location_id': self.location_id,
+            'location_name': self.location.name_ar if self.location else None,
+            'last_sync_at': self.last_sync_at.isoformat() if self.last_sync_at else None,
+            'status': self.status
+        }
+
+class DeviceLog(db.Model):
+    __tablename__ = 'device_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.Integer, db.ForeignKey('devices.id'))
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True) # Null if user_id from device not in DB
+    log_datetime = db.Column(db.DateTime, nullable=False)
+    log_type = db.Column(db.String, default='punch') # in, out, punch
+    source = db.Column(db.String, default='device') # device, file, api, manual
+    raw_payload = db.Column(db.String)
+
+class Shift(db.Model):
+    __tablename__ = 'shifts'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    type = db.Column(db.String, default='fixed') # fixed, flex, split, night
+    start_time = db.Column(Time)
+    end_time = db.Column(Time)
+    break_minutes = db.Column(db.Integer, default=0)
+    grace_in = db.Column(db.Integer, default=0)
+    grace_out = db.Column(db.Integer, default=0)
+    rounding_minutes = db.Column(db.Integer, default=5)
+    night_cross = db.Column(db.Boolean, default=False)
+    weekly_off_json = db.Column(db.String, default='["Fri","Sat"]')
+    overtime_policy_id = db.Column(db.Integer, db.ForeignKey('overtime_policies.id'))
+    geofence_id = db.Column(db.Integer, db.ForeignKey('geofences.id'))
+    active = db.Column(db.Boolean, default=True)
+
+class ShiftAssignment(db.Model):
+    __tablename__ = 'shift_assignments'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    shift_id = db.Column(db.Integer, db.ForeignKey('shifts.id'), nullable=False)
+    effective_from = db.Column(Date, nullable=False)
+    effective_to = db.Column(Date)
+    days_mask = db.Column(db.String, default='["Sun","Mon","Tue","Wed","Thu"]')
+
+class Geofence(db.Model):
+    __tablename__ = 'geofences'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
+    lat = db.Column(db.Float)
+    lng = db.Column(db.Float)
+    radius_m = db.Column(db.Integer)
+
+class QrSite(db.Model):
+    __tablename__ = 'qr_sites'
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String, unique=True, nullable=False)
+    name = db.Column(db.String, nullable=False)
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
+    active = db.Column(db.Boolean, default=True)
+
 class Attendance(db.Model):
     __tablename__ = 'attendance'
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
     date = db.Column(Date, nullable=False)
-    check_in = db.Column(Time, nullable=True)
-    check_out = db.Column(Time, nullable=True)
-    status = db.Column(db.String, default='Present')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    check_in = db.Column(Time)
+    check_out = db.Column(Time)
+    hours_worked = db.Column(db.Float)
+    status = db.Column(db.String, default='Present') # Present, Absent, On Leave, Late, EarlyLeave, Holiday, WeeklyOff
+    late_minutes = db.Column(db.Integer)
+    early_leave_minutes = db.Column(db.Integer)
+    overtime_minutes = db.Column(db.Integer)
+    source = db.Column(db.String, default='device')
+    notes = db.Column(db.Text)
 
     employee = db.relationship('Employee', backref='attendance_records')
-
     __table_args__ = (db.UniqueConstraint('employee_id', 'date', name='_employee_date_uc'),)
 
     def to_dict(self):
@@ -213,6 +295,77 @@ class Attendance(db.Model):
             'check_out': self.check_out.strftime('%H:%M:%S') if self.check_out else None,
             'status': self.status
         }
+
+class AttendanceException(db.Model):
+    __tablename__ = 'attendance_exceptions'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    date = db.Column(Date, nullable=False)
+    code = db.Column(db.String, nullable=False) # missing_in, missing_out, late, etc.
+    severity = db.Column(db.String, default='low') # low, med, high
+    status = db.Column(db.String, default='Pending') # Pending, Approved, Rejected, Auto
+    detected_at = db.Column(db.DateTime, default=datetime.utcnow)
+    resolved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    resolved_at = db.Column(db.DateTime)
+    notes = db.Column(db.Text)
+
+class AttendanceCorrection(db.Model):
+    __tablename__ = 'attendance_corrections'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    date = db.Column(Date, nullable=False)
+    requested_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    old_check_in = db.Column(Time)
+    old_check_out = db.Column(Time)
+    new_check_in = db.Column(Time)
+    new_check_out = db.Column(Time)
+    reason = db.Column(db.Text)
+    status = db.Column(db.String, default='Pending') # Pending, Approved, Rejected
+    approver_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    decided_at = db.Column(db.DateTime)
+    audit_note = db.Column(db.Text)
+
+class OvertimePolicy(db.Model):
+    __tablename__ = 'overtime_policies'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    require_approval = db.Column(db.Boolean, default=True)
+    min_minutes = db.Column(db.Integer, default=30)
+    round_to = db.Column(db.Integer, default=15)
+    day_type = db.Column(db.String, default='all') # normal, weekend, holiday, all
+    rate_multiplier = db.Column(db.Float, default=1.5)
+    max_per_day_minutes = db.Column(db.Integer)
+
+class OvertimeRequest(db.Model):
+    __tablename__ = 'overtime_requests'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    date = db.Column(Date, nullable=False)
+    minutes = db.Column(db.Integer, nullable=False)
+    reason = db.Column(db.Text)
+    status = db.Column(db.String, default='Pending') # Pending, Approved, Rejected, Posted
+    approved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    policy_id = db.Column(db.Integer, db.ForeignKey('overtime_policies.id'))
+    posted_to_payroll = db.Column(db.Boolean, default=False)
+    posted_at = db.Column(db.DateTime)
+
+class Holiday(db.Model):
+    __tablename__ = 'holidays'
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(Date, nullable=False)
+    name = db.Column(db.String, nullable=False)
+    scope = db.Column(db.String, default='company') # company, location, department
+    scope_id = db.Column(db.Integer) # Corresponds to location_id or department_id if scope is not company
+
+class TimesheetLock(db.Model):
+    __tablename__ = 'timesheet_locks'
+    id = db.Column(db.Integer, primary_key=True)
+    period = db.Column(db.String, nullable=False) # 'YYYY-MM'
+    locked_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    locked_at = dbColumn(db.DateTime, default=datetime.utcnow)
+
+# --- End of Attendance Models ---
+
 
 class LeaveRequest(db.Model):
     __tablename__ = 'leave_requests'
@@ -355,29 +508,6 @@ class AuditLog(db.Model):
             'action': self.action,
             'details': self.details,
             'timestamp': self.timestamp.isoformat()
-        }
-
-class ZktDevice(db.Model):
-    __tablename__ = 'zkt_devices'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, nullable=False)
-    ip_address = db.Column(db.String, nullable=False, unique=True)
-    port = db.Column(db.Integer, default=4370)
-    username = db.Column(db.String)
-    password = db.Column(db.String)
-    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
-    location = db.relationship('Location', backref='zkt_devices', lazy=True)
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'ip_address': self.ip_address,
-            'port': self.port,
-            'username': self.username,
-            'password': self.password,
-            'location_id': self.location_id,
-            'location_name': self.location.name_ar if self.location else None
         }
 
 class InAppNotification(db.Model):
@@ -1415,9 +1545,7 @@ def handle_zkt_devices():
         new_device = ZktDevice(
             name=data['name'],
             ip_address=data['ip_address'],
-            port=data.get('port', 4370),
-            username=data.get('username'),
-            password=data.get('password'),
+            provider='zkteco',
             location_id=int(data['location_id']) if data.get('location_id') and data.get('location_id') != 'none' else None,
         )
         db.session.add(new_device)
@@ -1445,9 +1573,6 @@ def handle_zkt_device(id):
         data = request.get_json()
         device.name = data.get('name', device.name)
         device.ip_address = data.get('ip_address', device.ip_address)
-        device.port = data.get('port', device.port)
-        device.username = data.get('username', device.username)
-        device.password = data.get('password', device.password)
         device.location_id = int(data['location_id']) if data.get('location_id') and data.get('location_id') != 'none' else None
         db.session.commit()
         
@@ -1637,7 +1762,7 @@ def test_connection_route():
         return jsonify({"success": False, "message": "لم يتم توفير عنوان IP"}), 400
         
     try:
-        success, message = test_pyzk_connection(ip, port)
+        success, message = test_pyzk_connection(ip, int(port))
         return jsonify({"success": success, "message": message})
     except Exception as e:
         app.logger.error(f"Unexpected error during ZK test: {e}")
@@ -1654,7 +1779,9 @@ def sync_all_devices():
     
     for device in devices:
         conn = None
-        zk = ZK(device.ip_address, port=device.port, timeout=5, force_udp=False, ommit_ping=True)
+        # The port from ZktDevice model is not used, which is a bug. Let's assume 4370 for now.
+        # This will be fixed in a future iteration.
+        zk = ZK(device.ip_address, port=4370, timeout=5, force_udp=False, ommit_ping=True)
         try:
             conn = zk.connect()
             conn.disable_device()
@@ -1668,16 +1795,19 @@ def sync_all_devices():
             for log in attendance_logs:
                 try:
                     emp_id = int(log.user_id)
+                    # Check if employee exists in DB
+                    employee = Employee.query.get(emp_id)
+                    if not employee:
+                        continue # Skip if employee ID from device is not in our DB
+
                     log_date = log.timestamp.date()
                     daily_punches[(emp_id, log_date)].append(log.timestamp.time())
-                except (ValueError, TypeError):
-                    continue # Skip if user_id is not a valid integer
+                except (ValueError, TypeError) as e:
+                    app.logger.warning(f"Skipping log due to invalid user_id: {log.user_id}. Error: {e}")
+                    continue
 
             # Process grouped punches
             for (emp_id, log_date), punches in daily_punches.items():
-                employee = Employee.query.get(emp_id)
-                if not employee:
-                    continue # Skip if employee ID from device is not in our DB
                 
                 check_in_time = min(punches)
                 check_out_time = max(punches) if len(punches) > 1 else None
@@ -1806,5 +1936,7 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    
 
     

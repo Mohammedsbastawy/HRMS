@@ -1,15 +1,5 @@
 
 
-
-
-
-
-
-
-
-
-
-
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -82,15 +72,50 @@ export type Document = {
   uploaded_at?: string;
 };
 
+export type ZktDevice = {
+  id: number;
+  name: string;
+  provider: 'zkteco';
+  ip_address: string;
+  location_id?: number | null;
+  last_sync_at?: string | null;
+  status: 'online' | 'offline' | 'error';
+  location_name?: string;
+};
+
+export type Shift = {
+  id: number;
+  name: string;
+  type: 'fixed' | 'flex' | 'split' | 'night';
+  start_time?: string | null;
+  end_time?: string | null;
+  break_minutes: number;
+  grace_in: number;
+  grace_out: number;
+  rounding_minutes: number;
+  night_cross: boolean;
+  weekly_off_json: string;
+  overtime_policy_id?: number | null;
+  geofence_id?: number | null;
+  active: boolean;
+};
+
 export type Attendance = {
   id: number;
   employee_id: number;
-  employee_name?: string;
-  employee_avatar?: string | null;
   date: string;
-  check_in: string | null;
-  check_out: string | null;
-  status: 'Present' | 'Absent' | 'On Leave' | 'Late';
+  check_in?: string | null;
+  check_out?: string | null;
+  hours_worked?: number | null;
+  status: 'Present' | 'Absent' | 'On Leave' | 'Late' | 'EarlyLeave' | 'Holiday' | 'WeeklyOff';
+  late_minutes?: number | null;
+  early_leave_minutes?: number | null;
+  overtime_minutes?: number | null;
+  source: 'device' | 'manual' | 'file' | 'api';
+  notes?: string | null;
+  // For UI
+  employee_name?: string;
+  employee_avatar?: string;
 };
 
 export type LeaveRequest = {
@@ -260,5 +285,7 @@ export type TaxScheme = {
   active: boolean;
   brackets?: TaxBracket[];
 };
+
+    
 
     
