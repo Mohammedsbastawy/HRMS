@@ -1,9 +1,8 @@
-
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 import os
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
 import logging
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager, get_jwt
@@ -1768,6 +1767,85 @@ def test_connection_route():
         app.logger.error(f"Unexpected error during ZK test: {e}")
         return jsonify({"success": False, "message": f"خطأ غير متوقع: {e}"}), 500
 
+# --- Attendance View API ---
+@app.route("/api/attendance/today-view", methods=['GET'])
+@jwt_required()
+def get_today_view_data():
+    today = date.today()
+    
+    # KPIs
+    present_count = Attendance.query.filter(Attendance.date == today, Attendance.status.in_(['Present', 'Late'])).count()
+    late_count = Attendance.query.filter(Attendance.date == today, Attendance.status == 'Late').count()
+    
+    # Find absent employees
+    present_employee_ids = [a.employee_id for a in Attendance.query.filter(Attendance.date == today).all()]
+    on_leave_employee_ids = [l.employee_id for l in LeaveRequest.query.filter(LeaveRequest.start_date <= today.isoformat(), LeaveRequest.end_date >= today.isoformat(), LeaveRequest.status == 'Approved').all()]
+    
+    absent_employees = Employee.query.filter(
+        Employee.status == 'Active',
+        ~Employee.id.in_(present_employee_ids + on_leave_employee_ids)
+    ).all()
+    absent_count = len(absent_employees)
+
+    offline_devices = ZktDevice.query.filter_by(status='offline').all()
+    offline_devices_count = len(offline_devices)
+
+    kpis = {
+        'present': present_count,
+        'late': late_count,
+        'absent': absent_count,
+        'offline_devices': offline_devices_count
+    }
+
+    # Lists for modals
+    present_employees = Employee.query.join(Attendance).filter(Attendance.date == today, Attendance.status.in_(['Present', 'Late'])).all()
+    late_employees = Employee.query.join(Attendance).filter(Attendance.date == today, Attendance.status == 'Late').all()
+    
+    # Live Punches
+    # This is a simplified version. A more robust implementation would consider shifts.
+    live_punches_query = db.session.query(
+        Attendance.employee_id,
+        func.max(Attendance.check_in).label('last_punch_in'),
+        func.max(Attendance.check_out).label('last_punch_out')
+    ).filter(Attendance.date == today).group_by(Attendance.employee_id).all()
+    
+    live_punches_data = []
+    for punch in live_punches_query:
+        emp = Employee.query.get(punch.employee_id)
+        if not emp: continue
+
+        last_punch_time = None
+        last_punch_type = ""
+        if punch.last_punch_out:
+            last_punch_time = punch.last_punch_out
+            last_punch_type = "خروج"
+        elif punch.last_punch_in:
+            last_punch_time = punch.last_punch_in
+            last_punch_type = "دخول"
+
+        att_record = Attendance.query.filter_by(employee_id=punch.employee_id, date=today).first()
+
+        live_punches_data.append({
+            'id': emp.id,
+            'employee': emp.to_dict(),
+            'shift': None, # Simplified
+            'last_punch_time': last_punch_time.strftime('%H:%M:%S') if last_punch_time else '-',
+            'last_punch_type': last_punch_type,
+            'status': att_record.status if att_record else 'N/A', # Simplified
+            'location': emp.location.name_ar if emp.location else None
+        })
+
+
+    lists = {
+        'present': [emp.to_dict(full=True) for emp in present_employees],
+        'late': [emp.to_dict(full=True) for emp in late_employees],
+        'absent': [emp.to_dict(full=True) for emp in absent_employees],
+        'live_punches': live_punches_data,
+        'offline_devices': [dev.to_dict() for dev in offline_devices]
+    }
+    
+    return jsonify({'kpis': kpis, 'lists': lists})
+
 
 @app.route("/api/attendance/sync-all", methods=['POST'])
 @jwt_required()
@@ -1779,57 +1857,47 @@ def sync_all_devices():
     
     for device in devices:
         conn = None
-        # The port from ZktDevice model is not used, which is a bug. Let's assume 4370 for now.
-        # This will be fixed in a future iteration.
-        zk = ZK(device.ip_address, port=4370, timeout=5, force_udp=False, ommit_ping=True)
+        zk = ZK(device.ip_address, port=4370, timeout=5, force_udp=False, ommit_ping=False)
         try:
             conn = zk.connect()
-            conn.disable_device()
+            device.status = 'online'
+            db.session.commit()
             
             attendance_logs = conn.get_attendance()
             if not attendance_logs:
                 continue
 
-            # Group logs by employee and date
             daily_punches = defaultdict(list)
             for log in attendance_logs:
                 try:
                     emp_id = int(log.user_id)
-                    # Check if employee exists in DB
                     employee = Employee.query.get(emp_id)
                     if not employee:
-                        continue # Skip if employee ID from device is not in our DB
+                        continue 
 
                     log_date = log.timestamp.date()
                     daily_punches[(emp_id, log_date)].append(log.timestamp.time())
-                except (ValueError, TypeError) as e:
-                    app.logger.warning(f"Skipping log due to invalid user_id: {log.user_id}. Error: {e}")
+                except (ValueError, TypeError):
                     continue
 
-            # Process grouped punches
             for (emp_id, log_date), punches in daily_punches.items():
-                
                 check_in_time = min(punches)
                 check_out_time = max(punches) if len(punches) > 1 else None
-
-                # Find existing record for that employee on that day
                 att_record = Attendance.query.filter_by(employee_id=emp_id, date=log_date).first()
 
                 if att_record:
-                    # Update existing record if new times are found
                     if att_record.check_in != check_in_time or att_record.check_out != check_out_time:
                         att_record.check_in = check_in_time
                         if check_out_time:
                             att_record.check_out = check_out_time
                         total_updated_records += 1
                 else:
-                    # Create new record
                     new_att = Attendance(
                         employee_id=emp_id,
                         date=log_date,
                         check_in=check_in_time,
                         check_out=check_out_time,
-                        status='Present' # Simplified status
+                        status='Present' # Simplified
                     )
                     db.session.add(new_att)
                     total_new_records += 1
@@ -1840,19 +1908,20 @@ def sync_all_devices():
 
         except Exception as e:
             db.session.rollback()
+            device.status = 'offline'
+            db.session.commit()
             error_message = f"فشل الاتصال بجهاز {device.name} ({device.ip_address}): {e}"
             errors.append(error_message)
             log_action("فشل المزامنة", error_message)
         finally:
             if conn:
                 try:
-                    conn.enable_device()
                     conn.disconnect()
                 except Exception as e:
-                    app.logger.error(f"Error during ZK disconnect/enable for {device.name}: {e}")
+                    app.logger.error(f"Error during ZK disconnect for {device.name}: {e}")
 
     final_message = f"إجمالي السجلات الجديدة: {total_new_records}. إجمالي السجلات المحدثة: {total_updated_records}."
-
+    
     if not errors and total_new_records == 0 and total_updated_records == 0:
         return jsonify({"message": "لا توجد سجلات جديدة أو تغييرات للمزامنة من أي جهاز.", "errors": []})
     
