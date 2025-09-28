@@ -1060,8 +1060,6 @@ def update_leave(id):
 @jwt_required()
 def get_dashboard_data():
     user_id = get_jwt_identity()
-    if not user_id:
-        return jsonify({"message": "Invalid token"}), 422
 
     employees = Employee.query.all()
     leave_requests = LeaveRequest.query.all()
