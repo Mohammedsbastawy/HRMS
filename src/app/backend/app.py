@@ -557,7 +557,7 @@ class Applicant(db.Model):
     full_name = db.Column(db.Text, nullable=False)
     email = db.Column(db.Text, nullable=False)
     phone = db.Column(db.Text)
-    source = db.Column(db.Text, default='manual')
+    source = db.Column(db.Text, default='manual') # 'manual','referral','website','linkedin',…
     stage = db.Column(db.Text, CheckConstraint("stage IN ('Applied','Screening','Interview','Offer','Hired','Rejected')"), default='Applied')
     years_experience = db.Column(db.REAL)
     current_title = db.Column(db.Text)
@@ -1061,7 +1061,8 @@ def get_dashboard_data():
         "employees": [e.to_dict() for e in employees],
         "leaveRequests": [lr.to_dict() for lr in leave_requests],
         "performanceReviews": [pr.to_dict() for pr in performance_reviews],
-        "recentActivities": recent_activities
+        "recentActivities": recent_activities,
+        "jobs": [j.to_dict() for j in Job.query.filter_by(status='Open').all()]
     })
 
 # --- Recruitment API ---
@@ -1649,3 +1650,5 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    
