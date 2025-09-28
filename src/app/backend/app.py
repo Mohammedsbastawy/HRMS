@@ -1013,28 +1013,40 @@ def get_recruitment_data():
 @app.route("/api/recruitment/jobs", methods=['POST'])
 @jwt_required()
 def handle_recruitment_jobs():
+    current_user = get_jwt_identity()
     data = request.get_json()
+
+    # --- Robust Validation ---
+    if not data:
+        return jsonify({"message": "No data provided"}), 400
     
-    # Robust validation
-    if not data or not data.get('department_id') or not data.get('title'):
+    title = data.get('title')
+    department_id_str = data.get('department_id')
+
+    if not title or not department_id_str:
         return jsonify({"message": "بيانات غير مكتملة، القسم والمسمى الوظيفي مطلوبان"}), 422
     
     try:
-        department_id = int(data.get('department_id'))
+        department_id = int(department_id_str)
     except (ValueError, TypeError):
         return jsonify({"message": "معرف القسم غير صالح"}), 422
+    # --- End Validation ---
 
     new_job = Job(
-        title=data.get('title'),
+        title=title,
         department_id=department_id,
-        description=data.get('description'),
+        description=data.get('description', ''), # Safely get description
         status='Open'
     )
     db.session.add(new_job)
     db.session.commit()
     
-    current_user = get_jwt_identity()
-    log_action("إضافة وظيفة", f"أضاف المستخدم {current_user['username']} وظيفة جديدة: {new_job.title}", username=current_user['username'], user_id=current_user['id'])
+    log_action(
+        "إضافة وظيفة", 
+        f"أضاف المستخدم {current_user['username']} وظيفة جديدة: {new_job.title}", 
+        username=current_user['username'], 
+        user_id=current_user['id']
+    )
     return jsonify(new_job.to_dict()), 201
     
 # --- Other Read-only APIs ---
@@ -1578,5 +1590,3 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-    

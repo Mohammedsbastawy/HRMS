@@ -21,7 +21,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -37,9 +36,9 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 const jobFormSchema = z.object({
-  title: z.string({ required_error: "المسمى الوظيفي مطلوب." }).min(1, "المسمى الوظيفي مطلوب."),
-  department_id: z.string({ required_error: "القسم مطلوب." }).min(1, "القسم مطلوب."),
-  description: z.string().min(10, { message: "الوصف يجب أن لا يقل عن 10 أحرف." }).optional().or(z.literal('')),
+  title: z.string().min(1, "المسمى الوظيفي مطلوب."),
+  department_id: z.string().min(1, "القسم مطلوب."),
+  description: z.string().optional().or(z.literal('')),
 });
 
 type JobFormValues = z.infer<typeof jobFormSchema>;
@@ -106,9 +105,9 @@ export default function NewJobPage() {
             body: JSON.stringify({...data, status: 'Open'}),
         });
 
+        const result = await response.json();
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'فشل في إنشاء الوظيفة');
+            throw new Error(result.message || 'فشل في إنشاء الوظيفة');
         }
         
         toast({
