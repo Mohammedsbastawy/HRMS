@@ -224,7 +224,7 @@ export function EmployeeForm({ departments, jobTitles, locations, managers }: Em
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                        <SelectItem value="">بلا مدير</SelectItem>
+                        <SelectItem value="none">بلا مدير</SelectItem>
                       {managers.map(manager => (
                           <SelectItem key={manager.id} value={String(manager.id)}>{manager.full_name}</SelectItem>
                       ))}

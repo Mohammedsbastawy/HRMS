@@ -839,6 +839,12 @@ def handle_employees():
         if not data:
             return jsonify({"message": "No input data provided"}), 400
         try:
+            manager_id = data.get('manager_id')
+            if manager_id == 'none' or manager_id == '':
+                manager_id = None
+            else:
+                manager_id = int(manager_id)
+
             new_employee = Employee(
                 full_name=data['full_name'],
                 email=data['email'],
@@ -847,7 +853,7 @@ def handle_employees():
                 location_id=int(data['location_id']),
                 hire_date=data['hire_date'],
                 base_salary=float(data['base_salary']),
-                manager_id=int(data['manager_id']) if data.get('manager_id') else None,
+                manager_id=manager_id,
                 status=data['status']
             )
             db.session.add(new_employee)
@@ -940,7 +946,12 @@ def handle_location(id):
         location.name_ar = data.get('name_ar', location.name_ar)
         location.name_en = data.get('name_en', location.name_en)
         location.code = data.get('code', location.code)
-        location.manager_id = int(data.get('manager_id')) if data.get('manager_id') else None
+        manager_id = data.get('manager_id')
+        if manager_id == 'none' or manager_id == '':
+            location.manager_id = None
+        else:
+            location.manager_id = int(manager_id)
+
         db.session.commit()
         log_action("تحديث موقع", f"تم تحديث بيانات الموقع: {location.name_ar}")
         return jsonify(location.to_dict(include_manager=True))
@@ -1155,7 +1166,10 @@ def handle_applicants():
             email=data['email'],
             phone=data.get('phone'),
             stage='Applied',
-            source='manual'
+            source=data.get('source', 'manual'),
+            linkedin_url=data.get('linkedin_url'),
+            portfolio_url=data.get('portfolio_url'),
+            cv_path=data.get('cv_path'),
         )
         db.session.add(new_applicant)
         db.session.commit()
@@ -1736,17 +1750,3 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-    
-
-    
-    
-
-    
-
-    
-
-
-
-
-
