@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -15,17 +14,32 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Download, Loader2, Settings2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import type { Payroll } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 
 export default function PayrollPage() {
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchPayrolls() {
         setIsLoading(true);
         try {
-            const response = await fetch('/api/payrolls');
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+              router.push('/login');
+              return;
+            }
+            const response = await fetch('/api/payrolls', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.status === 401) {
+              toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+              router.push('/login');
+              return;
+            }
             if(!response.ok) {
                 throw new Error('فشل في جلب بيانات الرواتب');
             }
@@ -42,7 +56,7 @@ export default function PayrollPage() {
         }
     }
     fetchPayrolls();
-  }, [toast]);
+  }, [toast, router]);
 
   const formatCurrency = (amount?: number | null) => {
     if (amount === null || amount === undefined) return '-';
