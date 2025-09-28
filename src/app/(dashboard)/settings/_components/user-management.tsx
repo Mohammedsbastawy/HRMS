@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Table,
   TableBody,
@@ -36,13 +37,16 @@ export function UserManagement() {
     const [isLoading, setIsLoading] = useState(true);
     const [isAddUserOpen, setIsAddUserOpen] = useState(false);
     const { toast } = useToast();
+    const router = useRouter();
 
     const fetchUsers = async () => {
         setIsLoading(true);
         try {
             const token = localStorage.getItem('authToken');
             if (!token) {
-                throw new Error('Authentication token not found. Please log in again.');
+                // This case should be handled by middleware, but as a fallback:
+                router.push('/login');
+                return;
             }
             const response = await fetch('/api/users', {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -51,15 +55,17 @@ export function UserManagement() {
             if (response.status === 401) {
                  toast({
                     variant: 'destructive',
-                    title: 'جلسة غير صالحة',
+                    title: 'الجلسة منتهية',
                     description: 'انتهت صلاحية جلسة الدخول. يرجى تسجيل الدخول مرة أخرى.',
                 });
-                // Optionally redirect to login
-                // window.location.href = '/login';
+                router.push('/login');
                 return;
             }
 
-            if (!response.ok) throw new Error('فشل في جلب المستخدمين');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'فشل في جلب المستخدمين');
+            }
             
             const data = await response.json();
             setUsers(data.users);
