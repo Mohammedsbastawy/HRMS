@@ -54,37 +54,41 @@ export function EmployeeForm({ departments, jobTitles, locations, managers, empl
   const { toast } = useToast();
   const router = useRouter();
   
-  const defaultValues: Partial<EmployeeFormValues> = employee ? {
-      ...employee,
-      department_id: String(employee.department_id),
-      job_title_id: String(employee.job_title_id),
-      location_id: String(employee.location_id),
-      manager_id: employee.manager_id ? String(employee.manager_id) : 'none',
-      hire_date: employee.hire_date ? employee.hire_date.split('T')[0] : '',
-  } : {
-      zk_uid: "",
-      full_name: "",
-      email: "",
-      hire_date: new Date().toISOString().split('T')[0],
-      base_salary: 0,
-      status: 'Active',
-      manager_id: 'none',
-  };
-
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema),
-    defaultValues,
+    defaultValues: {
+      zk_uid: employee?.zk_uid || "",
+      full_name: employee?.full_name || "",
+      email: employee?.email || "",
+      department_id: employee ? String(employee.department_id) : undefined,
+      job_title_id: employee ? String(employee.job_title_id) : undefined,
+      location_id: employee ? String(employee.location_id) : undefined,
+      hire_date: employee?.hire_date ? employee.hire_date.split('T')[0] : new Date().toISOString().split('T')[0],
+      base_salary: employee?.base_salary || 0,
+      manager_id: employee?.manager_id ? String(employee.manager_id) : 'none',
+      status: employee?.status || 'Active',
+    },
   });
 
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(employee ? String(employee.department_id) : null);
 
-  // When defaultValues are populated from the employee prop, useEffect can sync the form state.
   useEffect(() => {
     if (employee) {
-      form.reset(defaultValues);
-      setSelectedDepartment(String(employee.department_id));
+      form.reset({
+        zk_uid: employee.zk_uid || "",
+        full_name: employee.full_name || "",
+        email: employee.email || "",
+        department_id: String(employee.department_id) || undefined,
+        job_title_id: String(employee.job_title_id) || undefined,
+        location_id: String(employee.location_id) || undefined,
+        manager_id: employee.manager_id ? String(employee.manager_id) : 'none',
+        hire_date: employee.hire_date ? employee.hire_date.split('T')[0] : '',
+        base_salary: employee.base_salary || 0,
+        status: employee.status || 'Active',
+      });
+      setSelectedDepartment(employee.department_id ? String(employee.department_id) : null);
     }
-  }, [employee, form, defaultValues]);
+  }, [employee, form]);
 
 
   const filteredJobTitles = selectedDepartment
@@ -135,7 +139,7 @@ export function EmployeeForm({ departments, jobTitles, locations, managers, empl
               <FormItem>
                 <FormLabel>ID الموظف (للبصمة)</FormLabel>
                 <FormControl>
-                  <Input placeholder="مثال: 101" {...field} />
+                  <Input placeholder="مثال: 101" {...field} value={field.value || ''} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -148,7 +152,7 @@ export function EmployeeForm({ departments, jobTitles, locations, managers, empl
               <FormItem>
                 <FormLabel>الاسم الكامل</FormLabel>
                 <FormControl>
-                  <Input placeholder="مثال: أحمد علي" {...field} />
+                  <Input placeholder="مثال: أحمد علي" {...field} value={field.value || ''} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -161,7 +165,7 @@ export function EmployeeForm({ departments, jobTitles, locations, managers, empl
               <FormItem>
                 <FormLabel>البريد الإلكتروني</FormLabel>
                 <FormControl>
-                  <Input placeholder="ahmed@example.com" {...field} />
+                  <Input placeholder="ahmed@example.com" {...field} value={field.value || ''} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -281,7 +285,7 @@ export function EmployeeForm({ departments, jobTitles, locations, managers, empl
               <FormItem>
                 <FormLabel>تاريخ التعيين</FormLabel>
                 <FormControl>
-                  <Input type="date" {...field} />
+                  <Input type="date" {...field} value={field.value || ''} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -294,7 +298,7 @@ export function EmployeeForm({ departments, jobTitles, locations, managers, empl
               <FormItem>
                 <FormLabel>الراتب الأساسي (شهريًا)</FormLabel>
                 <FormControl>
-                  <Input type="number" placeholder="9000" {...field} />
+                  <Input type="number" placeholder="9000" {...field} value={field.value || 0} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
