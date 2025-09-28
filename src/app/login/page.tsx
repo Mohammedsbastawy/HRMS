@@ -37,16 +37,18 @@ export default function LoginPage() {
         throw new Error(data.message || 'فشل تسجيل الدخول');
       }
 
-      // Store the token and user info
+      // Store the token in BOTH localStorage and cookies
       localStorage.setItem('authToken', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
+      // The middleware reads from cookies, so this is crucial.
+      document.cookie = `authToken=${data.token}; path=/; max-age=86400`; // max-age is 1 day
 
       toast({
         title: 'تم تسجيل الدخول بنجاح',
         description: `أهلاً بك، ${data.user.username}!`,
       });
-
-      // Refresh first to update middleware state, then push to the new route.
+      
+      // Refresh first to let middleware re-evaluate based on the new cookie, then push.
       router.refresh();
       router.push('/');
 
