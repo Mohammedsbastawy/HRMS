@@ -5,20 +5,17 @@ import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import type { Employee } from '@/lib/types';
 
-interface EmployeeChecklistPageProps {
-  params: {
-    employeeId: string;
-  };
-}
 
-export default function EmployeeChecklistPage({ params }: EmployeeChecklistPageProps) {
+export default function EmployeeChecklistPage() {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const router = useRouter();
+  const params = useParams<{ employeeId: string }>();
+  const { employeeId } = params;
 
   useEffect(() => {
     async function fetchEmployee() {
@@ -29,7 +26,7 @@ export default function EmployeeChecklistPage({ params }: EmployeeChecklistPageP
           router.push('/login');
           return;
         }
-        const response = await fetch(`/api/employees/${params.employeeId}`, {
+        const response = await fetch(`/api/employees/${employeeId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!response.ok) throw new Error('فشل في جلب بيانات الموظف');
@@ -45,8 +42,10 @@ export default function EmployeeChecklistPage({ params }: EmployeeChecklistPageP
         setIsLoading(false);
       }
     }
-    fetchEmployee();
-  }, [params.employeeId, router, toast]);
+    if (employeeId) {
+        fetchEmployee();
+    }
+  }, [employeeId, router, toast]);
 
   if (isLoading) {
     return (
