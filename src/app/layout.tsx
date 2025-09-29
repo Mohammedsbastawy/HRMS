@@ -25,10 +25,8 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
-        <ErrorDialogProvider>
-            {children}
-            <Toaster />
-        </ErrorDialogProvider>
+        {children}
+        <Toaster />
       </body>
     </html>
   );

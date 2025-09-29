@@ -1,3 +1,4 @@
+
 from flask import Flask, jsonify, request, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
@@ -670,6 +671,77 @@ class TaxBracket(db.Model):
     
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+# --- Documents Models ---
+class DocumentType(db.Model):
+    __tablename__ = 'document_types'
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String, unique=True, nullable=False)
+    title_ar = db.Column(db.String, nullable=False)
+    title_en = db.Column(db.String, nullable=False)
+    category = db.Column(db.String, default='basic')
+    default_required = db.Column(db.Boolean, default=True)
+    requires_expiry = db.Column(db.Boolean, default=False)
+    allowed_mime = db.Column(db.String)
+    max_size_mb = db.Column(db.Integer, default=15)
+    description = db.Column(db.Text)
+    active = db.Column(db.Boolean, default=True)
+
+class DocumentRequirement(db.Model):
+    __tablename__ = 'document_requirements'
+    id = db.Column(db.Integer, primary_key=True)
+    doc_type_id = db.Column(db.Integer, db.ForeignKey('document_types.id', ondelete='CASCADE'), nullable=False)
+    scope = db.Column(db.String, default='company')
+    scope_id = db.Column(db.Integer, nullable=True)
+    required = db.Column(db.Boolean, default=True)
+    effective_from = db.Column(db.String)
+    effective_to = db.Column(db.String, nullable=True)
+    notes = db.Column(db.Text)
+    __table_args__ = (db.UniqueConstraint('doc_type_id', 'scope', db.func.coalesce(scope_id, -1), 'effective_from', name='_doc_req_uc'),)
+
+class EmployeeDocument(db.Model):
+    __tablename__ = 'employee_documents'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
+    doc_type_id = db.Column(db.Integer, db.ForeignKey('document_types.id'), nullable=False)
+    file_path = db.Column(db.String)
+    file_name = db.Column(db.String)
+    mime_type = db.Column(db.String)
+    file_size = db.Column(db.Integer)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    issue_date = db.Column(db.String)
+    expiry_date = db.Column(db.String)
+    status = db.Column(db.String, default='Uploaded') # Uploaded, Verified, Rejected, Expired, Pending
+    verified_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    verified_at = db.Column(db.String)
+    note = db.Column(db.Text)
+    version = db.Column(db.Integer, default=1)
+    not_applicable = db.Column(db.Boolean, default=False)
+    versions = db.relationship('EmployeeDocumentVersion', backref='main_document', lazy='dynamic', cascade="all, delete-orphan")
+    __table_args__ = (db.UniqueConstraint('employee_id', 'doc_type_id', 'version', name='_emp_doc_version_uc'),)
+
+class EmployeeDocumentVersion(db.Model):
+    __tablename__ = 'employee_document_versions'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_document_id = db.Column(db.Integer, db.ForeignKey('employee_documents.id', ondelete='CASCADE'), nullable=False)
+    file_path = db.Column(db.String)
+    file_name = db.Column(db.String)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    version = db.Column(db.Integer)
+    note = db.Column(db.Text)
+
+class DocumentNotification(db.Model):
+    __tablename__ = 'document_notifications'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    doc_type_id = db.Column(db.Integer, db.ForeignKey('document_types.id'), nullable=False)
+    kind = db.Column(db.String) # missing, expiring, expired
+    due_date = db.Column(db.String)
+    sent_to = db.Column(db.String)
+    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 
 # --- Recruitment Models ---
 class Job(db.Model):
@@ -1404,17 +1476,17 @@ def handle_applicants():
             if file and file.filename != '':
                 # Create a safe folder name from applicant ID and name
                 applicant_folder_name = create_safe_folder_name(new_applicant.id, new_applicant.full_name)
-                applicant_upload_path = os.path.join(app.config['UPLOAD_FOLDER'], 'employees', applicant_folder_name)
+                applicant_upload_path = os.path.join(app.config['UPLOAD_FOLDER'], 'employees', applicant_folder_name, 'CV')
                 
                 if not os.path.exists(applicant_upload_path):
                     os.makedirs(applicant_upload_path)
 
-                filename = secure_filename(f"CV_{new_applicant.full_name.replace(' ','_')}.pdf")
+                filename = secure_filename(f"CV_v1_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf")
                 file_path = os.path.join(applicant_upload_path, filename)
                 file.save(file_path)
                 
                 # Store relative path for retrieval
-                cv_path = os.path.join('employees', applicant_folder_name, filename)
+                cv_path = os.path.join('employees', applicant_folder_name, 'CV', filename)
 
         new_applicant.cv_path = cv_path
         db.session.commit()
@@ -2094,6 +2166,34 @@ def create_initial_admin_user():
             db.session.commit()
             app.logger.info("Initial admin user created with username 'admin' and password 'admin'.")
 
+def seed_document_types():
+    """Seeds the document_types table with default values."""
+    with app.app_context():
+        if DocumentType.query.first() is None:
+            app.logger.info("Seeding document_types table...")
+            default_docs = [
+                {'code': 'NID', 'title_ar': 'بطاقة رقم قومي', 'title_en': 'National ID', 'requires_expiry': True},
+                {'code': 'BIRTH_CERT', 'title_ar': 'شهادة ميلاد', 'title_en': 'Birth Certificate'},
+                {'code': 'PHOTO', 'title_ar': 'صور شخصية', 'title_en': 'Personal Photo'},
+                {'code': 'MILITARY', 'title_ar': 'موقف التجنيد', 'title_en': 'Military Status', 'default_required': False},
+                {'code': 'CRIMINAL', 'title_ar': 'فيش وتشبيه', 'title_en': 'Criminal Record', 'requires_expiry': True},
+                {'code': 'HEALTH', 'title_ar': 'شهادة صحية', 'title_en': 'Health Certificate', 'requires_expiry': True, 'default_required': False},
+                {'code': 'DEGREE', 'title_ar': 'شهادة المؤهل', 'title_en': 'Degree Certificate'},
+                {'code': 'WORK_CARD', 'title_ar': 'كعب العمل', 'title_en': 'Work Card'},
+                {'code': 'SOCIAL_ID', 'title_ar': 'رقم التأمين الاجتماعي', 'title_en': 'Social Insurance ID'},
+                {'code': 'EXPERIENCE', 'title_ar': 'شهادات خبرة', 'title_en': 'Experience Certificate', 'category': 'additional', 'default_required': False},
+                {'code': 'TRAINING_CERT', 'title_ar': 'دورات تدريبية', 'title_en': 'Training Certificate', 'category': 'additional', 'default_required': False},
+                {'code': 'DRIVING', 'title_ar': 'رخصة قيادة', 'title_en': 'Driving License', 'category': 'additional', 'default_required': False, 'requires_expiry': True},
+                {'code': 'INSURANCE_PRINT', 'title_ar': 'برنت تأميني', 'title_en': 'Insurance Printout', 'category': 'additional', 'default_required': False},
+                {'code': 'CV', 'title_ar': 'السيرة الذاتية', 'title_en': 'CV', 'category': 'additional', 'default_required': False},
+            ]
+            for doc_data in default_docs:
+                doc_type = DocumentType(**doc_data)
+                db.session.add(doc_type)
+            db.session.commit()
+            app.logger.info("Document types seeded successfully.")
+
+
 # --- App Context and DB Initialization ---
 def init_db():
     with app.app_context():
@@ -2110,6 +2210,7 @@ def init_db():
         # Always run migrations and user creation check
         migrate_db()
         create_initial_admin_user()
+        seed_document_types()
 
 
 init_db()

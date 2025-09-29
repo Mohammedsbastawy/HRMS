@@ -24,6 +24,7 @@ import {
   User as UserIcon,
   BarChart,
   TriangleAlert,
+  FileText,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -53,6 +54,7 @@ const navConfig: (NavGroup | { separator: true })[] = [
     items: [
       { href: '/', label: 'نظرة عامة', icon: LayoutDashboard },
       { href: '/employees', label: 'الموظفين', icon: Users, roles: ['Admin', 'HR', 'Manager'] },
+      { href: '/documents', label: 'المستندات', icon: FileText, roles: ['Admin', 'HR'] },
     ],
   },
   { separator: true },
@@ -68,7 +70,7 @@ const navConfig: (NavGroup | { separator: true })[] = [
   {
     title: 'العمليات اليومية',
     items: [
-      { href: '/attendance', label: 'الحضورو الانصراف', icon: Clock },
+      { href: '/attendance', label: 'الحضور والانصراف', icon: Clock },
       { href: '/leaves', label: 'الإجازات', icon: Calendar },
       { href: '/disciplinary', label: 'الإجراءات التأديبية', icon: TriangleAlert, roles: ['Admin', 'HR', 'Manager'] },
     ],
@@ -140,6 +142,12 @@ export function Nav() {
     }
   }, []);
 
+  // Use startsWith for broader matching, but exact match for root '/'
+  const isActive = (href: string) => {
+    if (href === '/') return pathname === '/';
+    return pathname.startsWith(href);
+  };
+
   const visibleNav = user ? getVisibleNavItems(user.role) : [];
 
   return (
@@ -170,7 +178,7 @@ export function Nav() {
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')}
+                  isActive={isActive(item.href)}
                   tooltip={item.label}
                 >
                   <Link href={item.href}>
