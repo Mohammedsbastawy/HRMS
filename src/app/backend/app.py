@@ -1942,12 +1942,12 @@ def get_today_view_data():
     late_count = Attendance.query.filter(Attendance.date == today, Attendance.status == 'Late').count()
     
     # Find absent employees
-    present_employee_ids = [a.employee_id for a in Attendance.query.filter(Attendance.date == today).all()]
-    on_leave_employee_ids = [l.employee_id for l in LeaveRequest.query.filter(LeaveRequest.start_date <= today.isoformat(), LeaveRequest.end_date >= today.isoformat(), LeaveRequest.status == 'Approved').all()]
+    present_employee_ids = {a.employee_id for a in Attendance.query.filter(Attendance.date == today).all()}
+    on_leave_employee_ids = {l.employee_id for l in LeaveRequest.query.filter(LeaveRequest.start_date <= today.isoformat(), LeaveRequest.end_date >= today.isoformat(), LeaveRequest.status == 'Approved').all()}
     
     active_employees = Employee.query.filter(
         Employee.status == 'Active',
-        ~Employee.id.in_(present_employee_ids + on_leave_employee_ids)
+        ~Employee.id.in_(list(present_employee_ids) + list(on_leave_employee_ids))
     )
     absent_employees = active_employees.all()
     absent_count = len(absent_employees)
@@ -1975,12 +1975,17 @@ def get_today_view_data():
     late_employees = Employee.query.join(Attendance).filter(Attendance.date == today, Attendance.status == 'Late').all()
     
     # Live Punches
-    # Get employees who have any attendance record today
-    employees_with_attendance_today = db.session.query(Employee).join(Attendance).filter(Attendance.date == today).all()
-    
+    # Get employees who have any raw device log today
+    employee_ids_with_punches_today = db.session.query(DeviceLog.employee_id).filter(
+        cast(DeviceLog.log_datetime, Date) == today
+    ).distinct().all()
+
+    employee_ids_with_punches_today = [eid[0] for eid in employee_ids_with_punches_today]
+
+    employees_with_punches_today = Employee.query.filter(Employee.id.in_(employee_ids_with_punches_today)).all()
+
     live_punches_data = []
-    for emp in employees_with_attendance_today:
-        # Get all raw punches for the employee for today
+    for emp in employees_with_punches_today:
         raw_punches = DeviceLog.query.filter(
             DeviceLog.employee_id == emp.id,
             cast(DeviceLog.log_datetime, Date) == today
