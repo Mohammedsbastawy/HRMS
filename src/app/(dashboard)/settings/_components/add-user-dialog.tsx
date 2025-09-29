@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
 import type { Employee } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 
 interface AddUserDialogProps {
   open: boolean;
@@ -32,13 +33,21 @@ export function AddUserDialog({ open, onOpenChange, onUserAdded }: AddUserDialog
   const [employees, setEmployees] = useState<Pick<Employee, 'id' | 'full_name'>[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     if (open) {
       // Fetch employees when the dialog opens
       const fetchEmployees = async () => {
         try {
-          const response = await fetch('/api/employees');
+          const token = localStorage.getItem('authToken');
+          if (!token) {
+            router.push('/login');
+            return;
+          }
+          const response = await fetch('/api/employees', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
           if (!response.ok) throw new Error('Failed to fetch employees');
           const data = await response.json();
           setEmployees(data.employees);
@@ -48,7 +57,7 @@ export function AddUserDialog({ open, onOpenChange, onUserAdded }: AddUserDialog
       };
       fetchEmployees();
     }
-  }, [open, toast]);
+  }, [open, toast, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +75,7 @@ export function AddUserDialog({ open, onOpenChange, onUserAdded }: AddUserDialog
           username,
           password,
           role,
-          employee_id: employeeId ? Number(employeeId) : null,
+          employee_id: employeeId && employeeId !== 'none' ? Number(employeeId) : null,
         }),
       });
 
@@ -150,7 +159,7 @@ export function AddUserDialog({ open, onOpenChange, onUserAdded }: AddUserDialog
                   <SelectValue placeholder="اختر موظفًا لربط الحساب به" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">بلا</SelectItem>
+                  <SelectItem value="none">بلا</SelectItem>
                   {employees.map(emp => (
                     <SelectItem key={emp.id} value={String(emp.id)}>{emp.full_name}</SelectItem>
                   ))}
