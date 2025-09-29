@@ -23,26 +23,29 @@ export function PreviewDocumentDialog({ open, onOpenChange, item }: PreviewDocum
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let objectUrl: string | null = null;
+
     if (open && item.file_path) {
       setIsLoading(true);
       const token = localStorage.getItem('authToken');
-      // The backend will serve the file from /uploads/... but we need to fetch it via our API proxy
       const url = `/api/uploads/${item.file_path}`;
       
-      // For images, we can just use the URL directly.
-      // For PDFs, we need to fetch it as a blob to display it.
-      if (item.mime_type?.startsWith('image/')) {
-        setFileUrl(url); // The src attribute will handle the Authorization header implicitly via cookies
-        setIsLoading(false);
-      } else if (item.mime_type === 'application/pdf') {
-         fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-            .then(res => res.blob())
-            .then(blob => {
-                const objectUrl = URL.createObjectURL(blob);
-                setFileUrl(objectUrl);
-                setIsLoading(false);
-            })
-            .catch(() => setIsLoading(false));
+      const fetchAsBlob = async () => {
+        try {
+          const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+          if (!res.ok) throw new Error('Failed to fetch file');
+          const blob = await res.blob();
+          objectUrl = URL.createObjectURL(blob);
+          setFileUrl(objectUrl);
+        } catch (error) {
+          console.error("Failed to load file for preview:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      if (item.mime_type?.startsWith('image/') || item.mime_type === 'application/pdf') {
+        fetchAsBlob();
       } else {
         setIsLoading(false);
       }
@@ -50,9 +53,10 @@ export function PreviewDocumentDialog({ open, onOpenChange, item }: PreviewDocum
 
     return () => {
       // Clean up the object URL to avoid memory leaks
-      if (fileUrl && fileUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(fileUrl);
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
       }
+      setFileUrl(null);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, item]);
@@ -63,12 +67,14 @@ export function PreviewDocumentDialog({ open, onOpenChange, item }: PreviewDocum
         <DialogHeader>
           <DialogTitle className="flex justify-between items-center">
             <span>معاينة: {item.doc_type.title_ar}</span>
-            <a href={`/api/uploads/${item.file_path}`} download={item.file_name || 'document'}>
-              <Button variant="outline" size="sm">
-                <Download className="ml-2 h-4 w-4"/>
-                تحميل
-              </Button>
-            </a>
+            {item.file_path && (
+                <a href={`/api/uploads/${item.file_path}`} download={item.file_name || 'document'}>
+                <Button variant="outline" size="sm">
+                    <Download className="ml-2 h-4 w-4"/>
+                    تحميل
+                </Button>
+                </a>
+            )}
           </DialogTitle>
         </DialogHeader>
         <div className="flex-grow flex items-center justify-center bg-muted/50 rounded-md overflow-hidden">
