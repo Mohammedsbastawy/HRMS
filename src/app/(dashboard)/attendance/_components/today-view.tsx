@@ -118,21 +118,24 @@ export function TodayView() {
             try {
                 const token = localStorage.getItem('authToken');
                 if (!token) {
-                    toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
-                    router.push('/login');
+                    toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
                     return;
                 }
                 const response = await fetch('/api/attendance/today-view', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                if (!response.ok) throw new Error('فشل في جلب البيانات');
+                if (!response.ok) {
+                     const errorData = await response.json();
+                     throw errorData;
+                }
                 const result = await response.json();
                 setData(result);
             } catch (error: any) {
                 toast({
                     variant: "destructive",
                     title: "خطأ",
-                    description: error.message
+                    description: error.message || "فشل في جلب بيانات واجهة اليوم",
+                    details: error
                 });
                 console.error("Failed to fetch today's view data", error);
             } finally {
@@ -141,6 +144,30 @@ export function TodayView() {
         }
         fetchData();
     }, [toast, router]);
+
+    const statusTranslations: { [key: string]: string } = {
+        'Present': 'حاضر',
+        'Late': 'متأخر',
+        'Absent': 'غائب',
+        'On Leave': 'إجازة',
+        'EarlyLeave': 'خروج مبكر',
+        'Holiday': 'يوم عطلة',
+        'WeeklyOff': 'عطلة أسبوعية'
+    };
+
+    const getStatusVariant = (status: string) => {
+        switch (status) {
+            case 'Late':
+            case 'EarlyLeave':
+                return 'secondary';
+            case 'Present':
+                return 'default';
+            case 'Absent':
+                return 'destructive';
+            default:
+                return 'outline';
+        }
+    };
 
     if (isLoading) {
         return <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -200,7 +227,9 @@ export function TodayView() {
                                     </TableCell>
                                     <TableCell>{item.shift?.name || 'غير محدد'}</TableCell>
                                     <TableCell>{item.last_punch_time} ({item.last_punch_type})</TableCell>
-                                    <TableCell><Badge variant={item.status === 'متأخر' ? 'secondary' : 'default'}>{item.status}</Badge></TableCell>
+                                    <TableCell>
+                                        <Badge variant={getStatusVariant(item.status)}>{statusTranslations[item.status] || item.status}</Badge>
+                                    </TableCell>
                                     <TableCell>{item.location || '-'}</TableCell>
                                     <TableCell>
                                         <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
