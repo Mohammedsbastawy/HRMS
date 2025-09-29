@@ -7,6 +7,7 @@
 
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -71,62 +72,32 @@ export type User = {
   account_status?: 'Active' | 'Inactive';
 };
 
-export type ZktDevice = {
+export type Document = {
   id: number;
-  name: string;
-  provider: 'zkteco';
-  ip_address: string;
-  location_id?: number | null;
-  last_sync_at?: string | null;
-  status: 'online' | 'offline' | 'error';
-  location_name?: string;
-};
-
-export type Shift = {
-  id: number;
-  name: string;
-  type: 'fixed' | 'flex' | 'split' | 'night';
-  start_time?: string | null;
-  end_time?: string | null;
-  break_minutes: number;
-  grace_in: number;
-  grace_out: number;
-  rounding_minutes: number;
-  night_cross: boolean;
-  weekly_off_json: string;
-  overtime_policy_id?: number | null;
-  geofence_id?: number | null;
-  active: boolean;
+  employee_id: number;
+  file_path: string;
+  type: 'Contract' | 'Identity' | 'Certificate' | 'CV';
+  uploaded_at?: string;
 };
 
 export type Attendance = {
-  id: number;
+  id: string;
   employee_id: number;
+  employeeName: string;
+  employeeAvatar?: string | null;
   date: string;
-  check_in?: string | null;
-  check_out?: string | null;
-  hours_worked?: number | null;
-  status: 'Present' | 'Absent' | 'On Leave' | 'Late' | 'EarlyLeave' | 'Holiday' | 'WeeklyOff';
-  late_minutes?: number | null;
-  early_leave_minutes?: number | null;
-  overtime_minutes?: number | null;
-  source: 'device' | 'manual' | 'file' | 'api';
-  notes?: string | null;
-  // For UI
-  employee_name?: string;
-  employee_avatar?: string;
+  check_in: string | null;
+  check_out: string | null;
+  status: 'Present' | 'Absent' | 'On Leave' | 'Late';
 };
 
 export type LeaveRequest = {
   id: number;
   employee_id: number;
-  leave_type: 'Annual' | 'Sick' | 'Maternity' | 'Unpaid' | 'Permission';
+  leave_type: 'Annual' | 'Sick' | 'Maternity' | 'Unpaid';
   start_date: string;
   end_date: string;
-  part_day: 'none' | 'first_half' | 'second_half' | 'hours';
-  hours_count?: number | null;
-  days_count?: number | null;
-  status: 'Pending' | 'Approved' | 'Rejected' | 'Draft';
+  status: 'Pending' | 'Approved' | 'Rejected';
   approved_by?: number | null;
   notes?: string | null;
   employee: Partial<Employee>; // For UI display
@@ -287,24 +258,3 @@ export type TaxScheme = {
   active: boolean;
   brackets?: TaxBracket[];
 };
-
-export type DocumentType = {
-  id: number;
-  code: string;
-  title_ar: string;
-  title_en: string;
-  category: string;
-  default_required: boolean;
-  requires_expiry: boolean;
-  allowed_mime: string | null;
-  max_size_mb: number;
-  description: string | null;
-  active: boolean;
-};
-
-export interface EmployeeWithCompliance extends Employee {
-  compliance_percent: number;
-  missing_docs_count: number;
-  expiring_docs_count: number;
-  last_updated: string;
-}

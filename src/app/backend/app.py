@@ -24,27 +24,21 @@ CORS(app) # Enable CORS for all routes
 basedir = os.path.abspath(os.path.dirname(__file__))
 db_path = os.path.join(basedir, 'hrms.db')
 UPLOAD_FOLDER = os.path.join(basedir, 'uploads')
-APPLICANTS_FOLDER = os.path.join(basedir, 'applicants')
 
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config["JWT_SECRET_KEY"] = os.environ.get('SECRET_KEY', "super-secret-key-change-it") # Change this in your production environment
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['APPLICANTS_FOLDER'] = APPLICANTS_FOLDER
 
 
 # Initialize extensions
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 
-# Ensure upload directories exist
+# Ensure upload directory exists
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
-if not os.path.exists(os.path.join(UPLOAD_FOLDER, 'employees')):
-    os.makedirs(os.path.join(UPLOAD_FOLDER, 'employees'))
-if not os.path.exists(APPLICANTS_FOLDER):
-    os.makedirs(APPLICANTS_FOLDER)
 
 
 # --- Database Models ---
@@ -118,7 +112,6 @@ class Department(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     job_titles = db.relationship('JobTitle', backref='department', lazy=True, cascade="all, delete-orphan")
-    jobs = db.relationship('Job', backref='department', lazy='dynamic')
 
 
     def to_dict(self):
@@ -176,12 +169,12 @@ class Employee(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    department = db.relationship('Department', foreign_keys=[department_id], backref=db.backref('dept_employees', lazy='dynamic'))
+    department = db.relationship('Department', foreign_keys=[department_id], backref='employees', lazy=True)
     job_title = db.relationship('JobTitle', backref='employees', lazy=True)
     location = db.relationship('Location', foreign_keys=[location_id], backref='employees', lazy=True)
     
     manager = db.relationship('Employee', remote_side=[id])
-    managed_locations = db.relationship('Location', foreign_keys=[Location.manager_id], backref='manager', lazy='dynamic')
+    managed_locations = db.relationship('Location', foreign_keys=[Location.manager_id], backref='manager', lazy=True)
 
 
     def to_dict(self, full=False):
@@ -235,157 +228,34 @@ class DeviceLog(db.Model):
     __tablename__ = 'device_logs'
     id = db.Column(db.Integer, primary_key=True)
     device_id = db.Column(db.Integer, db.ForeignKey('zkt_devices.id'))
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True) # Null if user_id from device not in DB
+    employee_id = db.Column(db.Integer)
     log_datetime = db.Column(db.DateTime, nullable=False)
     log_type = db.Column(db.String, default='punch') # in, out, punch
     source = db.Column(db.String, default='device') # device, file, api, manual
     raw_payload = db.Column(db.String)
 
-class Shift(db.Model):
-    __tablename__ = 'shifts'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, nullable=False)
-    type = db.Column(db.String, default='fixed') # fixed, flex, split, night
-    start_time = db.Column(Time)
-    end_time = db.Column(Time)
-    break_minutes = db.Column(db.Integer, default=0)
-    grace_in = db.Column(db.Integer, default=0)
-    grace_out = db.Column(db.Integer, default=0)
-    rounding_minutes = db.Column(db.Integer, default=5)
-    night_cross = db.Column(db.Boolean, default=False)
-    weekly_off_json = db.Column(db.String, default='["Fri","Sat"]')
-    overtime_policy_id = db.Column(db.Integer, db.ForeignKey('overtime_policies.id'))
-    geofence_id = db.Column(db.Integer, db.ForeignKey('geofences.id'))
-    active = db.Column(db.Boolean, default=True)
-
-class ShiftAssignment(db.Model):
-    __tablename__ = 'shift_assignments'
-    id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
-    shift_id = db.Column(db.Integer, db.ForeignKey('shifts.id'), nullable=False)
-    effective_from = db.Column(Date, nullable=False)
-    effective_to = db.Column(Date)
-    days_mask = db.Column(db.String, default='["Sun","Mon","Tue","Wed","Thu"]')
-
-class Geofence(db.Model):
-    __tablename__ = 'geofences'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, nullable=False)
-    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
-    lat = db.Column(db.Float)
-    lng = db.Column(db.Float)
-    radius_m = db.Column(db.Integer)
-
-class QrSite(db.Model):
-    __tablename__ = 'qr_sites'
-    id = db.Column(db.Integer, primary_key=True)
-    code = db.Column(db.String, unique=True, nullable=False)
-    name = db.Column(db.String, nullable=False)
-    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
-    active = db.Column(db.Boolean, default=True)
-
 class Attendance(db.Model):
     __tablename__ = 'attendance'
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
-    date = db.Column(Date, nullable=False)
-    check_in = db.Column(Time)
-    check_out = db.Column(Time)
-    hours_worked = db.Column(db.Float)
-    status = db.Column(db.String, default='Present') # Present, Absent, On Leave, Late, EarlyLeave, Holiday, WeeklyOff
-    late_minutes = db.Column(db.Integer)
-    early_leave_minutes = db.Column(db.Integer)
-    overtime_minutes = db.Column(db.Integer)
-    source = db.Column(db.String, default='device')
-    notes = db.Column(db.Text)
-
+    date = db.Column(db.String, nullable=False)
+    check_in = db.Column(db.String)
+    check_out = db.Column(db.String)
+    status = db.Column(db.String, default='Present') # Present, Absent, On Leave
+    
     employee = db.relationship('Employee', backref='attendance_records')
-    __table_args__ = (db.UniqueConstraint('employee_id', 'date', name='_employee_date_uc'),)
 
     def to_dict(self):
         return {
             'id': self.id,
             'employee_id': self.employee_id,
-            'employee_name': self.employee.full_name if self.employee else None,
-            'employee_avatar': self.employee.avatar if self.employee else None,
-            'date': self.date.isoformat() if self.date else None,
-            'check_in': self.check_in.strftime('%H:%M:%S') if self.check_in else None,
-            'check_out': self.check_out.strftime('%H:%M:%S') if self.check_out else None,
-            'status': self.status,
-            'late_minutes': self.late_minutes,
-            'early_leave_minutes': self.early_leave_minutes,
-            'overtime_minutes': self.overtime_minutes,
-            'source': self.source,
-            'hours_worked': self.hours_worked
+            'employeeName': self.employee.full_name if self.employee else None,
+            'employeeAvatar': self.employee.avatar if self.employee else None,
+            'date': self.date,
+            'check_in': self.check_in,
+            'check_out': self.check_out,
+            'status': self.status
         }
-
-class AttendanceException(db.Model):
-    __tablename__ = 'attendance_exceptions'
-    id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
-    date = db.Column(Date, nullable=False)
-    code = db.Column(db.String, nullable=False) # missing_in, missing_out, late, etc.
-    severity = db.Column(db.String, default='low') # low, med, high
-    status = db.Column(db.String, default='Pending') # Pending, Approved, Rejected, Auto
-    detected_at = db.Column(db.DateTime, default=datetime.utcnow)
-    resolved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    resolved_at = db.Column(db.DateTime)
-    notes = db.Column(db.Text)
-
-class AttendanceCorrection(db.Model):
-    __tablename__ = 'attendance_corrections'
-    id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
-    date = db.Column(Date, nullable=False)
-    requested_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    old_check_in = db.Column(Time)
-    old_check_out = db.Column(Time)
-    new_check_in = db.Column(Time)
-    new_check_out = db.Column(Time)
-    reason = db.Column(db.Text)
-    status = db.Column(db.String, default='Pending') # Pending, Approved, Rejected
-    approver_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    decided_at = db.Column(db.DateTime)
-    audit_note = db.Column(db.Text)
-
-class OvertimePolicy(db.Model):
-    __tablename__ = 'overtime_policies'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, nullable=False)
-    require_approval = db.Column(db.Boolean, default=True)
-    min_minutes = db.Column(db.Integer, default=30)
-    round_to = db.Column(db.Integer, default=15)
-    day_type = db.Column(db.String, default='all') # normal, weekend, holiday, all
-    rate_multiplier = db.Column(db.Float, default=1.5)
-    max_per_day_minutes = db.Column(db.Integer)
-
-class OvertimeRequest(db.Model):
-    __tablename__ = 'overtime_requests'
-    id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
-    date = db.Column(Date, nullable=False)
-    minutes = db.Column(db.Integer, nullable=False)
-    reason = db.Column(db.Text)
-    status = db.Column(db.String, default='Pending') # Pending, Approved, Rejected, Posted
-    approved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    policy_id = db.Column(db.Integer, db.ForeignKey('overtime_policies.id'))
-    posted_to_payroll = db.Column(db.Boolean, default=False)
-    posted_at = db.Column(db.DateTime)
-
-class Holiday(db.Model):
-    __tablename__ = 'holidays'
-    id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(Date, nullable=False)
-    name = db.Column(db.String, nullable=False)
-    scope = db.Column(db.String, default='company') # company, location, department
-    scope_id = db.Column(db.Integer) # Corresponds to location_id or department_id if scope is not company
-
-class TimesheetLock(db.Model):
-    __tablename__ = 'timesheet_locks'
-    id = db.Column(db.Integer, primary_key=True)
-    period = db.Column(db.String, nullable=False) # 'YYYY-MM'
-    locked_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    locked_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 # --- End of Attendance Models ---
 
@@ -397,9 +267,6 @@ class LeaveRequest(db.Model):
     leave_type = db.Column(db.String, nullable=False)
     start_date = db.Column(db.String, nullable=False)
     end_date = db.Column(db.String, nullable=False)
-    part_day = db.Column(db.String, default='none')
-    hours_count = db.Column(db.Float)
-    days_count = db.Column(db.Float)
     status = db.Column(db.String, default='Pending')
     approved_by = db.Column(db.Integer)
     notes = db.Column(db.String)
@@ -560,52 +427,22 @@ class InAppNotification(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
-class EmployeeRequest(db.Model):
-    __tablename__ = 'employee_requests'
-    id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
-    type = db.Column(db.String, nullable=False) # e.g., Document, Expense Claim, Support
-    subject = db.Column(db.String, nullable=False)
-    description = db.Column(db.Text)
-    status = db.Column(db.String, default='Pending') # Pending, Approved, Rejected, Closed
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    resolved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    resolved_at = db.Column(db.DateTime)
-
-    employee = db.relationship('Employee', backref='service_requests')
-    resolver = db.relationship('User', backref='resolved_requests')
-
-class DisciplinaryPolicy(db.Model):
-    __tablename__ = 'disciplinary_policies'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, nullable=False)
-    trigger_type = db.Column(db.String, nullable=False)
-    threshold_count = db.Column(db.Integer)
-    period_days = db.Column(db.Integer)
-    action_type = db.Column(db.String)
-    severity = db.Column(db.String)
-    deduction_type = db.Column(db.String)
-    deduction_value = db.Column(db.Float)
-    points = db.Column(db.Integer, default=0)
-    active = db.Column(db.Boolean, default=True)
-
 class DisciplinaryAction(db.Model):
     __tablename__ = 'disciplinary_actions'
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
-    policy_id = db.Column(db.Integer, db.ForeignKey('disciplinary_policies.id'))
+    policy_id = db.Column(db.Integer) # ForeignKey to a future DisciplinaryPolicy table
     source = db.Column(db.String, default='manual')
     title = db.Column(db.String, nullable=False)
     description = db.Column(db.Text)
-    type = db.Column(db.String, nullable=False)
-    severity = db.Column(db.String)
+    type = db.Column(db.String, nullable=False) # warning, deduction, suspension
+    severity = db.Column(db.String) # low, medium, high
     points = db.Column(db.Integer, default=0)
-    status = db.Column(db.String, default='Draft')
+    status = db.Column(db.String, default='Draft') # Draft, PendingApproval, Approved, Applied, Rejected, Reversed
     issue_date = db.Column(db.String, default=lambda: date.today().isoformat())
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     employee = db.relationship('Employee', backref='disciplinary_actions')
-    policy = db.relationship('DisciplinaryPolicy', backref='actions')
 
     def to_dict(self):
         return {
@@ -619,25 +456,6 @@ class DisciplinaryAction(db.Model):
             'status': self.status,
             'issue_date': self.issue_date
         }
-
-class DisciplinaryEvidence(db.Model):
-    __tablename__ = 'disciplinary_evidence'
-    id = db.Column(db.Integer, primary_key=True)
-    action_id = db.Column(db.Integer, db.ForeignKey('disciplinary_actions.id', ondelete='CASCADE'), nullable=False)
-    file_path = db.Column(db.String)
-    note = db.Column(db.Text)
-    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-class PayrollAdjustment(db.Model):
-    __tablename__ = 'payroll_adjustments'
-    id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
-    month = db.Column(db.String, nullable=False)
-    amount = db.Column(db.Float, nullable=False)
-    reason = db.Column(db.String, nullable=False)
-    source = db.Column(db.String, default='disciplinary')
-    source_id = db.Column(db.Integer)
-    __table_args__ = (db.UniqueConstraint('employee_id', 'month', 'source', 'source_id', name='_employee_month_source_uc'),)
 
 class PayrollComponent(db.Model):
     __tablename__ = 'payroll_components'
@@ -681,81 +499,6 @@ class TaxBracket(db.Model):
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
-# --- Documents Models ---
-class DocumentType(db.Model):
-    __tablename__ = 'document_types'
-    id = db.Column(db.Integer, primary_key=True)
-    code = db.Column(db.String, unique=True, nullable=False)
-    title_ar = db.Column(db.String, nullable=False)
-    title_en = db.Column(db.String, nullable=False)
-    category = db.Column(db.String, default='basic')
-    default_required = db.Column(db.Boolean, default=True)
-    requires_expiry = db.Column(db.Boolean, default=False)
-    allowed_mime = db.Column(db.String)
-    max_size_mb = db.Column(db.Integer, default=15)
-    description = db.Column(db.Text)
-    active = db.Column(db.Boolean, default=True)
-    
-    def to_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
-
-class DocumentRequirement(db.Model):
-    __tablename__ = 'document_requirements'
-    id = db.Column(db.Integer, primary_key=True)
-    doc_type_id = db.Column(db.Integer, db.ForeignKey('document_types.id', ondelete='CASCADE'), nullable=False)
-    scope = db.Column(db.String, default='company')
-    scope_id = db.Column(db.Integer, nullable=True)
-    required = db.Column(db.Boolean, default=True)
-    effective_from = db.Column(db.String)
-    effective_to = db.Column(db.String, nullable=True)
-    notes = db.Column(db.Text)
-    __table_args__ = (db.UniqueConstraint('doc_type_id', 'scope', 'scope_id', 'effective_from', name='_doc_req_uc'),)
-
-
-class EmployeeDocument(db.Model):
-    __tablename__ = 'employee_documents'
-    id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
-    doc_type_id = db.Column(db.Integer, db.ForeignKey('document_types.id'), nullable=False)
-    file_path = db.Column(db.String)
-    file_name = db.Column(db.String)
-    mime_type = db.Column(db.String)
-    file_size = db.Column(db.Integer)
-    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
-    uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    issue_date = db.Column(db.String)
-    expiry_date = db.Column(db.String)
-    status = db.Column(db.String, default='Uploaded') # Uploaded, Verified, Rejected, Expired, Pending
-    verified_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    verified_at = db.Column(db.String)
-    note = db.Column(db.Text)
-    version = db.Column(db.Integer, default=1)
-    not_applicable = db.Column(db.Boolean, default=False)
-    versions = db.relationship('EmployeeDocumentVersion', backref='main_document', lazy='dynamic', cascade="all, delete-orphan")
-    __table_args__ = (db.UniqueConstraint('employee_id', 'doc_type_id', name='_emp_doc_type_uc'),)
-
-class EmployeeDocumentVersion(db.Model):
-    __tablename__ = 'employee_document_versions'
-    id = db.Column(db.Integer, primary_key=True)
-    employee_document_id = db.Column(db.Integer, db.ForeignKey('employee_documents.id', ondelete='CASCADE'), nullable=False)
-    file_path = db.Column(db.String)
-    file_name = db.Column(db.String)
-    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
-    uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    version = db.Column(db.Integer)
-    note = db.Column(db.Text)
-
-class DocumentNotification(db.Model):
-    __tablename__ = 'document_notifications'
-    id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
-    doc_type_id = db.Column(db.Integer, db.ForeignKey('document_types.id'), nullable=False)
-    kind = db.Column(db.String) # missing, expiring, expired
-    due_date = db.Column(db.String)
-    sent_to = db.Column(db.String)
-    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-
 # --- Recruitment Models ---
 class Job(db.Model):
     __tablename__ = 'jobs'
@@ -778,6 +521,7 @@ class Job(db.Model):
     external_url = db.Column(db.Text)
     created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
     
+    department = db.relationship('Department', backref='jobs', lazy=True)
     applicants = db.relationship('Applicant', backref='job', lazy='dynamic')
     
 
@@ -803,17 +547,8 @@ class Applicant(db.Model):
     phone = db.Column(db.Text)
     source = db.Column(db.Text, default='manual') # 'manual','referral','website','linkedin',…
     stage = db.Column(db.Text, CheckConstraint("stage IN ('Applied','Screening','Interview','Offer','Hired','Rejected')"), default='Applied')
-    years_experience = db.Column(db.REAL)
-    current_title = db.Column(db.Text)
-    current_company = db.Column(db.Text)
-    expected_salary = db.Column(db.REAL)
-    linkedin_url = db.Column(db.Text)
-    portfolio_url = db.Column(db.Text)
     cv_path = db.Column(db.Text)
     rating = db.Column(db.Integer, default=0)
-    score = db.Column(db.REAL, default=0)
-    email_verified = db.Column(db.Integer, default=0)
-    consent_at = db.Column(db.Text)
     notes = db.Column(db.Text)
     created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
     avatar = db.Column(db.String)
@@ -822,63 +557,6 @@ class Applicant(db.Model):
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
-
-
-class ApplicantFile(db.Model):
-    __tablename__ = 'applicant_files'
-    id = db.Column(db.Integer, primary_key=True)
-    applicant_id = db.Column(db.Integer, db.ForeignKey('applicants.id', ondelete='CASCADE'), nullable=False)
-    file_path = db.Column(db.Text, nullable=False)
-    type = db.Column(db.Text, CheckConstraint("type IN ('cv','cover_letter','portfolio','other')"), default='other')
-    uploaded_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
-
-class ApplicantNote(db.Model):
-    __tablename__ = 'applicant_notes'
-    id = db.Column(db.Integer, primary_key=True)
-    applicant_id = db.Column(db.Integer, db.ForeignKey('applicants.id', ondelete='CASCADE'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    note = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
-
-class Interview(db.Model):
-    __tablename__ = 'interviews'
-    id = db.Column(db.Integer, primary_key=True)
-    applicant_id = db.Column(db.Integer, db.ForeignKey('applicants.id', ondelete='CASCADE'), nullable=False)
-    job_id = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
-    title = db.Column(db.Text, default='Interview')
-    start_datetime = db.Column(db.Text, nullable=False)
-    end_datetime = db.Column(db.Text, nullable=False)
-    location = db.Column(db.Text)
-    video_link = db.Column(db.Text)
-    interviewer_user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    calendar_provider = db.Column(db.Text)
-    provider_event_id = db.Column(db.Text)
-    status = db.Column(db.Text, CheckConstraint("status IN ('Scheduled','Completed','Cancelled')"), default='Scheduled')
-    created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
-
-class Scorecard(db.Model):
-    __tablename__ = 'scorecards'
-    id = db.Column(db.Integer, primary_key=True)
-    applicant_id = db.Column(db.Integer, db.ForeignKey('applicants.id', ondelete='CASCADE'), nullable=False)
-    reviewer_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    criterion = db.Column(db.Text, nullable=False)
-    weight = db.Column(db.REAL, default=1.0)
-    score = db.Column(db.REAL, nullable=False)
-    comments = db.Column(db.Text)
-    created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
-
-class Offer(db.Model):
-    __tablename__ = 'offers'
-    id = db.Column(db.Integer, primary_key=True)
-    applicant_id = db.Column(db.Integer, db.ForeignKey('applicants.id', ondelete='CASCADE'), nullable=False)
-    job_id = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
-    salary_offer = db.Column(db.REAL, nullable=False)
-    currency = db.Column(db.Text, nullable=False)
-    start_date = db.Column(db.Text, nullable=False)
-    benefits_text = db.Column(db.Text)
-    status = db.Column(db.Text, CheckConstraint("status IN ('Draft','Sent','Accepted','Declined','Withdrawn')"), default='Draft')
-    offer_letter_path = db.Column(db.Text)
-    created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
 # --- End of Recruitment Models ---
 
 # --- Utility Functions ---
@@ -1285,19 +963,11 @@ def handle_leaves():
             if not employee_id_to_use:
                 return jsonify({"message": "الحساب غير مربوط بموظف"}), 400
 
-        # Simplified day calculation
-        start_date_obj = date.fromisoformat(data.get('start_date'))
-        end_date_obj = date.fromisoformat(data.get('end_date'))
-        days_count = (end_date_obj - start_date_obj).days + 1
-
         new_leave_request = LeaveRequest(
             employee_id=employee_id_to_use,
             leave_type=data.get('leave_type'),
             start_date=data.get('start_date'),
             end_date=data.get('end_date'),
-            part_day=data.get('part_day', 'none'),
-            hours_count=data.get('hours_count'),
-            days_count=days_count,
             notes=data.get('notes'),
             status='Pending' # Always starts as pending now
         )
@@ -1413,235 +1083,20 @@ def get_dashboard_data():
         "jobs": [j.to_dict() for j in Job.query.filter_by(status='Open').all()]
     })
 
-# --- File Uploads ---
-def create_safe_folder_name(applicant_id, applicant_name):
-    # Sanitize name
-    safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', applicant_name)
-    safe_name = re.sub(r'__+', '_', safe_name).strip('_')
-    folder_name = f"{applicant_id}_{safe_name}"
-    return folder_name
-
 # --- Recruitment API ---
-@app.route("/api/recruitment/jobs", methods=['GET', 'POST'])
+@app.route("/api/recruitment/jobs", methods=['GET'])
 @jwt_required()
-def handle_recruitment_jobs():
-    claims = get_jwt()
-    username = claims.get('username')
-    user_id = get_jwt_identity()
-
-    if request.method == 'GET':
-        jobs = Job.query.options(db.joinedload(Job.department)).order_by(Job.created_at.desc()).all()
-        return jsonify({'jobs': [j.to_dict() for j in jobs]})
-
-    if request.method == 'POST':
-        data = request.get_json()
-        
-        # Stricter validation
-        required_fields = ['title', 'dept_id', 'location', 'employment_type', 'openings']
-        missing_fields = [field for field in required_fields if not data.get(field)]
-        if missing_fields:
-            return jsonify({'message': f"بيانات غير مكتملة، الحقول التالية مطلوبة: {', '.join(missing_fields)}"}), 422
-        
-        try:
-            dept_id = int(data['dept_id'])
-            openings = int(data['openings'])
-            if openings < 1:
-                 return jsonify({'message': 'عدد الشواغر يجب أن يكون 1 على الأقل.'}), 422
-        except (ValueError, TypeError):
-            return jsonify({'message': 'القسم وعدد الشواغر يجب أن يكونا أرقامًا صحيحة.'}), 422
-
-        try:
-            new_job = Job(
-                title=data['title'],
-                dept_id=dept_id,
-                location=data['location'],
-                employment_type=data['employment_type'],
-                openings=openings,
-                description=data.get('description'),
-                seniority=data.get('seniority'),
-                status=data.get('status', 'Open')
-            )
-            db.session.add(new_job)
-            db.session.commit()
-            log_action("إضافة وظيفة", f"تمت إضافة وظيفة جديدة: {new_job.title}", username=username, user_id=int(user_id))
-            return jsonify(new_job.to_dict()), 201
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"Error creating job: {e}")
-            return jsonify({'message': 'خطأ داخلي أثناء إنشاء الوظيفة.', 'details': str(e)}), 500
-
-@app.route("/api/recruitment/applicants", methods=['GET', 'POST'])
-@jwt_required()
-def handle_applicants():
-    claims = get_jwt()
-    username = claims.get('username')
-    user_id = get_jwt_identity()
+def get_recruitment_jobs():
+    jobs = Job.query.options(db.joinedload(Job.department)).order_by(Job.created_at.desc()).all()
+    return jsonify({'jobs': [j.to_dict() for j in jobs]})
     
-    if request.method == 'POST':
-        if 'cv_file' not in request.files:
-            app.logger.warning("Applicant submission without CV file.")
-        
-        data = request.form
-        required_fields = ['job_id', 'full_name', 'email']
-        if not all(field in data for field in required_fields):
-            return jsonify({'message': 'بيانات ناقصة'}), 400
-        
-        # Check for duplicates
-        existing = Applicant.query.filter_by(job_id=data['job_id'], email=data['email']).first()
-        if existing:
-            return jsonify({'message': 'هذا المتقدم موجود بالفعل في هذه الوظيفة'}), 409
-            
-        new_applicant = Applicant(
-            job_id=data['job_id'],
-            full_name=data['full_name'],
-            email=data['email'],
-            phone=data.get('phone'),
-            stage='Applied',
-            source=data.get('source', 'manual'),
-            linkedin_url=data.get('linkedin_url'),
-            portfolio_url=data.get('portfolio_url'),
-            years_experience=data.get('years_experience'),
-            current_title=data.get('current_title'),
-            current_company=data.get('current_company'),
-            expected_salary=data.get('expected_salary')
-        )
-        db.session.add(new_applicant)
-        db.session.flush() # Flush to get the new_applicant.id
-
-        cv_path = None
-        if 'cv_file' in request.files:
-            file = request.files['cv_file']
-            if file and file.filename != '':
-                applicant_folder_name = create_safe_folder_name(new_applicant.id, new_applicant.full_name)
-                applicant_upload_path = os.path.join(app.config['APPLICANTS_FOLDER'], applicant_folder_name)
-                
-                if not os.path.exists(applicant_upload_path):
-                    os.makedirs(applicant_upload_path)
-
-                filename = secure_filename(f"CV_v1_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf")
-                file_path = os.path.join(applicant_upload_path, filename)
-                file.save(file_path)
-                
-                # Store relative path for retrieval
-                cv_path = os.path.join('applicants', applicant_folder_name, filename).replace("\\", "/")
-
-        new_applicant.cv_path = cv_path
-        db.session.commit()
-        
-        log_action("إضافة متقدم", f"أضاف المستخدم {username} المتقدم {data['full_name']} إلى الوظيفة ID {data['job_id']}", username=username, user_id=int(user_id))
-        return jsonify(new_applicant.to_dict()), 201
-
-    # GET all applicants
+@app.route("/api/recruitment/applicants", methods=['GET'])
+@jwt_required()
+def get_applicants():
     applicants = Applicant.query.order_by(Applicant.created_at.desc()).all()
     return jsonify({'applicants': [a.to_dict() for a in applicants]})
 
 
-@app.route('/api/recruitment/applicants/<int:applicant_id>', methods=['GET', 'PUT', 'DELETE'])
-@jwt_required()
-def handle_single_applicant(applicant_id):
-    applicant = Applicant.query.get_or_404(applicant_id)
-    claims = get_jwt()
-    username = claims.get('username')
-    user_id = get_jwt_identity()
-
-    if request.method == 'GET':
-        return jsonify(applicant.to_dict())
-
-    if request.method == 'DELETE':
-        try:
-            # Optionally, delete associated files from filesystem
-            # ...
-            db.session.delete(applicant)
-            db.session.commit()
-            log_action("حذف متقدم", f"حذف المستخدم {username} المتقدم {applicant.full_name}", username=username, user_id=int(user_id))
-            return jsonify({'message': 'تم حذف المتقدم بنجاح'}), 200
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"Error deleting applicant: {e}")
-            return jsonify({'message': 'فشل حذف المتقدم'}), 500
-
-    if request.method == 'PUT':
-        data = request.form
-        try:
-            # Update fields
-            for key, value in data.items():
-                if hasattr(applicant, key) and key not in ['id', 'job_id', 'cv_path']:
-                    setattr(applicant, key, value)
-            
-            # Handle file update
-            if 'cv_file' in request.files:
-                file = request.files['cv_file']
-                if file and file.filename != '':
-                    applicant_folder_name = create_safe_folder_name(applicant.id, applicant.full_name)
-                    applicant_upload_path = os.path.join(app.config['APPLICANTS_FOLDER'], applicant_folder_name)
-                    if not os.path.exists(applicant_upload_path):
-                        os.makedirs(applicant_upload_path)
-
-                    filename = secure_filename(f"CV_updated_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf")
-                    file_path = os.path.join(applicant_upload_path, filename)
-                    file.save(file_path)
-                    applicant.cv_path = os.path.join('applicants', applicant_folder_name, filename).replace("\\", "/")
-
-            db.session.commit()
-            log_action("تعديل متقدم", f"عدل المستخدم {username} بيانات المتقدم {applicant.full_name}", username=username, user_id=int(user_id))
-            return jsonify(applicant.to_dict()), 200
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"Error updating applicant: {e}")
-            return jsonify({'message': 'فشل تحديث بيانات المتقدم'}), 500
-
-@app.route('/api/recruitment/applicants/<int:applicant_id>/stage', methods=['PUT'])
-@jwt_required()
-def move_applicant_stage(applicant_id):
-    applicant = Applicant.query.get_or_404(applicant_id)
-    data = request.get_json()
-    new_stage = data.get('stage')
-    
-    if not new_stage:
-        return jsonify({'message': 'المرحلة الجديدة مطلوبة'}), 400
-        
-    valid_stages = ['Applied', 'Screening', 'Interview', 'Offer', 'Hired', 'Rejected']
-    if new_stage not in valid_stages:
-        return jsonify({'message': 'مرحلة غير صالحة'}), 400
-
-    try:
-        old_stage = applicant.stage
-        applicant.stage = new_stage
-        db.session.commit()
-        
-        claims = get_jwt()
-        username = claims.get('username')
-        user_id = get_jwt_identity()
-        log_action(
-            "تغيير مرحلة متقدم", 
-            f"نقل المستخدم {username} المتقدم {applicant.full_name} من {old_stage} إلى {new_stage}",
-            username=username, 
-            user_id=int(user_id)
-        )
-        return jsonify(applicant.to_dict()), 200
-    except Exception as e:
-        db.session.rollback()
-        app.logger.error(f"Error moving applicant stage: {e}")
-        return jsonify({'message': 'فشل تغيير مرحلة المتقدم'}), 500
-
-
-@app.route('/api/uploads/<path:filepath>')
-@jwt_required()
-def uploaded_file(filepath):
-    # This is a basic protection. For production, consider more robust access control.
-    directory = app.config['UPLOAD_FOLDER']
-    if filepath.startswith('applicants/'):
-        # Correctly join the base directory with the 'applicants' folder
-        directory = os.path.abspath(os.path.join(basedir, '..'))
-
-    
-    # Clean the path to prevent directory traversal
-    clean_path = os.path.normpath(filepath).lstrip('./\\')
-    if '..' in clean_path.split(os.path.sep):
-        return "Invalid path", 400
-        
-    return send_from_directory(directory, clean_path)
-    
 # --- Other Read-only APIs ---
 @app.route("/api/payrolls", methods=['GET'])
 @jwt_required()
@@ -1668,42 +1123,22 @@ def get_attendance():
     attendance_records = Attendance.query.options(db.joinedload(Attendance.employee)).order_by(Attendance.date.desc(), Attendance.check_in.desc()).all()
     return jsonify({"attendance": [record.to_dict() for record in attendance_records]})
 
-@app.route("/api/attendance/history/<int:employee_id>", methods=['GET'])
-@jwt_required()
-def get_employee_attendance_history(employee_id):
-    employee = Employee.query.options(db.joinedload(Employee.department), db.joinedload(Employee.job_title)).get_or_404(employee_id)
-    
-    # Fetch last 30 days of attendance
-    thirty_days_ago = date.today() - timedelta(days=30)
-    attendance_records = Attendance.query.filter(
-        Attendance.employee_id == employee_id,
-        Attendance.date >= thirty_days_ago
-    ).order_by(Attendance.date.desc()).all()
-
-    return jsonify({
-        "employee": employee.to_dict(full=True),
-        "attendance": [record.to_dict() for record in attendance_records]
-    })
-
-
 @app.route("/api/attendance/daily-log", methods=['GET'])
 @jwt_required()
 def get_daily_log():
-    today = date.today()
+    today = date.today().isoformat()
     
     # KPIs
-    present_count = Attendance.query.filter(Attendance.date == today, Attendance.status.in_(['Present', 'Late'])).count()
-    late_count = Attendance.query.filter(Attendance.date == today, Attendance.status == 'Late').count()
+    present_count = Attendance.query.filter_by(date=today, status='Present').count()
+    late_count = Attendance.query.filter_by(date=today, status='Late').count()
     
-    present_employee_ids = {a.employee_id for a in Attendance.query.filter(Attendance.date == today).all()}
-    on_leave_employee_ids = {l.employee_id for l in LeaveRequest.query.filter(LeaveRequest.start_date <= today.isoformat(), LeaveRequest.end_date >= today.isoformat(), LeaveRequest.status == 'Approved').all()}
+    present_employee_ids = {a.employee_id for a in Attendance.query.filter_by(date=today).all()}
+    on_leave_employee_ids = {l.employee_id for l in LeaveRequest.query.filter(LeaveRequest.start_date <= today, LeaveRequest.end_date >= today, LeaveRequest.status == 'Approved').all()}
     
-    active_employees = Employee.query.filter(
+    absent_count = Employee.query.filter(
         Employee.status == 'Active',
         ~Employee.id.in_(list(present_employee_ids) + list(on_leave_employee_ids))
-    )
-    absent_employees = active_employees.all()
-    absent_count = len(absent_employees)
+    ).count()
 
     offline_devices_count = ZktDevice.query.filter_by(status='offline').count()
 
@@ -1715,176 +1150,63 @@ def get_daily_log():
     }
 
     # Daily Log Table
-    records = Attendance.query.options(db.joinedload(Attendance.employee)).filter(Attendance.date == today).all()
-    all_daily_records = [r.to_dict() for r in records]
-
-    for emp in absent_employees:
-        all_daily_records.append({
-            'id': f'absent-{emp.id}',
-            'employee_id': emp.id,
-            'employee_name': emp.full_name,
-            'date': today.isoformat(),
-            'check_in': None,
-            'check_out': None,
-            'status': 'Absent',
-            'source': '-',
-        })
-        
-    # Modal Lists (for KPI cards)
-    present_employees_list = [
-        {'id': emp.id, 'full_name': emp.full_name, 'department': {'name_ar': emp.department.name_ar if emp.department else None}} 
-        for emp in Employee.query.join(Attendance).filter(Attendance.date == today, Attendance.status.in_(['Present', 'Late'])).all()
-    ]
-    late_employees_list = [
-        {'id': emp.id, 'full_name': emp.full_name, 'department': {'name_ar': emp.department.name_ar if emp.department else None}} 
-        for emp in Employee.query.join(Attendance).filter(Attendance.date == today, Attendance.status == 'Late').all()
-    ]
-    absent_employees_list = [
-        {'id': emp.id, 'full_name': emp.full_name, 'department': {'name_ar': emp.department.name_ar if emp.department else None}}
-        for emp in absent_employees
-    ]
-    offline_devices_list = [dev.to_dict() for dev in ZktDevice.query.filter_by(status='offline').all()]
-    
-    modal_lists = {
-        'present': present_employees_list,
-        'late': late_employees_list,
-        'absent': absent_employees_list,
-        'offline_devices': offline_devices_list
-    }
-
+    records = Attendance.query.options(db.joinedload(Attendance.employee)).filter_by(date=today).all()
     return jsonify({
         "kpis": kpis,
-        "dailyLog": all_daily_records,
-        "modalLists": modal_lists
+        "dailyLog": [record.to_dict() for record in records]
     })
 
 
 # --- ZKTeco Sync ---
-def test_pyzk_connection(ip, port, timeout=2):
-    zk = ZK(ip, port=port, timeout=timeout, force_udp=False)
-    conn = None
-    try:
-        conn = zk.connect()
-        serial_number = conn.get_serialnumber()
-        return True, f"تم الاتصال بنجاح. الرقم التسلسلي: {serial_number}"
-    except Exception as e:
-        return False, f"فشل الاتصال: {e}"
-    finally:
-        if conn:
-            conn.disconnect()
-
-@app.route("/api/attendance/test-connection", methods=['POST'])
-@jwt_required()
-def test_connection_route():
-    data = request.get_json()
-    ip = data.get('ip')
-    port = data.get('port', 4370)
-    
-    if not ip:
-        return jsonify({"success": False, "message": "لم يتم توفير عنوان IP"}), 400
-        
-    try:
-        success, message = test_pyzk_connection(ip, int(port))
-        return jsonify({"success": success, "message": message})
-    except Exception as e:
-        app.logger.error(f"Unexpected error during ZK test: {e}")
-        return jsonify({"success": False, "message": f"خطأ غير متوقع: {e}"}), 500
-
 @app.route("/api/attendance/sync-all", methods=['POST'])
 @jwt_required()
 def sync_all_devices():
     devices = ZktDevice.query.all()
     total_new_logs = 0
-    total_new_records = 0
-    total_updated_records = 0
     errors = []
     
     for device in devices:
         conn = None
-        zk = ZK(device.ip_address, port=4370, timeout=5, force_udp=False, ommit_ping=False)
+        zk = ZK(device.ip_address, port=4370, timeout=5)
         try:
             conn = zk.connect()
+            attendance_logs = conn.get_attendance()
             device.status = 'online'
             db.session.commit()
             
-            attendance_logs = conn.get_attendance()
             if not attendance_logs:
                 continue
 
-            # --- Step 1: Save raw logs to DeviceLog table ---
-            latest_log_time = db.session.query(func.max(DeviceLog.log_datetime)).filter_by(device_id=device.id).scalar()
-            
-            new_raw_logs = 0
-            for log in attendance_logs:
-                if latest_log_time and log.timestamp <= latest_log_time:
-                    continue
-                
-                try:
-                    emp_id = int(log.user_id)
-                except (ValueError, TypeError):
-                    continue # Skip if user_id is not a valid integer
-                
-                new_log = DeviceLog(
-                    device_id=device.id,
-                    employee_id=emp_id,
-                    log_datetime=log.timestamp,
-                    log_type='punch', # Simplified
-                    source='device',
-                    raw_payload=str(log)
-                )
-                db.session.add(new_log)
-                new_raw_logs += 1
-            
-            if new_raw_logs > 0:
-                db.session.commit()
-                total_new_logs += new_raw_logs
-
-            # --- Step 2: Process daily punches into Attendance table ---
             daily_punches = defaultdict(list)
             for log in attendance_logs:
+                daily_punches[(log.user_id, log.timestamp.date())].append(log.timestamp.time())
+
+            for (user_id, log_date), punches in daily_punches.items():
                 try:
-                    emp_id = int(log.user_id)
-                    employee = Employee.query.get(emp_id)
-                    if not employee:
-                        continue 
-
-                    log_date = log.timestamp.date()
-                    daily_punches[(emp_id, log_date)].append(log.timestamp.time())
+                    emp_id = int(user_id)
                 except (ValueError, TypeError):
-                    continue
-
-            for (emp_id, log_date), punches in daily_punches.items():
-                employee = Employee.query.get(emp_id)
-                if not employee:
                     continue
                 
                 check_in_time = min(punches)
                 check_out_time = max(punches) if len(punches) > 1 else None
-                att_record = Attendance.query.filter_by(employee_id=emp_id, date=log_date).first()
+                
+                att_record = Attendance.query.filter_by(employee_id=emp_id, date=log_date.isoformat()).first()
 
-                if att_record:
-                    if att_record.check_in != check_in_time or att_record.check_out != check_out_time:
-                        att_record.check_in = check_in_time
-                        if check_out_time:
-                            att_record.check_out = check_out_time
-                        total_updated_records += 1
-                else:
+                if not att_record:
                     new_att = Attendance(
                         employee_id=emp_id,
-                        date=log_date,
-                        check_in=check_in_time,
-                        check_out=check_out_time,
-                        status='Present' # Simplified
+                        date=log_date.isoformat(),
+                        check_in=check_in_time.strftime('%H:%M:%S'),
+                        check_out=check_out_time.strftime('%H:%M:%S') if check_out_time else None,
+                        status='Present' # This is simplified. Status should be calculated.
                     )
                     db.session.add(new_att)
-                    total_new_records += 1
+                    total_new_logs += 1
             
-            if total_new_records > 0 or total_updated_records > 0:
+            if total_new_logs > 0:
                  db.session.commit()
-                 log_action("مزامنة ناجحة", f"جهاز {device.name}: {total_new_records} سجلات جديدة, {total_updated_records} سجلات محدثة.")
 
         except Exception as e:
-            db.session.rollback()
             device.status = 'offline'
             db.session.commit()
             error_message = f"فشل الاتصال بجهاز {device.name} ({device.ip_address}): {e}"
@@ -1892,15 +1214,12 @@ def sync_all_devices():
             log_action("فشل المزامنة", error_message)
         finally:
             if conn:
-                try:
-                    conn.disconnect()
-                except Exception as e:
-                    app.logger.error(f"Error during ZK disconnect for {device.name}: {e}")
+                conn.disconnect()
 
-    final_message = f"إجمالي السجلات الجديدة: {total_new_records}. إجمالي السجلات المحدثة: {total_updated_records}."
+    final_message = f"تمت إضافة {total_new_logs} سجلات حضور جديدة."
     
-    if not errors and total_new_records == 0 and total_updated_records == 0:
-        return jsonify({"message": "لا توجد سجلات جديدة أو تغييرات للمزامنة من أي جهاز.", "errors": []})
+    if not errors and total_new_logs == 0:
+        return jsonify({"message": "لا توجد سجلات جديدة للمزامنة.", "errors": []})
     
     if errors:
         return jsonify({"message": f"تمت المزامنة مع بعض المشاكل. {final_message}", "errors": errors}), 207
@@ -1945,235 +1264,108 @@ def mark_all_notifications_as_read():
     
     return jsonify({'message': 'All notifications marked as read.'})
 
-# --- Documents API ---
-@app.route('/api/documents/overview', methods=['GET'])
+# --- Disciplinary API ---
+@app.route('/api/disciplinary/actions', methods=['GET', 'POST'])
 @jwt_required()
-def get_documents_overview():
-    employees_query = Employee.query.options(
-        db.joinedload(Employee.department), 
-        db.joinedload(Employee.job_title)
-    ).order_by(Employee.full_name)
-    
-    employees = employees_query.all()
-    
-    employees_with_compliance = []
-    
-    required_doc_types = DocumentType.query.filter_by(active=True, default_required=True).all()
-    total_required_count = len(required_doc_types)
-
-    for emp in employees:
-        emp_data = emp.to_dict()
-        
-        # Simplified compliance calculation for now
-        # TODO: Implement full rules-based compliance check
-        
-        # Get employee's existing documents
-        existing_docs = EmployeeDocument.query.filter_by(employee_id=emp.id).all()
-        existing_doc_type_ids = {doc.doc_type_id for doc in existing_docs}
-
-        # Calculate missing docs
-        missing_count = 0
-        expiring_count = 0
-        
-        for req_doc in required_doc_types:
-            if req_doc.id not in existing_doc_type_ids:
-                missing_count += 1
-            else:
-                # Check for expiry if required
-                if req_doc.requires_expiry:
-                    emp_doc = next((doc for doc in existing_docs if doc.doc_type_id == req_doc.id), None)
-                    if emp_doc and emp_doc.expiry_date:
-                        try:
-                            expiry = date.fromisoformat(emp_doc.expiry_date)
-                            if expiry < date.today():
-                                missing_count += 1 # Expired docs are considered missing for compliance
-                            elif (expiry - date.today()).days <= 30:
-                                expiring_count += 1
-                        except (ValueError, TypeError):
-                            pass # Ignore invalid date formats
-
-        
-        compliant_count = total_required_count - missing_count
-        compliance_percent = round((compliant_count / total_required_count) * 100) if total_required_count > 0 else 100
-        
-        # Get last update time
-        last_update = db.session.query(func.max(EmployeeDocument.uploaded_at)).filter_by(employee_id=emp.id).scalar()
-
-        emp_data['compliance_percent'] = compliance_percent
-        emp_data['missing_docs_count'] = missing_count
-        emp_data['expiring_docs_count'] = expiring_count
-        emp_data['last_updated'] = last_update.isoformat() if last_update else "لم يحدث"
-        
-        employees_with_compliance.append(emp_data)
-
-    return jsonify({'employees_compliance': employees_with_compliance})
-
-@app.route('/api/documents/types', methods=['GET', 'POST'])
-@jwt_required()
-def handle_document_types():
-    claims = get_jwt()
-    if claims.get('role') not in ['Admin', 'HR']:
-        return jsonify({"message": "صلاحيات غير كافية"}), 403
-
+def handle_disciplinary_actions():
     if request.method == 'POST':
         data = request.get_json()
-        if not data.get('code') or not data.get('title_ar') or not data.get('title_en'):
-            return jsonify({'message': 'بيانات ناقصة'}), 400
-        
-        if DocumentType.query.filter_by(code=data['code']).first():
-            return jsonify({'message': 'رمز المستند موجود بالفعل'}), 409
-
-        new_doc_type = DocumentType(**data)
-        db.session.add(new_doc_type)
+        new_action = DisciplinaryAction(
+            employee_id=int(data['employee_id']),
+            title=data['title'],
+            description=data.get('description'),
+            type=data['type'],
+            severity=data['severity'],
+            status='Draft'
+        )
+        db.session.add(new_action)
         db.session.commit()
-        log_action("إنشاء نوع مستند", f"تم إنشاء نوع مستند جديد: {data['title_ar']}", username=claims.get('username'), user_id=int(get_jwt_identity()))
-        return jsonify(new_doc_type.to_dict()), 201
-
-    doc_types = DocumentType.query.order_by(DocumentType.category, DocumentType.id).all()
-    return jsonify({'document_types': [dt.to_dict() for dt in doc_types]})
-
-
-@app.route('/api/documents/types/<int:id>', methods=['PUT', 'DELETE'])
-@jwt_required()
-def update_document_type(id):
-    claims = get_jwt()
-    if claims.get('role') not in ['Admin', 'HR']:
-        return jsonify({"message": "صلاحيات غير كافية"}), 403
+        log_action("إضافة إجراء تأديبي", f"تمت إضافة إجراء تأديبي للموظف ID {data['employee_id']}.")
+        return jsonify(new_action.to_dict()), 201
     
-    doc_type = DocumentType.query.get_or_404(id)
+    actions = DisciplinaryAction.query.options(db.joinedload(DisciplinaryAction.employee)).order_by(DisciplinaryAction.created_at.desc()).all()
+    return jsonify({"actions": [a.to_dict() for a in actions]})
 
+# --- Payroll Settings APIs ---
+@app.route('/api/payroll-components', methods=['GET', 'POST'])
+@jwt_required()
+def handle_payroll_components():
+    if request.method == 'POST':
+        data = request.get_json()
+        new_component = PayrollComponent(**data)
+        db.session.add(new_component)
+        db.session.commit()
+        log_action("إضافة مكون راتب", f"تمت إضافة مكون الراتب: {data['name']}.")
+        return jsonify(new_component.to_dict()), 201
+
+    components = PayrollComponent.query.all()
+    return jsonify({"components": [c.to_dict() for c in components]})
+
+@app.route('/api/payroll-components/<int:id>', methods=['PUT', 'DELETE'])
+@jwt_required()
+def handle_payroll_component(id):
+    component = PayrollComponent.query.get_or_404(id)
     if request.method == 'PUT':
         data = request.get_json()
         for key, value in data.items():
-            if hasattr(doc_type, key) and key != 'id':
-                setattr(doc_type, key, value)
+            if hasattr(component, key):
+                setattr(component, key, value)
         db.session.commit()
-        log_action("تحديث نوع مستند", f"تم تحديث إعدادات نوع المستند: {doc_type.title_ar}", username=claims.get('username'), user_id=int(get_jwt_identity()))
-        return jsonify(doc_type.to_dict())
-
+        log_action("تحديث مكون راتب", f"تم تحديث مكون الراتب: {component.name}.")
+        return jsonify(component.to_dict())
     if request.method == 'DELETE':
-        log_action("حذف نوع مستند", f"تم حذف نوع المستند: {doc_type.title_ar}", username=claims.get('username'), user_id=int(get_jwt_identity()))
-        db.session.delete(doc_type)
+        log_action("حذف مكون راتب", f"تم حذف مكون الراتب: {component.name}.")
+        db.session.delete(component)
         db.session.commit()
-        return jsonify({'message': 'تم حذف نوع المستند بنجاح'})
+        return jsonify({'message': 'Component deleted successfully'})
 
-@app.route('/api/documents/employee/<int:employee_id>/checklist', methods=['GET'])
+@app.route('/api/tax-schemes', methods=['GET', 'POST'])
 @jwt_required()
-def get_employee_checklist(employee_id):
-    employee = Employee.query.get_or_404(employee_id)
-    all_doc_types = DocumentType.query.filter_by(active=True).all()
-    employee_docs = EmployeeDocument.query.filter_by(employee_id=employee_id).all()
-    
-    doc_status_map = {doc.doc_type_id: doc for doc in employee_docs}
+def handle_tax_schemes():
+    if request.method == 'POST':
+        data = request.get_json()
+        brackets_data = data.pop('brackets', [])
+        new_scheme = TaxScheme(**data)
+        db.session.add(new_scheme)
+        db.session.flush() # To get the new_scheme.id
+        for bracket_data in brackets_data:
+            bracket_data.pop('id', None)
+            new_bracket = TaxBracket(scheme_id=new_scheme.id, **bracket_data)
+            db.session.add(new_bracket)
+        db.session.commit()
+        log_action("إضافة مخطط ضريبي", f"تمت إضافة مخطط ضريبي جديد: {new_scheme.name}.")
+        return jsonify(new_scheme.to_dict()), 201
 
-    checklist = []
-    for doc_type in all_doc_types:
-        status_info = {
-            "doc_type": doc_type.to_dict(),
-            "status": "Missing",
-            "file_path": None,
-            "file_name": None,
-            "mime_type": None,
-            "expiry_date": None,
-            "note": None
-        }
+    schemes = TaxScheme.query.all()
+    return jsonify({"schemes": [s.to_dict() for s in schemes]})
+
+@app.route('/api/tax-schemes/<int:id>', methods=['GET', 'PUT'])
+@jwt_required()
+def handle_tax_scheme(id):
+    scheme = TaxScheme.query.get_or_404(id)
+    if request.method == 'GET':
+        return jsonify(scheme.to_dict(include_brackets=True))
         
-        # This is a simplified logic. Will be replaced with the complex SQL later.
-        if doc_type.default_required: # For now, only show required docs. Can be expanded.
-            if doc_type.id in doc_status_map:
-                emp_doc = doc_status_map[doc_type.id]
-                status_info["status"] = emp_doc.status
-                status_info["file_path"] = emp_doc.file_path
-                status_info["file_name"] = emp_doc.file_name
-                status_info["mime_type"] = emp_doc.mime_type
-                status_info["expiry_date"] = emp_doc.expiry_date
-                status_info["note"] = emp_doc.note
-                
-                if emp_doc.status not in ['Rejected', 'Expired'] and emp_doc.expiry_date:
-                    try:
-                        expiry = date.fromisoformat(emp_doc.expiry_date)
-                        if expiry < date.today():
-                            status_info["status"] = "Expired"
-                        elif (expiry - date.today()).days <= 30:
-                             status_info["status"] = "Expiring"
-                    except (ValueError, TypeError):
-                        pass # Ignore invalid date formats
-            checklist.append(status_info)
+    if request.method == 'PUT':
+        data = request.get_json()
+        brackets_data = data.pop('brackets', [])
+        
+        for key, value in data.items():
+            if hasattr(scheme, key) and key != 'id':
+                setattr(scheme, key, value)
+        
+        # Simple deletion and re-creation of brackets for simplicity
+        TaxBracket.query.filter_by(scheme_id=scheme.id).delete()
+        for bracket_data in brackets_data:
+            bracket_data.pop('id', None)
+            new_bracket = TaxBracket(scheme_id=scheme.id, **bracket_data)
+            db.session.add(new_bracket)
             
-    return jsonify({"checklist": checklist})
+        db.session.commit()
+        log_action("تحديث مخطط ضريبي", f"تم تحديث المخطط الضريبي: {scheme.name}.")
+        return jsonify(scheme.to_dict(include_brackets=True))
 
-
-@app.route('/api/documents/employee/<int:employee_id>/upload', methods=['POST'])
-@jwt_required()
-def upload_employee_document(employee_id):
-    employee = Employee.query.get_or_404(employee_id)
-    user_id = get_jwt_identity()
-
-    if 'file' not in request.files:
-        return jsonify({'message': 'لا يوجد ملف في الطلب'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'message': 'لم يتم اختيار ملف'}), 400
-        
-    doc_type_id = request.form.get('doc_type_id')
-    if not doc_type_id:
-        return jsonify({'message': 'لم يتم تحديد نوع المستند'}), 400
-
-    doc_type = DocumentType.query.get_or_404(int(doc_type_id))
-
-    # Save file
-    filename = secure_filename(file.filename)
-    unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
-    
-    # Path: uploads/employees/101_JohnDoe/NID/2024..._nid.pdf
-    employee_folder_name = f"{employee.id}_{re.sub(r'[^a-zA-Z0-9_]', '_', employee.full_name)}"
-    doc_type_folder = doc_type.code
-    
-    save_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'employees', employee_folder_name, doc_type_folder)
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-        
-    file_path = os.path.join(save_dir, unique_filename)
-    file.save(file_path)
-
-    # Relative path for DB storage and URL generation
-    relative_path = os.path.join('employees', employee_folder_name, doc_type_folder, unique_filename).replace("\\", "/")
-
-    # Create or update DB record
-    emp_doc = EmployeeDocument.query.filter_by(employee_id=employee_id, doc_type_id=int(doc_type_id)).first()
-
-    if emp_doc: # Update existing record
-        emp_doc.file_path = relative_path
-        emp_doc.file_name = filename
-        emp_doc.mime_type = file.mimetype
-        emp_doc.file_size = file.content_length
-        emp_doc.uploaded_at = datetime.utcnow()
-        emp_doc.uploaded_by = int(user_id)
-        emp_doc.status = 'Uploaded'
-        emp_doc.version += 1
-        if doc_type.requires_expiry:
-            emp_doc.expiry_date = request.form.get('expiry_date') or None
-    else: # Create new record
-        emp_doc = EmployeeDocument(
-            employee_id=employee_id,
-            doc_type_id=int(doc_type_id),
-            file_path=relative_path,
-            file_name=filename,
-            mime_type=file.mimetype,
-            file_size=file.content_length,
-            uploaded_by=int(user_id),
-            status='Uploaded',
-            expiry_date=request.form.get('expiry_date') if doc_type.requires_expiry else None
-        )
-        db.session.add(emp_doc)
-
-    db.session.commit()
-    log_action("رفع مستند", f"تم رفع مستند '{doc_type.title_ar}' للموظف {employee.full_name}", user_id=int(user_id))
-
-    return jsonify({'message': 'تم رفع الملف بنجاح', 'file_path': relative_path}), 201
-
-
+# --- App Context and DB Initialization ---
 def create_initial_admin_user():
     with app.app_context():
         if User.query.first() is None:
@@ -2188,36 +1380,7 @@ def create_initial_admin_user():
             db.session.commit()
             app.logger.info("Initial admin user created with username 'admin' and password 'admin'.")
 
-def seed_document_types():
-    """Seeds the document_types table with default values."""
-    with app.app_context():
-        if DocumentType.query.first() is None:
-            app.logger.info("Seeding document_types table...")
-            seed_sql = """
-            INSERT OR IGNORE INTO document_types
-            (code, title_en, title_ar, category, default_required, requires_expiry, allowed_mime, max_size_mb, description, active)
-            VALUES
-            ('NID', 'National ID', 'بطاقة رقم قومي', 'basic', 1, 1, 'application/pdf,image/jpeg,image/png', 8, NULL, 1),
-            ('BIRTH_CERT', 'Birth Certificate', 'شهادة ميلاد', 'basic', 1, 0, 'application/pdf,image/jpeg,image/png', 8, NULL, 1),
-            ('PHOTO', 'Personal Photo', 'صورة شخصية', 'basic', 1, 0, 'image/jpeg,image/png', 5, NULL, 1),
-            ('MILITARY', 'Military Status', 'الموقف من التجنيد', 'basic', 0, 0, 'application/pdf,image/jpeg,image/png', 8, NULL, 1),
-            ('CRIMINAL', 'Criminal Record', 'فيش وتشبيه', 'basic', 1, 1, 'application/pdf,image/jpeg,image/png', 8, NULL, 1),
-            ('HEALTH', 'Health Certificate', 'شهادة صحية/كشف طبي', 'basic', 0, 1, 'application/pdf,image/jpeg,image/png', 8, NULL, 1),
-            ('DEGREE', 'Education Degree', 'شهادة المؤهل', 'basic', 1, 0, 'application/pdf,image/jpeg,image/png', 10, NULL, 1),
-            ('WORK_CARD', 'Work Card', 'كعب عمل', 'basic', 1, 0, 'application/pdf,image/jpeg,image/png', 8, NULL, 1),
-            ('SOCIAL_ID', 'Social Insurance Number', 'رقم التأمين الاجتماعي', 'basic', 1, 0, 'application/pdf,text/plain', 2, 'May be number proof', 1),
-            ('EXPERIENCE', 'Experience Certificate', 'شهادات خبرة', 'additional', 0, 0, 'application/pdf,image/jpeg', 10, NULL, 1),
-            ('TRAINING_CERT', 'Training Certificate', 'شهادة تدريب', 'additional', 0, 0, 'application/pdf,image/jpeg', 10, NULL, 1),
-            ('DRIVING', 'Driving License', 'رخصة قيادة', 'additional', 0, 1, 'application/pdf,image/jpeg', 8, NULL, 1),
-            ('INSURANCE_PRINT', 'Insurance Statement', 'برنت تأميني', 'additional', 0, 1, 'application/pdf,image/jpeg', 8, NULL, 1),
-            ('CV', 'Curriculum Vitae (CV)', 'السيرة الذاتية', 'additional', 1, 0, 'application/pdf', 10, 'Imported on hire from Recruitment', 1);
-            """
-            db.session.execute(text(seed_sql))
-            db.session.commit()
-            app.logger.info("Document types seeded successfully.")
 
-
-# --- App Context and DB Initialization ---
 def init_db():
     with app.app_context():
         # This will create tables that don't exist yet, without dropping existing ones.
@@ -2227,21 +1390,7 @@ def init_db():
         
         # Now, run migrations and seeding
         migrate_db()
-        # The following needs a unique constraint on employee_documents to be safe on re-runs
-        inspector = inspect(db.engine)
-        constraints = inspector.get_unique_constraints('employee_documents')
-        if not any(c['name'] == '_emp_doc_type_uc' for c in constraints):
-            try:
-                # This will fail on subsequent runs if the constraint exists, which is fine.
-                 with db.engine.connect() as con:
-                    con.execute(text('CREATE UNIQUE INDEX _emp_doc_type_uc ON employee_documents (employee_id, doc_type_id)'))
-                 app.logger.info("Added unique constraint to employee_documents.")
-            except Exception as e:
-                if "already exists" not in str(e):
-                     app.logger.error(f"Could not add unique constraint to employee_documents: {e}")
-       
         create_initial_admin_user()
-        seed_document_types()
         app.logger.info("Database initialization complete.")
 
 
