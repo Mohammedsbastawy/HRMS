@@ -2,13 +2,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from "@/components/ui/button";
 import { MoreHorizontal, Users, UserX, Clock, WifiOff, Loader2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useToast } from '@/components/ui/use-toast';
+import { useRouter } from 'next/navigation';
 
 interface TodayData {
   kpis: {
@@ -107,26 +109,38 @@ const DeviceListDialog = ({ devices }: { devices: any[] }) => (
 export function TodayView() {
     const [data, setData] = useState<TodayData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
+    const router = useRouter();
 
     useEffect(() => {
         async function fetchData() {
             setIsLoading(true);
             try {
                 const token = localStorage.getItem('authToken');
+                if (!token) {
+                    toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
+                    router.push('/login');
+                    return;
+                }
                 const response = await fetch('/api/attendance/today-view', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (!response.ok) throw new Error('فشل في جلب البيانات');
                 const result = await response.json();
                 setData(result);
-            } catch (error) {
+            } catch (error: any) {
+                toast({
+                    variant: "destructive",
+                    title: "خطأ",
+                    description: error.message
+                });
                 console.error("Failed to fetch today's view data", error);
             } finally {
                 setIsLoading(false);
             }
         }
         fetchData();
-    }, []);
+    }, [toast, router]);
 
     if (isLoading) {
         return <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
