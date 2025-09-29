@@ -2,7 +2,6 @@
 'use client';
 
 import { createContext, useState, useCallback, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -11,7 +10,6 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogCancel,
-  AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Copy } from 'lucide-react';
@@ -22,7 +20,6 @@ type ErrorDetails = {
   title: string;
   description: string;
   details?: any;
-  isSessionExpired?: boolean;
 };
 
 type ErrorDialogContextType = {
@@ -34,27 +31,13 @@ export const ErrorDialogContext = createContext<ErrorDialogContextType | null>(n
 export function ErrorDialogProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<ErrorDetails | null>(null);
   const { toast: simpleToast } = useToast();
-  const router = useRouter();
 
   const showError = useCallback((details: ErrorDetails) => {
     setError(details);
   }, []);
 
-  const handleLogoutAndRedirect = () => {
-    setError(null);
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('user');
-    document.cookie = "authToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    router.push('/login');
-    router.refresh();
-  };
-  
   const handleClose = () => {
-    if (error?.isSessionExpired) {
-        handleLogoutAndRedirect();
-    } else {
-        setError(null);
-    }
+    setError(null);
   };
 
   const handleCopy = () => {
@@ -80,7 +63,7 @@ export function ErrorDialogProvider({ children }: { children: ReactNode }) {
               {error?.description || 'فشل تنفيذ الإجراء. يرجى مراجعة التفاصيل أدناه.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {error?.details && !error?.isSessionExpired && (
+          {error?.details && (
             <div className="mt-4">
               <h3 className="font-semibold mb-2">التفاصيل الفنية:</h3>
               <ScrollArea className="h-60 w-full rounded-md border p-4 bg-muted/50">
@@ -93,18 +76,12 @@ export function ErrorDialogProvider({ children }: { children: ReactNode }) {
             </div>
           )}
           <AlertDialogFooter>
-            {error?.isSessionExpired ? (
-                 <AlertDialogAction onClick={handleLogoutAndRedirect}>تسجيل الدخول</AlertDialogAction>
-            ) : (
-                <>
-                    <AlertDialogCancel onClick={handleClose}>إغلاق</AlertDialogCancel>
-                    {error?.details && (
-                        <Button variant="outline" onClick={handleCopy}>
-                            <Copy className="ml-2 h-4 w-4" />
-                            نسخ التفاصيل
-                        </Button>
-                    )}
-                </>
+            <AlertDialogCancel onClick={handleClose}>إغلاق</AlertDialogCancel>
+            {error?.details && (
+                <Button variant="outline" onClick={handleCopy}>
+                    <Copy className="ml-2 h-4 w-4" />
+                    نسخ التفاصيل
+                </Button>
             )}
           </AlertDialogFooter>
         </AlertDialogContent>

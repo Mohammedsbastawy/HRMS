@@ -1,5 +1,7 @@
-// Inspired by react-hot-toast library
+"use client"
+
 import * as React from "react"
+import { useRouter } from "next/navigation";
 
 import type {
   ToastActionElement,
@@ -175,6 +177,7 @@ function toast({ ...props }: Toast) {
 function useToast() {
   const [state, setState] = React.useState<State>(memoryState)
   const errorDialog = React.useContext(ErrorDialogContext);
+  const router = useRouter();
 
   React.useEffect(() => {
     listeners.push(setState)
@@ -187,12 +190,17 @@ function useToast() {
   }, [state])
   
   const customToast = React.useCallback((props: Toast) => {
-    if (props.responseStatus === 401 && errorDialog) {
-       errorDialog.showError({
-            title: 'الجلسة منتهية',
-            description: 'انتهت صلاحية جلسة الدخول. يرجى تسجيل الدخول مرة أخرى.',
-            isSessionExpired: true,
+    if (props.responseStatus === 401) {
+        toast({
+          title: 'انتهت الجلسة',
+          description: 'جارٍ إعادة توجيهك إلى صفحة تسجيل الدخول...',
+          variant: 'destructive',
         });
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+        document.cookie = "authToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        router.push('/login');
+        router.refresh(); // Important to re-trigger middleware
     } else if (props.variant === 'destructive' && errorDialog) {
         errorDialog.showError({
             title: props.title as string,
@@ -202,7 +210,7 @@ function useToast() {
     } else {
         toast(props);
     }
-  }, [errorDialog]);
+  }, [errorDialog, router]);
 
 
   return {
