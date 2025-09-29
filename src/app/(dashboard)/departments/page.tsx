@@ -31,7 +31,7 @@ export default function DepartmentsPage() {
         setIsLoading(true);
         const token = localStorage.getItem('authToken');
         if (!token) {
-          router.push('/login');
+          toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
           return;
         }
 
@@ -43,8 +43,7 @@ export default function DepartmentsPage() {
         ]);
         
         if (deptsResponse.status === 401 || jobsResponse.status === 401) {
-          toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
-          router.push('/login');
+          toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
           return;
         }
 

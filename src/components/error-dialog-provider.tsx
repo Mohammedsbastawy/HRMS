@@ -22,6 +22,7 @@ type ErrorDetails = {
   title: string;
   description: string;
   details?: any;
+  isSessionExpired?: boolean;
 };
 
 type ErrorDialogContextType = {
@@ -39,17 +40,21 @@ export function ErrorDialogProvider({ children }: { children: ReactNode }) {
     setError(details);
   }, []);
 
-  const handleClose = () => {
+  const handleLogoutAndRedirect = () => {
     setError(null);
-  };
-  
-  const handleRedirectToLogin = () => {
-    setError(null);
-    // Clear the expired token from both localStorage and cookies before redirecting
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
     document.cookie = "authToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     router.push('/login');
+    router.refresh();
+  };
+  
+  const handleClose = () => {
+    if (error?.isSessionExpired) {
+        handleLogoutAndRedirect();
+    } else {
+        setError(null);
+    }
   };
 
   const handleCopy = () => {
@@ -64,12 +69,10 @@ export function ErrorDialogProvider({ children }: { children: ReactNode }) {
     })
   }
   
-  const isSessionExpiredError = error?.title === 'الجلسة منتهية';
-
   return (
     <ErrorDialogContext.Provider value={{ showError }}>
       {children}
-      <AlertDialog open={!!error} onOpenChange={(open) => !open && (isSessionExpiredError ? handleRedirectToLogin() : handleClose())}>
+      <AlertDialog open={!!error} onOpenChange={(open) => !open && handleClose()}>
         <AlertDialogContent className="max-w-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-destructive">{error?.title || 'حدث خطأ'}</AlertDialogTitle>
@@ -77,7 +80,7 @@ export function ErrorDialogProvider({ children }: { children: ReactNode }) {
               {error?.description || 'فشل تنفيذ الإجراء. يرجى مراجعة التفاصيل أدناه.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {error?.details && !isSessionExpiredError && (
+          {error?.details && !error?.isSessionExpired && (
             <div className="mt-4">
               <h3 className="font-semibold mb-2">التفاصيل الفنية:</h3>
               <ScrollArea className="h-60 w-full rounded-md border p-4 bg-muted/50">
@@ -90,8 +93,8 @@ export function ErrorDialogProvider({ children }: { children: ReactNode }) {
             </div>
           )}
           <AlertDialogFooter>
-            {isSessionExpiredError ? (
-                 <AlertDialogAction onClick={handleRedirectToLogin}>إعادة تسجيل الدخول</AlertDialogAction>
+            {error?.isSessionExpired ? (
+                 <AlertDialogAction onClick={handleLogoutAndRedirect}>إعادة تسجيل الدخول</AlertDialogAction>
             ) : (
                 <>
                     <AlertDialogCancel onClick={handleClose}>إغلاق</AlertDialogCancel>

@@ -16,6 +16,7 @@ type ToasterToast = ToastProps & {
   description?: React.ReactNode
   action?: ToastActionElement
   details?: any; // To hold detailed error info
+  responseStatus?: number; // To hold HTTP response status
 }
 
 const actionTypes = {
@@ -186,7 +187,13 @@ function useToast() {
   }, [state])
   
   const customToast = React.useCallback((props: Toast) => {
-    if (props.variant === 'destructive' && errorDialog) {
+    if (props.responseStatus === 401 && errorDialog) {
+       errorDialog.showError({
+            title: 'الجلسة منتهية',
+            description: 'انتهت صلاحية جلسة الدخول. يرجى تسجيل الدخول مرة أخرى.',
+            isSessionExpired: true,
+        });
+    } else if (props.variant === 'destructive' && errorDialog) {
         errorDialog.showError({
             title: props.title as string,
             description: props.description as string,

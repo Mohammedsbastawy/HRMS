@@ -31,7 +31,12 @@ export default function AttendancePage() {
     try {
       const token = localStorage.getItem('authToken');
       if (!token) {
-        router.push('/login');
+        toast({
+          variant: "destructive",
+          title: "الجلسة منتهية",
+          description: "يرجى تسجيل الدخول مرة أخرى.",
+          responseStatus: 401,
+        });
         return;
       }
       const response = await fetch('/api/attendance/sync-all', {

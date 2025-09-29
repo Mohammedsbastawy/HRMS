@@ -28,7 +28,7 @@ export default function AuditLogPage() {
       try {
         const token = localStorage.getItem('authToken');
         if (!token) {
-          router.push('/login');
+          toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
           return;
         }
         const response = await fetch('/api/audit-log', {
@@ -36,8 +36,7 @@ export default function AuditLogPage() {
         });
         
         if (response.status === 401) {
-            toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
-            router.push('/login');
+            toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
             return;
         }
         if (!response.ok) {

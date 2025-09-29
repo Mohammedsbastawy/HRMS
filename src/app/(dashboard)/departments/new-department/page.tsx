@@ -57,8 +57,7 @@ export default function NewDepartmentPage() {
     try {
       const token = localStorage.getItem('authToken');
       if (!token) {
-        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
-        router.push('/login');
+        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
         return;
       }
 
@@ -72,8 +71,7 @@ export default function NewDepartmentPage() {
       });
 
       if (response.status === 401) {
-        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.' });
-        router.push('/login');
+        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
         return;
       }
 
