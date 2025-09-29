@@ -43,6 +43,10 @@ export default function DashboardPage() {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
       const response = await fetch('/api/dashboard', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -52,8 +56,8 @@ export default function DashboardPage() {
             variant: 'destructive',
             title: 'الجلسة منتهية',
             description: 'انتهت صلاحية جلسة الدخول. يرجى تسجيل الدخول مرة أخرى.',
+            responseStatus: 401,
         });
-        router.push('/login');
         return;
       }
 
@@ -89,7 +93,7 @@ export default function DashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast, router]);
+  }, [router, toast]);
 
   useEffect(() => {
     fetchDashboardData();
