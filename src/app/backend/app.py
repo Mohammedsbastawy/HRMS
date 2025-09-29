@@ -292,7 +292,12 @@ class Attendance(db.Model):
             'date': self.date.isoformat() if self.date else None,
             'check_in': self.check_in.strftime('%H:%M:%S') if self.check_in else None,
             'check_out': self.check_out.strftime('%H:%M:%S') if self.check_out else None,
-            'status': self.status
+            'status': self.status,
+            'late_minutes': self.late_minutes,
+            'early_leave_minutes': self.early_leave_minutes,
+            'overtime_minutes': self.overtime_minutes,
+            'source': self.source,
+            'hours_worked': self.hours_worked
         }
 
 class AttendanceException(db.Model):
@@ -1396,11 +1401,42 @@ def get_audit_logs():
     logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).all()
     return jsonify({"auditLogs": [log.to_dict() for log in logs]})
 
+# --- Attendance APIs ---
 @app.route("/api/attendance", methods=['GET'])
 @jwt_required()
 def get_attendance():
     attendance_records = Attendance.query.options(db.joinedload(Attendance.employee)).order_by(Attendance.date.desc(), Attendance.check_in.desc()).all()
     return jsonify({"attendance": [record.to_dict() for record in attendance_records]})
+
+@app.route("/api/attendance/daily-log", methods=['GET'])
+@jwt_required()
+def get_daily_log():
+    today = date.today()
+    # For now, we fetch for today. Later we can add a date parameter.
+    records = Attendance.query.options(db.joinedload(Attendance.employee)).filter(Attendance.date == today).all()
+    
+    # Also get absent employees for today
+    present_ids = {r.employee_id for r in records}
+    on_leave_ids = {lr.employee_id for lr in LeaveRequest.query.filter(LeaveRequest.start_date <= today.isoformat(), LeaveRequest.end_date >= today.isoformat(), LeaveRequest.status == 'Approved').all()}
+    
+    active_employees = Employee.query.filter_by(status='Active').all()
+    
+    all_daily_records = [r.to_dict() for r in records]
+
+    for emp in active_employees:
+        if emp.id not in present_ids and emp.id not in on_leave_ids:
+            all_daily_records.append({
+                'id': f'absent-{emp.id}',
+                'employee_id': emp.id,
+                'employee_name': emp.full_name,
+                'date': today.isoformat(),
+                'check_in': None,
+                'check_out': None,
+                'status': 'Absent',
+                'source': '-',
+            })
+
+    return jsonify({"dailyLog": all_daily_records})
 
 
 # --- Reports API ---
@@ -1799,7 +1835,8 @@ def get_today_view_data():
     }
 
     def employee_to_dict_for_list(emp):
-         return {
+        if not emp: return None
+        return {
             'id': emp.id,
             'full_name': emp.full_name,
             'department': {'name_ar': emp.department.name_ar} if emp.department else None,
