@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -37,28 +38,28 @@ export function JobsTable({ jobs }: JobsTableProps) {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>المسمى الوظيفي</TableHead>
-          <TableHead>القسم</TableHead>
-          <TableHead>المتاح</TableHead>
-          <TableHead>تم التوظيف</TableHead>
-          <TableHead>المتقدمون</TableHead>
-          <TableHead>الحالة</TableHead>
-          <TableHead>الإجراءات</TableHead>
+          <TableHead className="text-right">المسمى الوظيفي</TableHead>
+          <TableHead className="text-right">القسم</TableHead>
+          <TableHead className="text-right">المتاح</TableHead>
+          <TableHead className="text-right">تم التوظيف</TableHead>
+          <TableHead className="text-right">المتقدمون</TableHead>
+          <TableHead className="text-right">الحالة</TableHead>
+          <TableHead className="text-right">الإجراءات</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {jobs.length > 0 ? (
           jobs.map(job => (
             <TableRow key={job.id}>
-              <TableCell className="font-medium">{job.title}</TableCell>
-              <TableCell>{job.department?.name_ar || 'غير محدد'}</TableCell>
-              <TableCell>{job.openings}</TableCell>
-              <TableCell>{job.hires_count}</TableCell>
-              <TableCell>{job.applicants_count}</TableCell>
-              <TableCell>
+              <TableCell className="font-medium text-right">{job.title}</TableCell>
+              <TableCell className="text-right">{job.department?.name_ar || 'غير محدد'}</TableCell>
+              <TableCell className="text-right">{job.openings}</TableCell>
+              <TableCell className="text-right">{job.hires_count}</TableCell>
+              <TableCell className="text-right">{job.applicants_count}</TableCell>
+              <TableCell className="text-right">
                 <Badge variant={getStatusVariant(job.status)}>{getStatusText(job.status)}</Badge>
               </TableCell>
-              <TableCell>
+              <TableCell className="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>

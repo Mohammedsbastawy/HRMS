@@ -36,16 +36,22 @@ export function EmployeesPageClient() {
       setIsLoading(true);
       try {
         const token = localStorage.getItem('authToken');
+        if (!token) {
+          toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
+          return;
+        }
         const response = await fetch('/api/employees', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
+        if (response.status === 401) {
+          toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
+          return;
+        }
         if (!response.ok) {
-          // Only throw an error for actual server errors, not for empty lists.
           const errorData = await response.json();
           throw new Error(errorData.message || 'فشل في جلب بيانات الموظفين');
         }
         const data = await response.json();
-        // data.employees could be an empty array, which is a valid state.
         setEmployees(data.employees || []);
       } catch (error: any) {
         toast({
@@ -58,7 +64,7 @@ export function EmployeesPageClient() {
       }
     }
     fetchEmployees();
-  }, [toast]);
+  }, [toast, router]);
 
 
   const departments = [...new Set(employees.map(e => e.department?.name_en).filter(Boolean) as string[])];
@@ -153,7 +159,7 @@ export function EmployeesPageClient() {
               <TableHead className="text-right">الوظيفة</TableHead>
               <TableHead className="text-right">تاريخ التعيين</TableHead>
               <TableHead className="text-right">الحالة</TableHead>
-              <TableHead>
+              <TableHead className="text-right">
                 <span className="sr-only">الإجراءات</span>
               </TableHead>
             </TableRow>
@@ -169,8 +175,8 @@ export function EmployeesPageClient() {
             ) : filteredEmployees.length > 0 ? (
               filteredEmployees.map((employee) => (
                 <TableRow key={employee.id}>
-                  <TableCell className="font-medium">{employee.id}</TableCell>
-                  <TableCell>
+                  <TableCell className="font-medium text-right">{employee.id}</TableCell>
+                  <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-3">
                       <span>{employee.full_name}</span>
                       <Avatar>
@@ -179,11 +185,11 @@ export function EmployeesPageClient() {
                       </Avatar>
                     </div>
                   </TableCell>
-                  <TableCell>{employee.email}</TableCell>
-                  <TableCell>{employee.department?.name_ar || 'N/A'}</TableCell>
-                  <TableCell>{employee.jobTitle?.title_ar || 'N/A'}</TableCell>
-                  <TableCell>{employee.hire_date ? new Date(employee.hire_date).toLocaleDateString('ar-EG') : 'N/A'}</TableCell>
-                  <TableCell>
+                  <TableCell className="text-right">{employee.email}</TableCell>
+                  <TableCell className="text-right">{employee.department?.name_ar || 'N/A'}</TableCell>
+                  <TableCell className="text-right">{employee.jobTitle?.title_ar || 'N/A'}</TableCell>
+                  <TableCell className="text-right">{employee.hire_date ? new Date(employee.hire_date).toLocaleDateString('ar-EG') : 'N/A'}</TableCell>
+                  <TableCell className="text-right">
                     {employee.status && (
                       <Badge 
                         variant={employee.status === 'Active' ? 'default' : 'destructive'}
@@ -193,7 +199,7 @@ export function EmployeesPageClient() {
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button aria-haspopup="true" size="icon" variant="ghost">
