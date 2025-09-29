@@ -20,6 +20,7 @@ type ErrorDetails = {
   title: string;
   description: string;
   details?: any;
+  onClose?: () => void; // New callback
 };
 
 type ErrorDialogContextType = {
@@ -37,6 +38,9 @@ export function ErrorDialogProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const handleClose = () => {
+    if (error?.onClose) {
+      error.onClose();
+    }
     setError(null);
   };
 

@@ -81,7 +81,9 @@ export default function EmployeeProfilePage() {
                 toast({
                     variant: 'destructive',
                     title: 'خطأ',
-                    description: error.message
+                    description: error.message,
+                    details: error,
+                    onClose: () => router.push('/employees') // Redirect on close
                 });
             } finally {
                 setIsLoading(false);
@@ -123,7 +125,8 @@ export default function EmployeeProfilePage() {
     }
 
     if (!profileData) {
-        return <div className="text-center">لم يتم العثور على بيانات الموظف.</div>;
+        // This part will likely not be reached if the error handling redirects, but it's good for robustness.
+        return null;
     }
 
     const { employee, leaves, attendance, stats } = profileData;
