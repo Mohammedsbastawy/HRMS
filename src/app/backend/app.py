@@ -1499,7 +1499,11 @@ def handle_applicants():
             stage='Applied',
             source=data.get('source', 'manual'),
             linkedin_url=data.get('linkedin_url'),
-            portfolio_url=data.get('portfolio_url')
+            portfolio_url=data.get('portfolio_url'),
+            years_experience=data.get('years_experience'),
+            current_title=data.get('current_title'),
+            current_company=data.get('current_company'),
+            expected_salary=data.get('expected_salary')
         )
         db.session.add(new_applicant)
         db.session.flush() # Flush to get the new_applicant.id
@@ -1539,7 +1543,12 @@ def uploaded_file(filepath):
     if filepath.startswith('applicants/'):
         directory = os.path.abspath(os.path.join(app.config['UPLOAD_FOLDER'], '..'))
     
-    return send_from_directory(directory, filepath)
+    # Clean the path to prevent directory traversal
+    clean_path = os.path.normpath(filepath).lstrip('./\\')
+    if '..' in clean_path.split(os.path.sep):
+        return "Invalid path", 400
+        
+    return send_from_directory(directory, clean_path)
     
 # --- Other Read-only APIs ---
 @app.route("/api/payrolls", methods=['GET'])
@@ -2148,3 +2157,5 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    
