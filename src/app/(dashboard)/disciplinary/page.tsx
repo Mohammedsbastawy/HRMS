@@ -23,6 +23,7 @@ import { PlusCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import type { DisciplinaryAction, Employee } from '@/lib/types';
 import { NewActionDialog } from './_components/new-action-dialog';
+import { useRouter } from 'next/navigation';
 
 export default function DisciplinaryPage() {
   const [actions, setActions] = useState<DisciplinaryAction[]>([]);
@@ -30,11 +31,16 @@ export default function DisciplinaryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
         const token = localStorage.getItem('authToken');
+        if (!token) {
+          router.push('/login');
+          return;
+        }
         const [actionsRes, employeesRes] = await Promise.all([
             fetch('/api/disciplinary/actions', { headers: { 'Authorization': `Bearer ${token}` } }),
             fetch('/api/employees', { headers: { 'Authorization': `Bearer ${token}` } })
@@ -103,6 +109,15 @@ export default function DisciplinaryPage() {
     return severity ? translations[severity] : '-';
   };
 
+  const getTypeTranslation = (type?: string) => {
+    const translations: { [key: string]: string } = {
+      'warning': 'إنذار',
+      'deduction': 'خصم',
+      'suspension': 'إيقاف عن العمل',
+    };
+    return type ? translations[type] : '-';
+  };
+
   return (
     <>
       <Card>
@@ -143,7 +158,7 @@ export default function DisciplinaryPage() {
                 actions.map((action) => (
                   <TableRow key={action.id}>
                     <TableCell className="font-medium">{action.employee_name}</TableCell>
-                    <TableCell>{action.type}</TableCell>
+                    <TableCell>{getTypeTranslation(action.type)}</TableCell>
                     <TableCell><Badge variant={getSeverityVariant(action.severity)}>{getSeverityText(action.severity)}</Badge></TableCell>
                     <TableCell><Badge variant={getStatusVariant(action.status)}>{getStatusText(action.status)}</Badge></TableCell>
                     <TableCell>{new Date(action.issue_date).toLocaleDateString('ar-EG')}</TableCell>
