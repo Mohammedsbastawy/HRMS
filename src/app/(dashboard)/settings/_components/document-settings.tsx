@@ -13,27 +13,24 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Edit } from 'lucide-react';
+import { Loader2, Edit, PlusCircle, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Switch } from '@/components/ui/switch';
 import { useRouter } from 'next/navigation';
+import type { DocumentType } from '@/lib/types';
+import { DocumentTypeFormDialog } from './document-type-form-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
-interface DocumentType {
-  id: number;
-  code: string;
-  title_ar: string;
-  title_en: string;
-  category: string;
-  default_required: boolean;
-  requires_expiry: boolean;
-  active: boolean;
-}
 
 export function DocumentSettings() {
   const [docTypes, setDocTypes] = useState<DocumentType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const router = useRouter();
+
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
+  const [selectedDocType, setSelectedDocType] = useState<DocumentType | null>(null);
 
   const fetchDocTypes = async () => {
     setIsLoading(true);
@@ -65,7 +62,7 @@ export function DocumentSettings() {
     fetchDocTypes();
   }, []);
 
-  const handleToggle = async (id: number, field: 'active' | 'default_required', value: boolean) => {
+  const handleToggle = async (id: number, field: 'active' | 'default_required' | 'requires_expiry', value: boolean) => {
     const originalDocTypes = [...docTypes];
     // Optimistic UI update
     setDocTypes(prev => prev.map(dt => dt.id === id ? { ...dt, [field]: value } : dt));
@@ -84,6 +81,48 @@ export function DocumentSettings() {
       setDocTypes(originalDocTypes); // Revert on error
     }
   };
+  
+  const handleAddClick = () => {
+    setSelectedDocType(null);
+    setIsFormOpen(true);
+  };
+  
+  const handleEditClick = (docType: DocumentType) => {
+    setSelectedDocType(docType);
+    setIsFormOpen(true);
+  };
+
+  const handleDeleteClick = (docType: DocumentType) => {
+    setSelectedDocType(docType);
+    setIsDeleteAlertOpen(true);
+  };
+
+  const handleFormSuccess = () => {
+    setIsFormOpen(false);
+    fetchDocTypes();
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedDocType) return;
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+      const response = await fetch(`/api/documents/types/${selectedDocType.id}`, { 
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('فشل حذف نوع المستند');
+      toast({ title: 'تم الحذف بنجاح' });
+      fetchDocTypes();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'خطأ', description: error.message });
+    } finally {
+      setIsDeleteAlertOpen(false);
+    }
+  };
 
   return (
     <>
@@ -96,10 +135,10 @@ export function DocumentSettings() {
                 إدارة أنواع المستندات التي يمكن للموظفين رفعها في النظام.
               </CardDescription>
             </div>
-            {/* <Button size="sm" onClick={() => {}}>
+            <Button size="sm" onClick={handleAddClick}>
               <PlusCircle className="ml-2 h-4 w-4" />
               إضافة نوع
-            </Button> */}
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -111,12 +150,13 @@ export function DocumentSettings() {
                 <TableHead>يتطلب تاريخ انتهاء</TableHead>
                 <TableHead>مطلوب بشكل افتراضي</TableHead>
                 <TableHead>نشط</TableHead>
+                <TableHead>إجراءات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
+                  <TableCell colSpan={6} className="h-24 text-center">
                     <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                   </TableCell>
                 </TableRow>
@@ -125,11 +165,17 @@ export function DocumentSettings() {
                   <TableRow key={dt.id}>
                     <TableCell className="font-medium">{dt.title_ar}</TableCell>
                     <TableCell>
-                      <Badge variant={dt.category === 'basic' ? 'default' : 'secondary'}>
+                      <Badge variant={dt.category === 'basic' ? 'destructive' : 'secondary'}>
                         {dt.category === 'basic' ? 'أساسي' : 'إضافي'}
                       </Badge>
                     </TableCell>
-                    <TableCell>{dt.requires_expiry ? 'نعم' : 'لا'}</TableCell>
+                    <TableCell>
+                       <Switch
+                        checked={dt.requires_expiry}
+                        onCheckedChange={(value) => handleToggle(dt.id, 'requires_expiry', value)}
+                        aria-label="Toggle requires expiry"
+                      />
+                    </TableCell>
                     <TableCell>
                       <Switch
                         checked={dt.default_required}
@@ -144,12 +190,22 @@ export function DocumentSettings() {
                         aria-label="Toggle active"
                       />
                     </TableCell>
+                    <TableCell>
+                        <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => handleEditClick(dt)}>
+                                <Edit className="h-4 w-4" />
+                            </Button>
+                             <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeleteClick(dt)}>
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
-                    لا توجد أنواع مستندات. سيتم إضافتها من قاعدة البيانات.
+                  <TableCell colSpan={6} className="h-24 text-center">
+                    لا توجد أنواع مستندات. ابدأ بإضافة نوع جديد.
                   </TableCell>
                 </TableRow>
               )}
@@ -157,6 +213,28 @@ export function DocumentSettings() {
           </Table>
         </CardContent>
       </Card>
+      
+      <DocumentTypeFormDialog
+        open={isFormOpen}
+        onOpenChange={setIsFormOpen}
+        onSuccess={handleFormSuccess}
+        docType={selectedDocType}
+      />
+
+      <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>هل أنت متأكد تمامًا؟</AlertDialogTitle>
+            <AlertDialogDescription>
+              سيتم حذف نوع المستند "{selectedDocType?.title_ar}" نهائيًا. لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">حذف</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

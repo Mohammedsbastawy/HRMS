@@ -702,6 +702,7 @@ class DocumentRequirement(db.Model):
     notes = db.Column(db.Text)
     __table_args__ = (db.UniqueConstraint('doc_type_id', 'scope', 'scope_id', 'effective_from', name='_doc_req_uc'),)
 
+
 class EmployeeDocument(db.Model):
     __tablename__ = 'employee_documents'
     id = db.Column(db.Integer, primary_key=True)
@@ -1479,7 +1480,8 @@ def handle_applicants():
             if file and file.filename != '':
                 # Create a safe folder name from applicant ID and name
                 applicant_folder_name = create_safe_folder_name(new_applicant.id, new_applicant.full_name)
-                applicant_upload_path = os.path.join(app.config['UPLOAD_FOLDER'], applicant_folder_name, 'CV')
+                # The folder for applicant CVs should be separate from employees
+                applicant_upload_path = os.path.join(app.config['UPLOAD_FOLDER'], '..', 'applicants', applicant_folder_name)
                 
                 if not os.path.exists(applicant_upload_path):
                     os.makedirs(applicant_upload_path)
@@ -1489,7 +1491,7 @@ def handle_applicants():
                 file.save(file_path)
                 
                 # Store relative path for retrieval
-                cv_path = os.path.join(applicant_folder_name, 'CV', filename)
+                cv_path = os.path.join(applicant_folder_name, filename)
 
         new_applicant.cv_path = cv_path
         db.session.commit()
@@ -2165,13 +2167,32 @@ def get_documents_overview():
     ).order_by(Employee.full_name).all()
     return jsonify({'employees': [e.to_dict() for e in employees]})
 
-@app.route('/api/documents/types', methods=['GET'])
+@app.route('/api/documents/types', methods=['GET', 'POST'])
 @jwt_required()
-def get_document_types():
+def handle_document_types():
+    claims = get_jwt()
+    if claims.get('role') not in ['Admin', 'HR']:
+        return jsonify({"message": "صلاحيات غير كافية"}), 403
+
+    if request.method == 'POST':
+        data = request.get_json()
+        if not data.get('code') or not data.get('title_ar') or not data.get('title_en'):
+            return jsonify({'message': 'بيانات ناقصة'}), 400
+        
+        if DocumentType.query.filter_by(code=data['code']).first():
+            return jsonify({'message': 'رمز المستند موجود بالفعل'}), 409
+
+        new_doc_type = DocumentType(**data)
+        db.session.add(new_doc_type)
+        db.session.commit()
+        log_action("إنشاء نوع مستند", f"تم إنشاء نوع مستند جديد: {data['title_ar']}", username=claims.get('username'), user_id=int(get_jwt_identity()))
+        return jsonify(new_doc_type.to_dict()), 201
+
     doc_types = DocumentType.query.order_by(DocumentType.category, DocumentType.id).all()
     return jsonify({'document_types': [dt.to_dict() for dt in doc_types]})
 
-@app.route('/api/documents/types/<int:id>', methods=['PUT'])
+
+@app.route('/api/documents/types/<int:id>', methods=['PUT', 'DELETE'])
 @jwt_required()
 def update_document_type(id):
     claims = get_jwt()
@@ -2179,17 +2200,21 @@ def update_document_type(id):
         return jsonify({"message": "صلاحيات غير كافية"}), 403
     
     doc_type = DocumentType.query.get_or_404(id)
-    data = request.get_json()
-    
-    # Only allow updating 'active' and 'default_required' for now
-    if 'active' in data:
-        doc_type.active = bool(data['active'])
-    if 'default_required' in data:
-        doc_type.default_required = bool(data['default_required'])
-    
-    db.session.commit()
-    log_action("تحديث نوع مستند", f"تم تحديث إعدادات نوع المستند: {doc_type.title_ar}", username=claims.get('username'), user_id=int(get_jwt_identity()))
-    return jsonify(doc_type.to_dict())
+
+    if request.method == 'PUT':
+        data = request.get_json()
+        for key, value in data.items():
+            if hasattr(doc_type, key) and key != 'id':
+                setattr(doc_type, key, value)
+        db.session.commit()
+        log_action("تحديث نوع مستند", f"تم تحديث إعدادات نوع المستند: {doc_type.title_ar}", username=claims.get('username'), user_id=int(get_jwt_identity()))
+        return jsonify(doc_type.to_dict())
+
+    if request.method == 'DELETE':
+        log_action("حذف نوع مستند", f"تم حذف نوع المستند: {doc_type.title_ar}", username=claims.get('username'), user_id=int(get_jwt_identity()))
+        db.session.delete(doc_type)
+        db.session.commit()
+        return jsonify({'message': 'تم حذف نوع المستند بنجاح'})
 
 @app.route('/api/documents/employee/<int:employee_id>/checklist', methods=['GET'])
 @jwt_required()
@@ -2265,8 +2290,8 @@ def seed_document_types():
             ('DEGREE', 'Education Degree', 'شهادة المؤهل', 'basic', 1, 0, 'application/pdf,image/jpeg,image/png', 10, NULL, 1),
             ('WORK_CARD', 'Work Card', 'كعب عمل', 'basic', 1, 0, 'application/pdf,image/jpeg,image/png', 8, NULL, 1),
             ('SOCIAL_ID', 'Social Insurance Number', 'رقم التأمين الاجتماعي', 'basic', 1, 0, 'application/pdf,text/plain', 2, 'May be number proof', 1),
-            ('EXPERIENCE', 'Experience Certificate', 'شهادة خبرة', 'additional', 0, 0, 'application/pdf,image/jpeg', 10, NULL, 1),
-            ('TRAINING_CERT', 'Training Certificate', 'شهادة تدريب', 'additional', 0, 0, 'application/pdf,image/jpeg', 10, NULL, 1),
+            ('EXPERIENCE', 'Experience Certificate', 'شهادات خبرة', 'additional', 0, 0, 'application/pdf,image/jpeg', 10, NULL, 1),
+            ('TRAINING_CERT', 'Training Certificate', 'شهادات تدريب', 'additional', 0, 0, 'application/pdf,image/jpeg', 10, NULL, 1),
             ('DRIVING', 'Driving License', 'رخصة قيادة', 'additional', 0, 1, 'application/pdf,image/jpeg', 8, NULL, 1),
             ('INSURANCE_PRINT', 'Insurance Statement', 'برنت تأميني', 'additional', 0, 1, 'application/pdf,image/jpeg', 8, NULL, 1),
             ('CV', 'Curriculum Vitae (CV)', 'السيرة الذاتية', 'additional', 1, 0, 'application/pdf', 10, 'Imported on hire from Recruitment', 1);
@@ -2279,7 +2304,6 @@ def seed_document_types():
 # --- App Context and DB Initialization ---
 def init_db():
     with app.app_context():
-        app.logger.info("Initializing database...")
         db.create_all()
         app.logger.info("Tables created (if not exist).")
         
