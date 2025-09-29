@@ -94,7 +94,7 @@ export function ErrorDialogProvider({ children }: { children: ReactNode }) {
           )}
           <AlertDialogFooter>
             {error?.isSessionExpired ? (
-                 <AlertDialogAction onClick={handleLogoutAndRedirect}>إعادة تسجيل الدخول</AlertDialogAction>
+                 <AlertDialogAction onClick={handleLogoutAndRedirect}>تسجيل الدخول</AlertDialogAction>
             ) : (
                 <>
                     <AlertDialogCancel onClick={handleClose}>إغلاق</AlertDialogCancel>
