@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, startTransition } from 'react';
+import { useState, useEffect, startTransition, useCallback } from 'react';
 import {
   Table,
   TableBody,
@@ -19,6 +19,7 @@ import type { LeaveRequest } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/components/ui/use-toast';
 import { RequestLeaveDialog } from './request-leave-dialog';
+import { useRouter } from 'next/navigation';
 
 type User = {
   id: number;
@@ -32,14 +33,23 @@ export function LeaveRequestClientPage() {
   const [user, setUser] = useState<User | null>(null);
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
 
-  const fetchLeaveRequests = async () => {
+  const fetchLeaveRequests = useCallback(async () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('authToken');
+      if (!token) {
+        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
+        return;
+      }
       const res = await fetch('/api/leaves', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (res.status === 401) {
+        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
+        return;
+      }
       if (!res.ok) throw new Error('Failed to fetch leave requests');
       const data = await res.json();
       setLeaveRequests(data.leaveRequests);
@@ -52,7 +62,7 @@ export function LeaveRequestClientPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -60,11 +70,15 @@ export function LeaveRequestClientPage() {
       setUser(JSON.parse(storedUser));
     }
     fetchLeaveRequests();
-  }, []);
+  }, [fetchLeaveRequests]);
 
   const handleAction = async (id: number, action: 'approve' | 'reject', notes?: string) => {
     try {
         const token = localStorage.getItem('authToken');
+        if (!token) {
+            toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
+            return;
+        }
         const response = await fetch(`/api/leaves/${id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -252,5 +266,3 @@ export function LeaveRequestClientPage() {
     </>
   );
 }
-
-    
