@@ -28,6 +28,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
 import type { Shift } from '@/lib/types';
 import { useRouter } from 'next/navigation';
+import { TimePicker } from '@/components/ui/time-picker';
 
 interface ShiftFormDialogProps {
   open: boolean;
@@ -168,12 +169,24 @@ export function ShiftFormDialog({ open, onOpenChange, onSuccess, shift }: ShiftF
             <div className="grid grid-cols-2 gap-4">
                  <div className="space-y-2">
                     <Label htmlFor="start_time">وقت البدء</Label>
-                    <Input id="start_time" type="time" {...register('start_time')} />
+                     <Controller
+                        name="start_time"
+                        control={control}
+                        render={({ field }) => (
+                            <TimePicker value={field.value} onChange={field.onChange} />
+                        )}
+                        />
                     {errors.start_time && <p className="text-sm text-destructive">{errors.start_time.message}</p>}
                  </div>
                  <div className="space-y-2">
                     <Label htmlFor="end_time">وقت الانتهاء</Label>
-                    <Input id="end_time" type="time" {...register('end_time')} />
+                    <Controller
+                        name="end_time"
+                        control={control}
+                        render={({ field }) => (
+                            <TimePicker value={field.value} onChange={field.onChange} />
+                        )}
+                        />
                     {errors.end_time && <p className="text-sm text-destructive">{errors.end_time.message}</p>}
                  </div>
             </div>
