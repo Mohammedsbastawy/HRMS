@@ -2151,6 +2151,16 @@ def mark_all_notifications_as_read():
     
     return jsonify({'message': 'All notifications marked as read.'})
 
+# --- Documents API ---
+@app.route('/api/documents/overview', methods=['GET'])
+@jwt_required()
+def get_documents_overview():
+    # Simplified version for now
+    employees = Employee.query.options(
+        db.joinedload(Employee.department), 
+        db.joinedload(Employee.job_title)
+    ).order_by(Employee.full_name).all()
+    return jsonify({'employees': [e.to_dict() for e in employees]})
 
 def create_initial_admin_user():
     with app.app_context():
@@ -2184,7 +2194,7 @@ def seed_document_types():
             ('DEGREE', 'Education Degree', 'شهادة المؤهل', 'basic', 1, 0, 'application/pdf,image/jpeg,image/png', 10, NULL, 1),
             ('WORK_CARD', 'Work Card', 'كعب عمل', 'basic', 1, 0, 'application/pdf,image/jpeg,image/png', 8, NULL, 1),
             ('SOCIAL_ID', 'Social Insurance Number', 'رقم التأمين الاجتماعي', 'basic', 1, 0, 'application/pdf,text/plain', 2, 'May be number proof', 1),
-            ('EXPERIENCE', 'Experience Certificate', 'شهادات خبرة', 'additional', 0, 0, 'application/pdf,image/jpeg', 10, NULL, 1),
+            ('EXPERIENCE', 'Experience Certificate', 'شهادة خبرة', 'additional', 0, 0, 'application/pdf,image/jpeg', 10, NULL, 1),
             ('TRAINING_CERT', 'Training Certificate', 'شهادة تدريب', 'additional', 0, 0, 'application/pdf,image/jpeg', 10, NULL, 1),
             ('DRIVING', 'Driving License', 'رخصة قيادة', 'additional', 0, 1, 'application/pdf,image/jpeg', 8, NULL, 1),
             ('INSURANCE_PRINT', 'Insurance Statement', 'برنت تأميني', 'additional', 0, 1, 'application/pdf,image/jpeg', 8, NULL, 1),
@@ -2199,7 +2209,7 @@ def seed_document_types():
 def init_db():
     with app.app_context():
         app.logger.info("Initializing database...")
-        db.create_all()  # This will create missing tables
+        db.create_all()
         app.logger.info("Tables created (if not exist).")
         
         # Now, run migrations and seeding
@@ -2213,5 +2223,3 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-    
