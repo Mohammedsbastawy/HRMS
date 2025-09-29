@@ -2208,13 +2208,53 @@ def get_documents_overview():
     employees = employees_query.all()
     
     employees_with_compliance = []
+    
+    required_doc_types = DocumentType.query.filter_by(active=True, default_required=True).all()
+    total_required_count = len(required_doc_types)
+
     for emp in employees:
         emp_data = emp.to_dict()
-        # Using placeholders for now until the compliance logic is fully implemented
-        emp_data['compliance_percent'] = 0
-        emp_data['missing_docs_count'] = 0
-        emp_data['expiring_docs_count'] = 0
-        emp_data['last_updated'] = "قيد التطوير"
+        
+        # Simplified compliance calculation for now
+        # TODO: Implement full rules-based compliance check
+        
+        # Get employee's existing documents
+        existing_docs = EmployeeDocument.query.filter_by(employee_id=emp.id).all()
+        existing_doc_type_ids = {doc.doc_type_id for doc in existing_docs}
+
+        # Calculate missing docs
+        missing_count = 0
+        expiring_count = 0
+        
+        for req_doc in required_doc_types:
+            if req_doc.id not in existing_doc_type_ids:
+                missing_count += 1
+            else:
+                # Check for expiry if required
+                if req_doc.requires_expiry:
+                    emp_doc = next((doc for doc in existing_docs if doc.doc_type_id == req_doc.id), None)
+                    if emp_doc and emp_doc.expiry_date:
+                        try:
+                            expiry = date.fromisoformat(emp_doc.expiry_date)
+                            if expiry < date.today():
+                                missing_count += 1 # Expired docs are considered missing for compliance
+                            elif (expiry - date.today()).days <= 30:
+                                expiring_count += 1
+                        except (ValueError, TypeError):
+                            pass # Ignore invalid dates
+
+        
+        compliant_count = total_required_count - missing_count
+        compliance_percent = round((compliant_count / total_required_count) * 100) if total_required_count > 0 else 100
+        
+        # Get last update time
+        last_update = db.session.query(func.max(EmployeeDocument.uploaded_at)).filter_by(employee_id=emp.id).scalar()
+
+        emp_data['compliance_percent'] = compliance_percent
+        emp_data['missing_docs_count'] = missing_count
+        emp_data['expiring_docs_count'] = expiring_count
+        emp_data['last_updated'] = last_update.isoformat() if last_update else "لم يحدث"
+        
         employees_with_compliance.append(emp_data)
 
     return jsonify({'employees_compliance': employees_with_compliance})

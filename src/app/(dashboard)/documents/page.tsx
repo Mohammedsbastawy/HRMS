@@ -8,18 +8,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Loader2, Search, ListFilter, FileDown, BellRing, Eye } from 'lucide-react';
+import { MoreHorizontal, Loader2, Search, ListFilter, FileDown, BellRing, Eye, FileArchive } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useRouter } from 'next/navigation';
-import type { Employee } from '@/lib/types';
+import type { EmployeeWithCompliance } from '@/lib/types';
 import { Input } from '@/components/ui/input';
-
-interface EmployeeWithCompliance extends Employee {
-    compliance_percent: number;
-    missing_docs_count: number;
-    expiring_docs_count: number;
-    last_updated: string;
-}
 
 const ComplianceBar = ({ value }: { value: number }) => {
     let colorClass = 'bg-green-500';
@@ -64,6 +57,28 @@ export default function DocumentsOverviewPage() {
         }
         fetchOverview();
     }, [router, toast]);
+
+    const formatRelativeTime = (isoDate: string) => {
+        if (isoDate === "لم يحدث") return isoDate;
+        try {
+            const date = new Date(isoDate);
+            const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+            let interval = seconds / 31536000;
+            if (interval > 1) return `منذ ${Math.floor(interval)} سنة`;
+            interval = seconds / 2592000;
+            if (interval > 1) return `منذ ${Math.floor(interval)} شهر`;
+            interval = seconds / 86400;
+            if (interval > 1) return `منذ ${Math.floor(interval)} يوم`;
+            interval = seconds / 3600;
+            if (interval > 1) return `منذ ${Math.floor(interval)} ساعة`;
+            interval = seconds / 60;
+            if (interval > 1) return `منذ ${Math.floor(interval)} دقيقة`;
+            return `منذ لحظات`;
+        } catch (e) {
+            return "غير معروف";
+        }
+    }
+
 
     return (
         <Card>
@@ -148,9 +163,9 @@ export default function DocumentsOverviewPage() {
                                             <ComplianceBar value={emp.compliance_percent || 0} />
                                         </div>
                                     </TableCell>
-                                    <TableCell className="text-right">{emp.missing_docs_count}</TableCell>
-                                    <TableCell className="text-right">{emp.expiring_docs_count}</TableCell>
-                                    <TableCell className="text-right text-xs text-muted-foreground">{emp.last_updated || 'لم يحدث'}</TableCell>
+                                    <TableCell className="text-right font-medium">{emp.missing_docs_count}</TableCell>
+                                    <TableCell className="text-right text-amber-600 font-medium">{emp.expiring_docs_count}</TableCell>
+                                    <TableCell className="text-right text-xs text-muted-foreground">{formatRelativeTime(emp.last_updated)}</TableCell>
                                     <TableCell className="text-right">
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
@@ -163,7 +178,7 @@ export default function DocumentsOverviewPage() {
                                                     عرض قائمة المستندات
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem disabled>
-                                                    <FileDown className="ml-2 h-4 w-4" />
+                                                    <FileArchive className="ml-2 h-4 w-4" />
                                                     تصدير ZIP
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem disabled>

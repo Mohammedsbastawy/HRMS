@@ -3,6 +3,7 @@
 
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -302,3 +303,10 @@ export type DocumentType = {
   description: string | null;
   active: boolean;
 };
+
+export interface EmployeeWithCompliance extends Employee {
+  compliance_percent: number;
+  missing_docs_count: number;
+  expiring_docs_count: number;
+  last_updated: string;
+}
