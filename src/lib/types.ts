@@ -6,6 +6,7 @@
 
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -119,10 +120,13 @@ export type Attendance = {
 export type LeaveRequest = {
   id: number;
   employee_id: number;
-  leave_type: 'Annual' | 'Sick' | 'Maternity' | 'Unpaid';
+  leave_type: 'Annual' | 'Sick' | 'Maternity' | 'Unpaid' | 'Permission';
   start_date: string;
   end_date: string;
-  status: 'Pending' | 'Approved' | 'Rejected';
+  part_day: 'none' | 'first_half' | 'second_half' | 'hours';
+  hours_count?: number | null;
+  days_count?: number | null;
+  status: 'Pending' | 'Approved' | 'Rejected' | 'Draft';
   approved_by?: number | null;
   notes?: string | null;
   employee: Partial<Employee>; // For UI display

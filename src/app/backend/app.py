@@ -391,6 +391,9 @@ class LeaveRequest(db.Model):
     leave_type = db.Column(db.String, nullable=False)
     start_date = db.Column(db.String, nullable=False)
     end_date = db.Column(db.String, nullable=False)
+    part_day = db.Column(db.String, default='none')
+    hours_count = db.Column(db.Float)
+    days_count = db.Column(db.Float)
     status = db.Column(db.String, default='Pending')
     approved_by = db.Column(db.Integer)
     notes = db.Column(db.String)
@@ -1260,33 +1263,53 @@ def handle_leaves():
     user_id = get_jwt_identity()
     claims = get_jwt()
     user_role = claims.get('role')
-    
     user = User.query.get(int(user_id))
 
     if request.method == 'POST':
-        if not user.employee_id:
-            return jsonify({"message": "الحساب غير مربوط بموظف"}), 400
-        
         data = request.get_json()
+        employee_id_to_use = None
+
+        if user_role in ['Admin', 'HR']:
+            # HR can create for any employee
+            employee_id_to_use = data.get('employee_id')
+            if not employee_id_to_use:
+                return jsonify({"message": "يجب اختيار الموظف"}), 400
+        else: # Employee creates for self
+            employee_id_to_use = user.employee_id
+            if not employee_id_to_use:
+                return jsonify({"message": "الحساب غير مربوط بموظف"}), 400
+
+        # Simplified day calculation
+        start_date_obj = date.fromisoformat(data.get('start_date'))
+        end_date_obj = date.fromisoformat(data.get('end_date'))
+        days_count = (end_date_obj - start_date_obj).days + 1
+
         new_leave_request = LeaveRequest(
-            employee_id=user.employee_id,
+            employee_id=employee_id_to_use,
             leave_type=data.get('leave_type'),
             start_date=data.get('start_date'),
             end_date=data.get('end_date'),
-            notes=data.get('notes')
+            part_day=data.get('part_day', 'none'),
+            hours_count=data.get('hours_count'),
+            days_count=days_count,
+            notes=data.get('notes'),
+            status='Pending' # Always starts as pending now
         )
         db.session.add(new_leave_request)
         db.session.commit()
-        log_action("تقديم طلب إجازة", f"قدم الموظف {user.employee.full_name} طلب إجازة.", username=user.username, user_id=user.id)
+        
+        employee_of_leave = Employee.query.get(employee_id_to_use)
+        log_action("تقديم طلب إجازة", f"تم تقديم طلب إجازة للموظف {employee_of_leave.full_name}", username=user.username, user_id=user.id)
         
         # Notify manager(s)
+        # This will be refined in Phase 2
         managers = User.query.filter(User.role.in_(['Admin', 'HR', 'Manager'])).all()
         for manager in managers:
              if manager.id != user.id:
                 create_notification(
                     recipient_user_id=manager.id,
                     title="طلب إجازة جديد",
-                    message=f"قدم الموظف {user.employee.full_name} طلب إجازة جديد.",
+                    message=f"قدم الموظف {employee_of_leave.full_name} طلب إجازة جديد.",
                     type="LeaveRequest",
                     related_link="/leaves"
                 )
@@ -1322,7 +1345,7 @@ def update_leave(id):
     approver_user = User.query.get(int(user_id))
 
     if action == 'approve':
-        leave_request.status = 'Approved'
+        leave_request.status = 'Approved' # In Phase 1, HR approves directly
         leave_request.approved_by = approver_user.id
         details = f"تمت الموافقة على طلب الإجازة للموظف {leave_request.employee.full_name}"
         log_action("الموافقة على إجازة", details, username=approver_user.username, user_id=approver_user.id)
@@ -1859,7 +1882,7 @@ def get_documents_overview():
                             elif (expiry - date.today()).days <= 30:
                                 expiring_count += 1
                         except (ValueError, TypeError):
-                            pass # Ignore invalid dates
+                            pass # Ignore invalid date formats
 
         
         compliant_count = total_required_count - missing_count
@@ -2118,6 +2141,3 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-    
-

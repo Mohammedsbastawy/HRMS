@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, PlusCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
-import type { LeaveRequest } from '@/lib/types';
+import type { LeaveRequest, Employee } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/components/ui/use-toast';
 import { RequestLeaveDialog } from './request-leave-dialog';
@@ -32,6 +32,7 @@ type User = {
 
 export function LeaveRequestClientPage() {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
@@ -46,19 +47,29 @@ export function LeaveRequestClientPage() {
     try {
       const token = localStorage.getItem('authToken');
       if (!token) {
-        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
+        router.push('/login');
         return;
       }
-      const res = await fetch('/api/leaves', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.status === 401) {
-        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
-        return;
+      
+      const [leavesRes, employeesRes] = await Promise.all([
+        fetch('/api/leaves', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/employees', { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+
+      if (leavesRes.status === 401 || employeesRes.status === 401) {
+          toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
+          return;
       }
-      if (!res.ok) throw new Error('Failed to fetch leave requests');
-      const data = await res.json();
-      setLeaveRequests(data.leaveRequests);
+      
+      if (!leavesRes.ok) throw new Error('Failed to fetch leave requests');
+      if (!employeesRes.ok) throw new Error('Failed to fetch employees');
+
+      const leavesData = await leavesRes.json();
+      const employeesData = await employeesRes.json();
+      
+      setLeaveRequests(leavesData.leaveRequests);
+      setEmployees(employeesData.employees);
+
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -82,7 +93,7 @@ export function LeaveRequestClientPage() {
     try {
         const token = localStorage.getItem('authToken');
         if (!token) {
-            toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
+            router.push('/login');
             return;
         }
         const response = await fetch(`/api/leaves/${id}`, {
@@ -135,25 +146,29 @@ export function LeaveRequestClientPage() {
     setSelectedRequest(null);
   };
 
-  const getStatusVariant = (status: 'Pending' | 'Approved' | 'Rejected') => {
+  const getStatusVariant = (status: 'Pending' | 'Approved' | 'Rejected' | 'Draft') => {
     switch (status) {
       case 'Approved': return 'default';
       case 'Pending': return 'secondary';
       case 'Rejected': return 'destructive';
+      case 'Draft': return 'outline';
+      default: return 'outline';
     }
   };
   
-  const getStatusText = (status: 'Pending' | 'Approved' | 'Rejected') => {
-    switch (status) {
-      case 'Approved': return 'موافق عليه';
-      case 'Pending': return 'قيد الانتظار';
-      case 'Rejected': return 'مرفوض';
-    }
+  const getStatusText = (status: 'Pending' | 'Approved' | 'Rejected' | 'Draft') => {
+    const translations: {[key: string]: string} = {
+      'Approved': 'موافق عليه',
+      'Pending': 'قيد الانتظار',
+      'Rejected': 'مرفوض',
+      'Draft': 'مسودة',
+    };
+    return translations[status] || status;
   };
 
   const getLeaveTypeText = (leaveType: string) => {
     const types: { [key: string]: string } = {
-      'Annual': 'سنوية', 'Sick': 'مرضية', 'Unpaid': 'غير مدفوعة', 'Maternity': 'أمومة'
+      'Annual': 'سنوية', 'Sick': 'مرضية', 'Unpaid': 'غير مدفوعة', 'Maternity': 'أمومة', 'Permission': 'إذن'
     };
     return types[leaveType] || leaveType;
   };
@@ -165,15 +180,15 @@ export function LeaveRequestClientPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle>{canManage ? 'إدارة الإجازات' : 'إجازاتي'}</CardTitle>
+            <CardTitle>{canManage ? 'إدارة الإجازات والأذونات' : 'إجازاتي'}</CardTitle>
             <CardDescription>
-              {canManage ? 'مراجعة وإدارة طلبات إجازات الموظفين.' : 'عرض وتقديم طلبات الإجازة الخاصة بك.'}
+              {canManage ? 'مراجعة وإدارة طلبات إجازات وأذونات الموظفين.' : 'عرض وتقديم طلبات الإجازة الخاصة بك.'}
             </CardDescription>
           </div>
-          {!canManage && (
+          { (
             <Button size="sm" className="gap-1" onClick={() => setIsRequestDialogOpen(true)}>
               <PlusCircle className="h-3.5 w-3.5" />
-              <span>طلب إجازة</span>
+              <span>{canManage ? 'إضافة إجازة/إذن يدوي' : 'طلب إجازة'}</span>
             </Button>
           )}
         </CardHeader>
@@ -182,17 +197,18 @@ export function LeaveRequestClientPage() {
             <TableHeader>
               <TableRow>
                 {canManage && <TableHead className="text-right">الموظف</TableHead>}
-                <TableHead className="text-right">نوع الإجازة</TableHead>
+                <TableHead className="text-right">نوع الطلب</TableHead>
                 <TableHead className="text-right">التواريخ</TableHead>
+                <TableHead className="text-right">المدة</TableHead>
                 <TableHead className="text-right">الحالة</TableHead>
+                <TableHead className="text-right">ملاحظات</TableHead>
                 {canManage && <TableHead><span className="sr-only">الإجراءات</span></TableHead>}
-                {!canManage && <TableHead className="text-right">ملاحظات</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                   <TableRow>
-                      <TableCell colSpan={canManage ? 5 : 4} className="h-24 text-center">
+                      <TableCell colSpan={canManage ? 7 : 5} className="h-24 text-center">
                           <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                       </TableCell>
                   </TableRow>
@@ -215,6 +231,7 @@ export function LeaveRequestClientPage() {
                     )}
                     <TableCell>{getLeaveTypeText(request.leave_type)}</TableCell>
                     <TableCell>{`${new Date(request.start_date).toLocaleDateString('ar-EG')} - ${new Date(request.end_date).toLocaleDateString('ar-EG')}`}</TableCell>
+                    <TableCell>{request.days_count ? `${request.days_count} يوم` : (request.hours_count ? `${request.hours_count} س` : '-')}</TableCell>
                     <TableCell>
                       <Badge 
                         variant={getStatusVariant(request.status)}
@@ -227,6 +244,7 @@ export function LeaveRequestClientPage() {
                         {getStatusText(request.status)}
                       </Badge>
                     </TableCell>
+                     <TableCell>{request.notes || '-'}</TableCell>
                     {canManage && (
                         <TableCell>
                         {request.status === 'Pending' && (
@@ -252,14 +270,11 @@ export function LeaveRequestClientPage() {
                         )}
                         </TableCell>
                     )}
-                    {!canManage && (
-                       <TableCell>{request.notes || '-'}</TableCell>
-                    )}
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={canManage ? 5 : 4} className="h-24 text-center">
+                  <TableCell colSpan={canManage ? 7 : 5} className="h-24 text-center">
                     لا توجد طلبات إجازة حاليًا.
                   </TableCell>
                 </TableRow>
@@ -275,6 +290,8 @@ export function LeaveRequestClientPage() {
           setIsRequestDialogOpen(false);
           fetchLeaveRequests();
         }}
+        employees={employees}
+        isManager={canManage}
       />
       <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
         <DialogContent>
