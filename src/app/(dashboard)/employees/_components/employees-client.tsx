@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -156,7 +155,6 @@ export function EmployeesPageClient() {
               <TableHead className="text-right">الاسم</TableHead>
               <TableHead className="text-right">البريد الإلكتروني</TableHead>
               <TableHead className="text-right">القسم</TableHead>
-              <TableHead className="text-right">المستندات</TableHead>
               <TableHead className="text-right">الحالة</TableHead>
               <TableHead className="text-right">
                 <span className="sr-only">الإجراءات</span>
@@ -166,7 +164,7 @@ export function EmployeesPageClient() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center">
                   <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                   <p>جاري تحميل البيانات...</p>
                 </TableCell>
@@ -186,7 +184,6 @@ export function EmployeesPageClient() {
                   </TableCell>
                   <TableCell className="text-right">{employee.email}</TableCell>
                   <TableCell className="text-right">{employee.department?.name_ar || 'N/A'}</TableCell>
-                  <TableCell className="text-right">N/A</TableCell>
                   <TableCell className="text-right">
                     {employee.status && (
                       <Badge 
@@ -226,7 +223,7 @@ export function EmployeesPageClient() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center">
                   لا يوجد موظفون حتى الآن.
                   <Button variant="link" asChild className="mt-2 block">
                     <Link href="/employees/new">ابدأ بإضافة موظف جديد</Link>

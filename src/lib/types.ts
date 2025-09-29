@@ -1,13 +1,5 @@
 
 
-
-
-
-
-
-
-
-
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -61,6 +53,7 @@ export type Employee = {
   avatar?: string;
   department?: Partial<Department>; // For UI display
   jobTitle?: Partial<JobTitle>; // For UI display
+  manager?: Partial<Employee>; // For UI display
 };
 
 export type User = {
@@ -72,18 +65,10 @@ export type User = {
   account_status?: 'Active' | 'Inactive';
 };
 
-export type Document = {
-  id: number;
-  employee_id: number;
-  file_path: string;
-  type: 'Contract' | 'Identity' | 'Certificate' | 'CV';
-  uploaded_at?: string;
-};
-
 export type Attendance = {
   id: string;
   employee_id: number;
-  employeeName: string;
+  employeeName?: string;
   employeeAvatar?: string | null;
   date: string;
   check_in: string | null;
@@ -94,12 +79,16 @@ export type Attendance = {
 export type LeaveRequest = {
   id: number;
   employee_id: number;
-  leave_type: 'Annual' | 'Sick' | 'Maternity' | 'Unpaid';
+  leave_type: 'Annual' | 'Sick' | 'Maternity' | 'Unpaid' | 'Permission';
   start_date: string;
   end_date: string;
-  status: 'Pending' | 'Approved' | 'Rejected';
-  approved_by?: number | null;
+  part_day: 'none' | 'first_half' | 'second_half' | 'hours';
+  hours_count?: number | null;
+  days_count?: number | null;
+  reason?: string | null;
   notes?: string | null;
+  status: 'Pending' | 'Approved' | 'Rejected' | 'PendingManager' | 'ManagerApproved' | 'HRApproved';
+  approved_by?: number | null;
   employee: Partial<Employee>; // For UI display
 };
 
@@ -164,6 +153,12 @@ export type Applicant = {
   created_at: string;
   avatar?: string;
   job?: Partial<Job>;
+  linkedin_url?: string | null;
+  portfolio_url?: string | null;
+  years_experience?: number | null;
+  current_title?: string | null;
+  current_company?: string | null;
+  expected_salary?: number | null;
 };
 
 export type TrainingCourse = {
@@ -257,4 +252,47 @@ export type TaxScheme = {
   method: 'slab' | 'flat';
   active: boolean;
   brackets?: TaxBracket[];
+};
+
+export type DocumentType = {
+  id: number;
+  code: string;
+  title_ar: string;
+  title_en: string;
+  description?: string | null;
+  category: 'basic' | 'additional';
+  default_required: boolean;
+  requires_expiry: boolean;
+  allowed_mime?: string | null;
+  max_size_mb: number;
+  active: boolean;
+};
+
+export type EmployeeDocument = {
+  id: number;
+  employee_id: number;
+  doc_type_id: number;
+  file_path: string;
+  file_name: string;
+  mime_type: string;
+  expiry_date?: string | null;
+  status: 'Uploaded' | 'Verified' | 'Rejected' | 'Expired';
+  note?: string | null;
+};
+
+export type ZktDevice = {
+    id: number;
+    name: string;
+    ip_address: string;
+    location_id?: number | null;
+    location_name?: string;
+    last_sync_at?: string | null;
+    status: 'online' | 'offline' | 'error';
+};
+
+export type EmployeeWithCompliance = Employee & {
+  compliance_percent: number;
+  missing_docs_count: number;
+  expiring_docs_count: number;
+  last_updated: string;
 };

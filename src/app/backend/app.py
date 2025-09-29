@@ -197,6 +197,8 @@ class Employee(db.Model):
                         data[c.name] = val.isoformat()
                     else:
                         data[c.name] = val
+            if self.manager:
+                data['manager'] = {'full_name': self.manager.full_name}
         return data
 
 # --- Attendance & Timesheets Models ---
@@ -267,7 +269,11 @@ class LeaveRequest(db.Model):
     leave_type = db.Column(db.String, nullable=False)
     start_date = db.Column(db.String, nullable=False)
     end_date = db.Column(db.String, nullable=False)
-    status = db.Column(db.String, default='Pending')
+    part_day = db.Column(db.String, default='none')
+    hours_count = db.Column(db.Float)
+    days_count = db.Column(db.Float)
+    reason = db.Column(db.String)
+    status = db.Column(db.String, default='Pending') # Pending, Approved, Rejected, PendingManager, ManagerApproved
     approved_by = db.Column(db.Integer)
     notes = db.Column(db.String)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -553,11 +559,53 @@ class Applicant(db.Model):
     created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
     avatar = db.Column(db.String)
     
+    # New optional fields
+    linkedin_url = db.Column(db.String)
+    portfolio_url = db.Column(db.String)
+    years_experience = db.Column(db.Integer)
+    current_title = db.Column(db.String)
+    current_company = db.Column(db.String)
+    expected_salary = db.Column(db.Float)
+
     __table_args__ = (db.UniqueConstraint('job_id', 'email', name='_job_email_uc'),)
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
-# --- End of Recruitment Models ---
+
+class DocumentType(db.Model):
+    __tablename__ = 'document_types'
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String, unique=True, nullable=False)
+    title_ar = db.Column(db.String, nullable=False)
+    title_en = db.Column(db.String, nullable=False)
+    description = db.Column(db.Text)
+    category = db.Column(db.String, default='additional') # basic, additional
+    default_required = db.Column(db.Boolean, default=False)
+    requires_expiry = db.Column(db.Boolean, default=False)
+    allowed_mime = db.Column(db.String, default='application/pdf,image/jpeg,image/png')
+    max_size_mb = db.Column(db.Integer, default=10)
+    active = db.Column(db.Boolean, default=True)
+
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+class EmployeeDocument(db.Model):
+    __tablename__ = 'employee_documents'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    doc_type_id = db.Column(db.Integer, db.ForeignKey('document_types.id'), nullable=False)
+    file_path = db.Column(db.String, nullable=False)
+    file_name = db.Column(db.String)
+    mime_type = db.Column(db.String)
+    expiry_date = db.Column(db.String)
+    status = db.Column(db.String, default='Uploaded') # Uploaded, Verified, Rejected, Expired
+    note = db.Column(db.String)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    doc_type = db.relationship('DocumentType')
+    employee = db.relationship('Employee', backref='documents')
+
 
 # --- Utility Functions ---
 def log_action(action, details, username="نظام", user_id=None):
@@ -677,7 +725,7 @@ def get_my_account():
 
     employee_data = None
     if user.employee:
-        employee_data = user.employee.to_dict()
+        employee_data = user.employee.to_dict(full=True)
 
     recent_logs = AuditLog.query.filter_by(user_id=user.id).order_by(AuditLog.timestamp.desc()).limit(10).all()
 
@@ -847,6 +895,34 @@ def handle_employee(id):
                  return jsonify({"message": "البريد الإلكتروني موجود بالفعل. يرجى استخدام بريد إلكتروني فريد."}), 409
             return jsonify({"message": "حدث خطأ داخلي أثناء التحديث"}), 500
 
+@app.route("/api/employees/<int:id>/profile", methods=['GET'])
+@jwt_required()
+def get_employee_profile(id):
+    employee = Employee.query.options(
+        db.joinedload(Employee.department),
+        db.joinedload(Employee.job_title),
+        db.joinedload(Employee.manager)
+    ).get_or_404(id)
+
+    leaves = LeaveRequest.query.filter_by(employee_id=id).order_by(LeaveRequest.start_date.desc()).all()
+    attendance_records = Attendance.query.filter_by(employee_id=id).order_by(Attendance.date.desc()).limit(30).all()
+    
+    # Simplified stats. This would be more complex with policies.
+    stats = {
+        "total_present": Attendance.query.filter_by(employee_id=id, status='Present').count(),
+        "total_late": Attendance.query.filter_by(employee_id=id, status='Late').count(),
+        "total_absent": Attendance.query.filter_by(employee_id=id, status='Absent').count(),
+        "annual_leave_balance": 21 - LeaveRequest.query.filter_by(employee_id=id, leave_type='Annual', status='Approved').count() # Placeholder logic
+    }
+
+    return jsonify({
+        "employee": employee.to_dict(full=True),
+        "leaves": [l.to_dict() for l in leaves],
+        "attendance": [a.to_dict() for a in attendance_records],
+        "stats": stats
+    })
+
+
 # --- Departments API ---
 @app.route("/api/departments", methods=['GET', 'POST'])
 @jwt_required()
@@ -968,7 +1044,10 @@ def handle_leaves():
             leave_type=data.get('leave_type'),
             start_date=data.get('start_date'),
             end_date=data.get('end_date'),
+            part_day=data.get('part_day', 'none'),
+            hours_count=data.get('hours_count'),
             notes=data.get('notes'),
+            reason=data.get('notes'), # Use notes for reason as well
             status='Pending' # Always starts as pending now
         )
         db.session.add(new_leave_request)
@@ -978,7 +1057,6 @@ def handle_leaves():
         log_action("تقديم طلب إجازة", f"تم تقديم طلب إجازة للموظف {employee_of_leave.full_name}", username=user.username, user_id=user.id)
         
         # Notify manager(s)
-        # This will be refined in Phase 2
         managers = User.query.filter(User.role.in_(['Admin', 'HR', 'Manager'])).all()
         for manager in managers:
              if manager.id != user.id:
@@ -1084,18 +1162,134 @@ def get_dashboard_data():
     })
 
 # --- Recruitment API ---
-@app.route("/api/recruitment/jobs", methods=['GET'])
+@app.route("/api/recruitment/jobs", methods=['GET', 'POST'])
 @jwt_required()
-def get_recruitment_jobs():
+def handle_recruitment_jobs():
+    if request.method == 'POST':
+        data = request.get_json()
+        new_job = Job(
+            title=data['title'],
+            dept_id=int(data['dept_id']),
+            description=data.get('description'),
+            location=data.get('location'),
+            employment_type=data.get('employment_type', 'full-time'),
+            seniority=data.get('seniority'),
+            openings=int(data.get('openings', 1)),
+            status=data.get('status', 'Open')
+        )
+        db.session.add(new_job)
+        db.session.commit()
+        log_action("إضافة وظيفة", f"تمت إضافة وظيفة شاغرة: {new_job.title}")
+        return jsonify(new_job.to_dict()), 201
+    
     jobs = Job.query.options(db.joinedload(Job.department)).order_by(Job.created_at.desc()).all()
     return jsonify({'jobs': [j.to_dict() for j in jobs]})
-    
-@app.route("/api/recruitment/applicants", methods=['GET'])
+
+
+@app.route("/api/recruitment/applicants", methods=['GET', 'POST'])
 @jwt_required()
-def get_applicants():
+def handle_applicants():
+    if request.method == 'POST':
+        if 'full_name' not in request.form or 'email' not in request.form:
+            return jsonify({'message': 'الاسم والبريد الإلكتروني مطلوبان'}), 400
+        
+        # Simple validation for email format
+        email = request.form['email']
+        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+            return jsonify({'message': 'صيغة البريد الإلكتروني غير صالحة'}), 400
+
+        new_applicant = Applicant(
+            job_id=request.form['job_id'],
+            full_name=request.form['full_name'],
+            email=email,
+            phone=request.form.get('phone'),
+            source=request.form.get('source', 'manual'),
+            years_experience=request.form.get('years_experience'),
+            current_title=request.form.get('current_title'),
+            current_company=request.form.get('current_company'),
+            expected_salary=request.form.get('expected_salary'),
+            linkedin_url=request.form.get('linkedin_url'),
+            portfolio_url=request.form.get('portfolio_url')
+        )
+
+        if 'cv_file' in request.files:
+            file = request.files['cv_file']
+            if file.filename != '':
+                filename = secure_filename(file.filename)
+                # Create a subdirectory for the job_id if it doesn't exist
+                job_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'applicants', str(new_applicant.job_id))
+                os.makedirs(job_upload_folder, exist_ok=True)
+                
+                # Prepend employee ID to filename to ensure uniqueness
+                unique_filename = f"{new_applicant.full_name.replace(' ', '_')}_{filename}"
+                file_path = os.path.join(job_upload_folder, unique_filename)
+                
+                file.save(file_path)
+                new_applicant.cv_path = os.path.join('applicants', str(new_applicant.job_id), unique_filename)
+
+
+        db.session.add(new_applicant)
+        db.session.commit()
+        log_action("إضافة متقدم", f"تمت إضافة متقدم جديد: {new_applicant.full_name} للوظيفة ID {new_applicant.job_id}")
+        return jsonify(new_applicant.to_dict()), 201
+
     applicants = Applicant.query.order_by(Applicant.created_at.desc()).all()
     return jsonify({'applicants': [a.to_dict() for a in applicants]})
 
+
+@app.route("/api/recruitment/applicants/<int:id>", methods=['PUT', 'DELETE'])
+@jwt_required()
+def handle_applicant(id):
+    applicant = Applicant.query.get_or_404(id)
+
+    if request.method == 'PUT':
+        data = request.form.to_dict()
+        for key, value in data.items():
+            if hasattr(applicant, key):
+                setattr(applicant, key, value)
+        
+        if 'cv_file' in request.files:
+            file = request.files['cv_file']
+            if file.filename != '':
+                filename = secure_filename(file.filename)
+                job_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'applicants', str(applicant.job_id))
+                os.makedirs(job_upload_folder, exist_ok=True)
+                unique_filename = f"{applicant.full_name.replace(' ', '_')}_{filename}"
+                file_path = os.path.join(job_upload_folder, unique_filename)
+                file.save(file_path)
+                applicant.cv_path = os.path.join('applicants', str(applicant.job_id), unique_filename)
+
+        db.session.commit()
+        log_action("تحديث متقدم", f"تم تحديث بيانات المتقدم: {applicant.full_name}")
+        return jsonify(applicant.to_dict())
+
+    if request.method == 'DELETE':
+        # Optional: Delete CV file from disk
+        if applicant.cv_path:
+            try:
+                os.remove(os.path.join(app.config['UPLOAD_FOLDER'], applicant.cv_path))
+            except OSError as e:
+                app.logger.error(f"Error deleting file {applicant.cv_path}: {e}")
+
+        log_action("حذف متقدم", f"تم حذف المتقدم: {applicant.full_name}")
+        db.session.delete(applicant)
+        db.session.commit()
+        return jsonify({'message': 'Applicant deleted successfully'})
+
+@app.route("/api/recruitment/applicants/<int:id>/stage", methods=['PUT'])
+@jwt_required()
+def move_applicant_stage(id):
+    applicant = Applicant.query.get_or_404(id)
+    data = request.get_json()
+    new_stage = data.get('stage')
+    
+    if new_stage not in ['Applied', 'Screening', 'Interview', 'Offer', 'Hired', 'Rejected']:
+        return jsonify({'message': 'مرحلة غير صالحة'}), 400
+
+    applicant.stage = new_stage
+    db.session.commit()
+    log_action("تغيير مرحلة متقدم", f"تم نقل المتقدم {applicant.full_name} إلى مرحلة {new_stage}")
+    return jsonify(applicant.to_dict())
 
 # --- Other Read-only APIs ---
 @app.route("/api/payrolls", methods=['GET'])
@@ -1123,24 +1317,50 @@ def get_attendance():
     attendance_records = Attendance.query.options(db.joinedload(Attendance.employee)).order_by(Attendance.date.desc(), Attendance.check_in.desc()).all()
     return jsonify({"attendance": [record.to_dict() for record in attendance_records]})
 
+@app.route('/api/attendance/history/<int:employee_id>', methods=['GET'])
+@jwt_required()
+def get_employee_attendance_history(employee_id):
+    employee = Employee.query.options(
+        db.joinedload(Employee.department),
+        db.joinedload(Employee.job_title)
+    ).get_or_404(employee_id)
+    
+    # Get last 30 days of attendance
+    attendance = Attendance.query.filter_by(employee_id=employee_id).order_by(Attendance.date.desc()).limit(30).all()
+    
+    return jsonify({
+        'employee': employee.to_dict(full=True),
+        'attendance': [a.to_dict() for a in attendance]
+    })
+
+
 @app.route("/api/attendance/daily-log", methods=['GET'])
 @jwt_required()
 def get_daily_log():
-    today = date.today().isoformat()
+    today_str = date.today().isoformat()
     
-    # KPIs
-    present_count = Attendance.query.filter_by(date=today, status='Present').count()
-    late_count = Attendance.query.filter_by(date=today, status='Late').count()
+    # Subquery for employees present today
+    present_employee_ids_sq = db.session.query(Attendance.employee_id).filter(Attendance.date == today_str).subquery()
     
-    present_employee_ids = {a.employee_id for a in Attendance.query.filter_by(date=today).all()}
-    on_leave_employee_ids = {l.employee_id for l in LeaveRequest.query.filter(LeaveRequest.start_date <= today, LeaveRequest.end_date >= today, LeaveRequest.status == 'Approved').all()}
-    
-    absent_count = Employee.query.filter(
-        Employee.status == 'Active',
-        ~Employee.id.in_(list(present_employee_ids) + list(on_leave_employee_ids))
-    ).count()
+    # Subquery for employees on leave today
+    on_leave_employee_ids_sq = db.session.query(LeaveRequest.employee_id).filter(
+        LeaveRequest.start_date <= today_str, 
+        LeaveRequest.end_date >= today_str, 
+        LeaveRequest.status.in_(['Approved', 'HRApproved'])
+    ).subquery()
 
-    offline_devices_count = ZktDevice.query.filter_by(status='offline').count()
+    # Employees who are neither present nor on leave are absent
+    absent_employees = Employee.query.filter(
+        Employee.status == 'Active',
+        ~Employee.id.in_(present_employee_ids_sq),
+        ~Employee.id.in_(on_leave_employee_ids_sq)
+    ).options(db.joinedload(Employee.department)).all()
+
+    # KPI counts
+    present_count = db.session.query(present_employee_ids_sq).count()
+    late_count = Attendance.query.filter(Attendance.date == today_str, Attendance.status == 'Late').count()
+    absent_count = len(absent_employees)
+    offline_devices_count = ZktDevice.query.filter(ZktDevice.status != 'online').count()
 
     kpis = {
         'present': present_count,
@@ -1149,12 +1369,106 @@ def get_daily_log():
         'offline_devices': offline_devices_count
     }
 
-    # Daily Log Table
-    records = Attendance.query.options(db.joinedload(Attendance.employee)).filter_by(date=today).all()
+    # Detailed daily log table
+    daily_log_records = Attendance.query.options(db.joinedload(Attendance.employee)).filter(Attendance.date == today_str).all()
+    
+    # Add absent employees to the log for a complete view
+    for emp in absent_employees:
+        daily_log_records.append(Attendance(
+            id=f"absent_{emp.id}",
+            employee_id=emp.id,
+            employee=emp,
+            date=today_str,
+            check_in=None,
+            check_out=None,
+            status='Absent'
+        ))
+
+    # Modal lists
+    present_employees = Employee.query.filter(Employee.id.in_(present_employee_ids_sq)).options(db.joinedload(Employee.department)).all()
+    late_employees_ids = {a.employee_id for a in Attendance.query.filter(Attendance.date == today_str, Attendance.status == 'Late')}
+    late_employees = Employee.query.filter(Employee.id.in_(late_employees_ids)).options(db.joinedload(Employee.department)).all()
+    offline_devices = ZktDevice.query.filter(ZktDevice.status != 'online').all()
+
+    modal_lists = {
+        'present': [emp.to_dict() for emp in present_employees],
+        'late': [emp.to_dict() for emp in late_employees],
+        'absent': [emp.to_dict() for emp in absent_employees],
+        'offline_devices': [dev.to_dict() for dev in offline_devices]
+    }
+    
+    # Add employee name to each record for easy display
+    final_log = []
+    for record in daily_log_records:
+        rec_dict = record.to_dict()
+        rec_dict['employee_name'] = record.employee.full_name if record.employee else 'Unknown'
+        final_log.append(rec_dict)
+
     return jsonify({
         "kpis": kpis,
-        "dailyLog": [record.to_dict() for record in records]
+        "dailyLog": final_log,
+        "modalLists": modal_lists
     })
+
+
+@app.route("/api/attendance/test-connection", methods=['POST'])
+@jwt_required()
+def test_device_connection():
+    data = request.get_json()
+    ip = data.get('ip')
+    port = data.get('port', 4370)
+    
+    if not ip:
+        return jsonify({"success": False, "message": "عنوان IP مطلوب."}), 400
+        
+    conn = None
+    zk = ZK(ip, port=port, timeout=5)
+    try:
+        conn = zk.connect()
+        conn.disable_device()
+        conn.enable_device()
+        return jsonify({"success": True, "message": "تم الاتصال بالجهاز بنجاح!"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"فشل الاتصال: {e}"}), 500
+    finally:
+        if conn:
+            conn.disconnect()
+
+# --- ZKTeco Devices API ---
+@app.route('/api/zkt-devices', methods=['GET', 'POST'])
+@jwt_required()
+def manage_zkt_devices():
+    if request.method == 'POST':
+        data = request.get_json()
+        new_device = ZktDevice(
+            name=data['name'],
+            ip_address=data['ip_address'],
+            location_id=data.get('location_id')
+        )
+        db.session.add(new_device)
+        db.session.commit()
+        return jsonify(new_device.to_dict()), 201
+
+    devices = ZktDevice.query.options(db.joinedload(ZktDevice.location)).all()
+    return jsonify({'devices': [d.to_dict() for d in devices]})
+
+
+@app.route('/api/zkt-devices/<int:id>', methods=['PUT', 'DELETE'])
+@jwt_required()
+def handle_zkt_device(id):
+    device = ZktDevice.query.get_or_404(id)
+    if request.method == 'PUT':
+        data = request.get_json()
+        device.name = data.get('name', device.name)
+        device.ip_address = data.get('ip_address', device.ip_address)
+        device.location_id = data.get('location_id', device.location_id)
+        db.session.commit()
+        return jsonify(device.to_dict())
+
+    if request.method == 'DELETE':
+        db.session.delete(device)
+        db.session.commit()
+        return jsonify({'message': 'Device deleted'})
 
 
 # --- ZKTeco Sync ---
@@ -1364,6 +1678,222 @@ def handle_tax_scheme(id):
         db.session.commit()
         log_action("تحديث مخطط ضريبي", f"تم تحديث المخطط الضريبي: {scheme.name}.")
         return jsonify(scheme.to_dict(include_brackets=True))
+
+
+# --- Documents API ---
+@app.route('/api/documents/types', methods=['GET', 'POST'])
+@jwt_required()
+def handle_document_types():
+    if request.method == 'POST':
+        data = request.get_json()
+        new_type = DocumentType(**data)
+        db.session.add(new_type)
+        db.session.commit()
+        return jsonify(new_type.to_dict()), 201
+    
+    types = DocumentType.query.all()
+    return jsonify({'document_types': [t.to_dict() for t in types]})
+
+
+@app.route('/api/documents/types/<int:id>', methods=['PUT', 'DELETE'])
+@jwt_required()
+def handle_document_type(id):
+    doc_type = DocumentType.query.get_or_404(id)
+    if request.method == 'PUT':
+        data = request.get_json()
+        for key, value in data.items():
+            if hasattr(doc_type, key) and key != 'id':
+                setattr(doc_type, key, value)
+        db.session.commit()
+        return jsonify(doc_type.to_dict())
+    if request.method == 'DELETE':
+        db.session.delete(doc_type)
+        db.session.commit()
+        return jsonify({'message': 'Document type deleted successfully'})
+
+
+@app.route('/api/documents/employee/<int:employee_id>/checklist', methods=['GET'])
+@jwt_required()
+def get_employee_checklist(employee_id):
+    employee = Employee.query.get_or_404(employee_id)
+    doc_types = DocumentType.query.filter_by(active=True).all()
+    employee_docs = EmployeeDocument.query.filter_by(employee_id=employee_id).all()
+    
+    docs_map = {doc.doc_type_id: doc for doc in employee_docs}
+    
+    checklist = []
+    for dt in doc_types:
+        item = {
+            'doc_type': dt.to_dict(),
+            'file_path': None,
+            'file_name': None,
+            'mime_type': None,
+            'expiry_date': None,
+            'note': None,
+            'status': 'Missing'
+        }
+        if dt.id in docs_map:
+            doc = docs_map[dt.id]
+            item.update({
+                'file_path': doc.file_path,
+                'file_name': doc.file_name,
+                'mime_type': doc.mime_type,
+                'expiry_date': doc.expiry_date,
+                'note': doc.note,
+                'status': doc.status or 'Uploaded'
+            })
+        checklist.append(item)
+        
+    return jsonify({'checklist': checklist})
+
+
+@app.route('/api/documents/employee/<int:employee_id>/upload', methods=['POST'])
+@jwt_required()
+def upload_employee_document(employee_id):
+    if 'file' not in request.files:
+        return jsonify({'message': 'No file part'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'message': 'No selected file'}), 400
+    
+    doc_type_id = request.form.get('doc_type_id')
+    doc_type = DocumentType.query.get(doc_type_id)
+    if not doc_type:
+        return jsonify({'message': 'Invalid document type'}), 400
+
+    filename = secure_filename(file.filename)
+    
+    # Create a subdirectory for the employee if it doesn't exist
+    employee_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'employees', str(employee_id))
+    os.makedirs(employee_upload_folder, exist_ok=True)
+    
+    file_path = os.path.join(employee_upload_folder, filename)
+    file.save(file_path)
+    
+    # Use a relative path for the database
+    db_file_path = os.path.join('employees', str(employee_id), filename)
+
+    # Check if a document of this type already exists for the employee
+    existing_doc = EmployeeDocument.query.filter_by(employee_id=employee_id, doc_type_id=doc_type_id).first()
+    
+    if existing_doc:
+        # Update existing document
+        existing_doc.file_path = db_file_path
+        existing_doc.file_name = filename
+        existing_doc.mime_type = file.mimetype
+        existing_doc.expiry_date = request.form.get('expiry_date') or None
+        existing_doc.status = 'Uploaded' # Reset status on new upload
+        existing_doc.uploaded_at = datetime.utcnow()
+    else:
+        # Create new document record
+        new_doc = EmployeeDocument(
+            employee_id=employee_id,
+            doc_type_id=doc_type_id,
+            file_path=db_file_path,
+            file_name=filename,
+            mime_type=file.mimetype,
+            expiry_date=request.form.get('expiry_date') or None,
+            status='Uploaded'
+        )
+        db.session.add(new_doc)
+        
+    db.session.commit()
+    
+    return jsonify({'message': 'File uploaded successfully', 'path': db_file_path}), 201
+
+
+@app.route('/api/uploads/<path:filepath>')
+@jwt_required()
+def serve_uploaded_file(filepath):
+    # This is a basic security measure. In a real app, you'd check
+    # if the current user has permission to see this file.
+    
+    # Clean up path to prevent directory traversal
+    filepath = filepath.replace('../', '')
+    
+    # Determine the base directory (e.g., 'applicants', 'employees')
+    parts = filepath.split('/')
+    if not parts:
+        return jsonify({"message": "Invalid file path"}), 400
+    
+    base_dir = parts[0]
+    # Reconstruct path relative to the specific upload folder
+    safe_path = os.path.join(app.config['UPLOAD_FOLDER'], base_dir, *parts[1:])
+    
+    # Further security: ensure the resolved path is within the UPLOAD_FOLDER
+    if not os.path.abspath(safe_path).startswith(os.path.abspath(app.config['UPLOAD_FOLDER'])):
+        return jsonify({"message": "Forbidden"}), 403
+
+    if not os.path.exists(safe_path):
+        # Fallback for old paths that might have '..'
+        fallback_path = os.path.join(app.config['UPLOAD_FOLDER'], *filepath.split('/'))
+        if os.path.exists(fallback_path) and os.path.abspath(fallback_path).startswith(os.path.abspath(app.config['UPLOAD_FOLDER'])):
+            directory = os.path.dirname(fallback_path)
+            filename = os.path.basename(fallback_path)
+            return send_from_directory(directory, filename)
+        return jsonify({"message": "File not found"}), 404
+
+    directory = os.path.dirname(safe_path)
+    filename = os.path.basename(safe_path)
+    return send_from_directory(directory, filename)
+
+@app.route('/api/documents/overview', methods=['GET'])
+@jwt_required()
+def get_documents_overview():
+    employees = Employee.query.filter_by(status='Active').all()
+    doc_types = DocumentType.query.filter_by(active=True, default_required=True).all()
+    
+    required_doc_count = len(doc_types)
+    overview = []
+    
+    for emp in employees:
+        uploaded_docs = EmployeeDocument.query.filter_by(employee_id=emp.id).count()
+        expiring_docs_count = 0 # Placeholder for now
+        last_updated_doc = EmployeeDocument.query.filter_by(employee_id=emp.id).order_by(EmployeeDocument.uploaded_at.desc()).first()
+
+        compliance_percent = (uploaded_docs / required_doc_count * 100) if required_doc_count > 0 else 100
+        
+        overview.append({
+            **emp.to_dict(),
+            'compliance_percent': round(compliance_percent),
+            'missing_docs_count': max(0, required_doc_count - uploaded_docs),
+            'expiring_docs_count': expiring_docs_count,
+            'last_updated': last_updated_doc.uploaded_at.isoformat() if last_updated_doc else "لم يحدث"
+        })
+        
+    return jsonify({'employees_compliance': overview})
+
+
+# --- Reports API ---
+@app.route("/api/reports", methods=['GET'])
+@jwt_required()
+def get_reports_data():
+    active_employees_count = Employee.query.filter_by(status='Active').count()
+    on_leave_today_count = 0 # Placeholder
+    open_positions_count = Job.query.filter_by(status='Open').count()
+    avg_performance_score = db.session.query(func.avg(PerformanceReview.score)).scalar() or 0
+
+    employees_by_dept_raw = db.session.query(Department.name_ar, func.count(Employee.id)).join(Employee).group_by(Department.name_ar).all()
+    leaves_by_type_raw = db.session.query(LeaveRequest.leave_type, func.count(LeaveRequest.id)).group_by(LeaveRequest.leave_type).all()
+    
+    all_employees = Employee.query.options(
+        db.joinedload(Employee.department),
+        db.joinedload(Employee.job_title)
+    ).all()
+    
+    report_data = {
+        'kpis': [
+            {'title': 'إجمالي الموظفين النشطين', 'value': active_employees_count, 'icon': 'Users'},
+            {'title': 'في إجازة اليوم', 'value': on_leave_today_count, 'icon': 'CalendarClock'},
+            {'title': 'الوظائف الشاغرة', 'value': open_positions_count, 'icon': 'Briefcase'},
+            {'title': 'متوسط تقييم الأداء', 'value': round(avg_performance_score, 2), 'icon': 'Star'},
+        ],
+        'employeesByDept': [{'name': name, 'value': count} for name, count in employees_by_dept_raw],
+        'leavesByType': [{'name': type, 'value': count} for type, count in leaves_by_type_raw],
+        'employees': [emp.to_dict() for emp in all_employees]
+    }
+    return jsonify(report_data)
+
 
 # --- App Context and DB Initialization ---
 def create_initial_admin_user():
