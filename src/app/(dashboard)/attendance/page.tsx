@@ -1,9 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ListFilter, Upload, PlusCircle, ServerCog } from 'lucide-react';
+import { ListFilter, Upload, PlusCircle, ServerCog, Loader2 } from 'lucide-react';
 import { TodayView } from './_components/today-view';
 import { DailyLog } from './_components/daily-log';
 import { WeeklyTimesheet } from './_components/weekly-timesheet';
@@ -13,8 +14,58 @@ import { CorrectionsView } from './_components/corrections-view';
 import { OvertimeView } from './_components/overtime-view';
 import { ShiftsRostering } from './_components/shifts-rostering';
 import { DevicesImport } from './_components/devices-import';
+import { useToast } from '@/components/ui/use-toast';
+import { useRouter } from 'next/navigation';
 
 export default function AttendancePage() {
+  const [isSyncing, setIsSyncing] = useState(false);
+  const { toast } = useToast();
+  const router = useRouter();
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    toast({
+      title: "بدء المزامنة",
+      description: "جاري الاتصال بالأجهزة وسحب البيانات. قد تستغرق هذه العملية بضع دقائق...",
+    });
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+      const response = await fetch('/api/attendance/sync-all', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'فشل في المزامنة');
+      }
+      
+      toast({
+        title: "اكتملت المزامنة",
+        description: result.message,
+      });
+
+      // Optionally, you might want to trigger a refresh of the views here
+      // For example by using a shared state or context. For now, we'll rely on manual refresh.
+
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "فشل المزامنة",
+        description: error.message,
+        details: error
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+
   return (
     <div className="flex flex-col gap-4">
       <Card>
@@ -25,21 +76,25 @@ export default function AttendancePage() {
               <CardDescription>إدارة شاملة للحضور، الورديات، والجداول الزمنية للموظفين.</CardDescription>
             </div>
             <div className="flex flex-shrink-0 gap-2">
-              <Button size="sm" variant="outline" className="gap-1">
+              <Button size="sm" variant="outline" className="gap-1" disabled>
                 <ListFilter className="h-3.5 w-3.5" />
                 <span>فلاتر</span>
               </Button>
-               <Button size="sm" variant="outline" className="gap-1">
+               <Button size="sm" variant="outline" className="gap-1" disabled>
                 <Upload className="h-3.5 w-3.5" />
                 <span>استيراد</span>
               </Button>
-               <Button size="sm" variant="outline" className="gap-1">
+               <Button size="sm" variant="outline" className="gap-1" disabled>
                 <PlusCircle className="h-3.5 w-3.5" />
                 <span>إدخال يدوي</span>
               </Button>
-               <Button size="sm" className="gap-1">
-                <ServerCog className="h-3.5 w-3.5" />
-                <span>مزامنة</span>
+               <Button size="sm" className="gap-1" onClick={handleSync} disabled={isSyncing}>
+                {isSyncing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <ServerCog className="h-3.5 w-3.5" />
+                )}
+                <span>{isSyncing ? 'جاري المزامنة...' : 'مزامنة'}</span>
               </Button>
             </div>
           </div>
