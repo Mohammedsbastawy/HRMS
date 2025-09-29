@@ -68,7 +68,7 @@ export function LeaveRequestClientPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, router]);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');

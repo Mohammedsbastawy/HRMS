@@ -154,5 +154,3 @@ export function RequestLeaveDialog({ open, onOpenChange, onSuccess }: RequestLea
     </Dialog>
   );
 }
-
-    
