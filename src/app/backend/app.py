@@ -2198,23 +2198,20 @@ def seed_document_types():
 # --- App Context and DB Initialization ---
 def init_db():
     with app.app_context():
-        if not os.path.exists(db_path):
-            app.logger.info("Database not found, creating it...")
-            try:
-                db.create_all()
-                app.logger.info("Database and tables created successfully.")
-            except Exception as e:
-                app.logger.error(f"Error creating database: {e}")
-        else:
-            app.logger.info("Database already exists.")
+        app.logger.info("Initializing database...")
+        db.create_all()  # This will create missing tables
+        app.logger.info("Tables created (if not exist).")
         
-        # Always run migrations and user creation check
+        # Now, run migrations and seeding
         migrate_db()
         create_initial_admin_user()
         seed_document_types()
+        app.logger.info("Database initialization complete.")
 
 
 init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    
