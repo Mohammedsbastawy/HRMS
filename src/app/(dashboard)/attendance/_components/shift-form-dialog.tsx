@@ -76,7 +76,11 @@ export function ShiftFormDialog({ open, onOpenChange, onSuccess, shift }: ShiftF
   useEffect(() => {
     if (open) {
       if (shift) {
-        reset({ ...shift, start_time: shift.start_time.substring(0,5), end_time: shift.end_time.substring(0,5) });
+        reset({ 
+            ...shift, 
+            start_time: shift.start_time ? shift.start_time.substring(0,5) : '00:00', 
+            end_time: shift.end_time ? shift.end_time.substring(0,5) : '00:00' 
+        });
       } else {
         reset({
           name: '',

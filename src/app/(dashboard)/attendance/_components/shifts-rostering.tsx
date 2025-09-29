@@ -93,6 +93,12 @@ export function ShiftsRostering() {
         'split': 'مجزأة',
     };
 
+    const formatTime = (timeStr: string | null | undefined) => {
+      if (!timeStr) return '-';
+      const [hours, minutes] = timeStr.split(':');
+      return `${hours}:${minutes}`;
+    }
+
     return (
         <>
             <Card>
@@ -130,7 +136,7 @@ export function ShiftsRostering() {
                                     <TableRow key={shift.id}>
                                         <TableCell className="font-medium">{shift.name}</TableCell>
                                         <TableCell>{typeTranslations[shift.type] || shift.type}</TableCell>
-                                        <TableCell dir="ltr" className="text-right">{shift.start_time} - {shift.end_time}</TableCell>
+                                        <TableCell dir="ltr" className="text-right">{formatTime(shift.start_time)} - {formatTime(shift.end_time)}</TableCell>
                                         <TableCell>{shift.break_minutes}</TableCell>
                                         <TableCell>
                                             <Badge variant={shift.active ? 'default' : 'secondary'}>
