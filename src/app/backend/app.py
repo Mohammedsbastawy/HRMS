@@ -209,21 +209,39 @@ class Shift(db.Model):
     name = db.Column(db.String, nullable=False)
     code = db.Column(db.String, unique=True)
     type = db.Column(db.String, default='fixed') # fixed, flex, night, split
-    start_time = db.Column(db.Time, nullable=False)
-    end_time = db.Column(db.Time, nullable=False)
+    start_time = db.Column(db.Time) # Nullable for flex/split
+    end_time = db.Column(db.Time)   # Nullable for flex/split
+    total_hours = db.Column(db.Float) # For flex shifts
     break_minutes = db.Column(db.Integer, default=0)
     grace_in = db.Column(db.Integer, default=0)
     grace_out = db.Column(db.Integer, default=0)
     active = db.Column(db.Boolean, default=True)
 
-    def to_dict(self):
+    periods = db.relationship('ShiftPeriod', backref='shift', lazy='dynamic', cascade="all, delete-orphan")
+
+    def to_dict(self, include_periods=False):
         d = {c.name: getattr(self, c.name) for c in self.__table__.columns}
         if isinstance(d.get('start_time'), time):
-            d['start_time'] = d['start_time'].isoformat()
+            d['start_time'] = d['start_time'].isoformat() if d['start_time'] else None
         if isinstance(d.get('end_time'), time):
-            d['end_time'] = d['end_time'].isoformat()
+            d['end_time'] = d['end_time'].isoformat() if d['end_time'] else None
+        if include_periods:
+            d['periods'] = [p.to_dict() for p in self.periods]
         return d
 
+class ShiftPeriod(db.Model):
+    __tablename__ = 'shift_periods'
+    id = db.Column(db.Integer, primary_key=True)
+    shift_id = db.Column(db.Integer, db.ForeignKey('shifts.id', ondelete='CASCADE'), nullable=False)
+    start_time = db.Column(db.Time, nullable=False)
+    end_time = db.Column(db.Time, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'start_time': self.start_time.isoformat() if self.start_time else None,
+            'end_time': self.end_time.isoformat() if self.end_time else None
+        }
 
 class ZktDevice(db.Model):
     __tablename__ = 'zkt_devices'
@@ -1387,42 +1405,89 @@ def get_audit_logs():
 def handle_shifts():
     if request.method == 'POST':
         data = request.get_json()
-        new_shift = Shift(
-            name=data['name'],
-            code=data.get('code'),
-            type=data['type'],
-            start_time=datetime.strptime(data['start_time'], '%H:%M').time(),
-            end_time=datetime.strptime(data['end_time'], '%H:%M').time(),
-            break_minutes=data.get('break_minutes', 0),
-            grace_in=data.get('grace_in', 0),
-            grace_out=data.get('grace_out', 0),
-            active=data.get('active', True)
-        )
+        
+        shift_data = {
+            'name': data['name'],
+            'code': data.get('code'),
+            'type': data['type'],
+            'break_minutes': data.get('break_minutes', 0),
+            'grace_in': data.get('grace_in', 0),
+            'grace_out': data.get('grace_out', 0),
+            'active': data.get('active', True)
+        }
+
+        if data['type'] == 'flex':
+            shift_data['total_hours'] = data.get('total_hours')
+        elif data['type'] in ['fixed', 'night']:
+            shift_data['start_time'] = datetime.strptime(data['start_time'], '%H:%M').time() if data.get('start_time') else None
+            shift_data['end_time'] = datetime.strptime(data['end_time'], '%H:%M').time() if data.get('end_time') else None
+        
+        new_shift = Shift(**shift_data)
         db.session.add(new_shift)
+        
+        if data['type'] == 'split' and 'periods' in data:
+            db.session.flush() # to get the new_shift.id
+            for period_data in data['periods']:
+                if period_data.get('start_time') and period_data.get('end_time'):
+                    new_period = ShiftPeriod(
+                        shift_id=new_shift.id,
+                        start_time=datetime.strptime(period_data['start_time'], '%H:%M').time(),
+                        end_time=datetime.strptime(period_data['end_time'], '%H:%M').time()
+                    )
+                    db.session.add(new_period)
+
         db.session.commit()
-        return jsonify(new_shift.to_dict()), 201
+        return jsonify(new_shift.to_dict(include_periods=True)), 201
 
     shifts = Shift.query.all()
     return jsonify({"shifts": [s.to_dict() for s in shifts]})
 
-
-@app.route('/api/shifts/<int:id>', methods=['PUT', 'DELETE'])
+@app.route('/api/shifts/<int:id>', methods=['GET', 'PUT', 'DELETE'])
 @jwt_required()
 def handle_shift(id):
-    shift = Shift.query.get_or_404(id)
+    shift = Shift.query.options(db.joinedload(Shift.periods)).get_or_404(id)
+    
+    if request.method == 'GET':
+        return jsonify(shift.to_dict(include_periods=True))
+
     if request.method == 'PUT':
         data = request.get_json()
+        
         shift.name = data.get('name', shift.name)
         shift.code = data.get('code', shift.code)
         shift.type = data.get('type', shift.type)
-        shift.start_time = datetime.strptime(data['start_time'], '%H:%M').time()
-        shift.end_time = datetime.strptime(data['end_time'], '%H:%M').time()
         shift.break_minutes = data.get('break_minutes', shift.break_minutes)
         shift.grace_in = data.get('grace_in', shift.grace_in)
         shift.grace_out = data.get('grace_out', shift.grace_out)
         shift.active = data.get('active', shift.active)
+
+        if shift.type == 'flex':
+            shift.total_hours = data.get('total_hours')
+            shift.start_time = None
+            shift.end_time = None
+        elif shift.type in ['fixed', 'night']:
+            shift.start_time = datetime.strptime(data['start_time'], '%H:%M').time() if data.get('start_time') else None
+            shift.end_time = datetime.strptime(data['end_time'], '%H:%M').time() if data.get('end_time') else None
+            shift.total_hours = None
+        
+        if shift.type == 'split':
+            shift.start_time = None
+            shift.end_time = None
+            shift.total_hours = None
+            # Simple delete and recreate for periods
+            ShiftPeriod.query.filter_by(shift_id=id).delete()
+            if 'periods' in data:
+                for period_data in data['periods']:
+                    if period_data.get('start_time') and period_data.get('end_time'):
+                        new_period = ShiftPeriod(
+                            shift_id=id,
+                            start_time=datetime.strptime(period_data['start_time'], '%H:%M').time(),
+                            end_time=datetime.strptime(period_data['end_time'], '%H:%M').time()
+                        )
+                        db.session.add(new_period)
+
         db.session.commit()
-        return jsonify(shift.to_dict())
+        return jsonify(shift.to_dict(include_periods=True))
 
     if request.method == 'DELETE':
         db.session.delete(shift)
