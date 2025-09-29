@@ -5,6 +5,7 @@
 
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
