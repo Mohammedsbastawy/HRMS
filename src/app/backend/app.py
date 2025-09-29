@@ -203,6 +203,28 @@ class Employee(db.Model):
 
 # --- Attendance & Timesheets Models ---
 
+class Shift(db.Model):
+    __tablename__ = 'shifts'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    code = db.Column(db.String, unique=True)
+    type = db.Column(db.String, default='fixed') # fixed, flex, night, split
+    start_time = db.Column(db.Time, nullable=False)
+    end_time = db.Column(db.Time, nullable=False)
+    break_minutes = db.Column(db.Integer, default=0)
+    grace_in = db.Column(db.Integer, default=0)
+    grace_out = db.Column(db.Integer, default=0)
+    active = db.Column(db.Boolean, default=True)
+
+    def to_dict(self):
+        d = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        if isinstance(d.get('start_time'), time):
+            d['start_time'] = d['start_time'].isoformat()
+        if isinstance(d.get('end_time'), time):
+            d['end_time'] = d['end_time'].isoformat()
+        return d
+
+
 class ZktDevice(db.Model):
     __tablename__ = 'zkt_devices'
     id = db.Column(db.Integer, primary_key=True)
@@ -244,20 +266,66 @@ class Attendance(db.Model):
     check_in = db.Column(db.String)
     check_out = db.Column(db.String)
     status = db.Column(db.String, default='Present') # Present, Absent, On Leave
+    late_minutes = db.Column(db.Integer)
+    early_leave_minutes = db.Column(db.Integer)
+    overtime_minutes = db.Column(db.Integer)
+    notes = db.Column(db.Text)
+    source = db.Column(db.String, default='device') # device, manual, system
     
     employee = db.relationship('Employee', backref='attendance_records')
 
     def to_dict(self):
-        return {
-            'id': self.id,
-            'employee_id': self.employee_id,
-            'employeeName': self.employee.full_name if self.employee else None,
-            'employeeAvatar': self.employee.avatar if self.employee else None,
-            'date': self.date,
-            'check_in': self.check_in,
-            'check_out': self.check_out,
-            'status': self.status
-        }
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns if not c.name.startswith('_')}
+
+# --- Roster Models ---
+class RotationPattern(db.Model):
+    __tablename__ = 'rotation_patterns'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    description = db.Column(db.Text)
+    cycle_days = db.Column(db.Integer, nullable=False)
+    active = db.Column(db.Boolean, default=True)
+
+class RotationPatternLine(db.Model):
+    __tablename__ = 'rotation_pattern_lines'
+    id = db.Column(db.Integer, primary_key=True)
+    pattern_id = db.Column(db.Integer, db.ForeignKey('rotation_patterns.id', ondelete='CASCADE'), nullable=False)
+    day_index = db.Column(db.Integer, nullable=False)
+    shift_id = db.Column(db.Integer, db.ForeignKey('shifts.id'))
+    required_headcount = db.Column(db.Integer)
+
+class RosterPeriod(db.Model):
+    __tablename__ = 'roster_periods'
+    id = db.Column(db.Integer, primary_key=True)
+    start_date = db.Column(db.String, nullable=False)
+    end_date = db.Column(db.String, nullable=False)
+    scope = db.Column(db.String, default='company')
+    scope_id = db.Column(db.Integer)
+    status = db.Column(db.String, default='Draft') # Draft, Published, Locked
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    locked_at = db.Column(db.DateTime)
+
+class RosterSlot(db.Model):
+    __tablename__ = 'roster_slots'
+    id = db.Column(db.Integer, primary_key=True)
+    period_id = db.Column(db.Integer, db.ForeignKey('roster_periods.id', ondelete='CASCADE'), nullable=False)
+    date = db.Column(db.String, nullable=False)
+    shift_id = db.Column(db.Integer, db.ForeignKey('shifts.id'), nullable=False)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    assigned_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    source = db.Column(db.String, default='manual') # manual, rotation, copy, import, auto
+    status = db.Column(db.String, default='Draft') # Draft, Published, Changed, Cancelled
+    note = db.Column(db.Text)
+    
+    db.UniqueConstraint('period_id', 'date', 'employee_id')
+
+class ShiftAllowance(db.Model):
+    __tablename__ = 'shift_allowances'
+    id = db.Column(db.Integer, primary_key=True)
+    shift_id = db.Column(db.Integer, db.ForeignKey('shifts.id', ondelete='CASCADE'), nullable=False)
+    allowance_amount = db.Column(db.Float, default=0)
+    apply_when = db.Column(db.String, default='worked') # scheduled, worked
 
 # --- End of Attendance Models ---
 
@@ -1267,7 +1335,10 @@ def handle_applicant(id):
         # Optional: Delete CV file from disk
         if applicant.cv_path:
             try:
-                os.remove(os.path.join(app.config['UPLOAD_FOLDER'], applicant.cv_path))
+                # Use a safe path join and ensure it's within the upload folder
+                full_path = os.path.abspath(os.path.join(app.config['UPLOAD_FOLDER'], applicant.cv_path))
+                if full_path.startswith(os.path.abspath(app.config['UPLOAD_FOLDER'])):
+                    os.remove(full_path)
             except OSError as e:
                 app.logger.error(f"Error deleting file {applicant.cv_path}: {e}")
 
@@ -1311,6 +1382,54 @@ def get_audit_logs():
     return jsonify({"auditLogs": [log.to_dict() for log in logs]})
 
 # --- Attendance APIs ---
+@app.route('/api/shifts', methods=['GET', 'POST'])
+@jwt_required()
+def handle_shifts():
+    if request.method == 'POST':
+        data = request.get_json()
+        new_shift = Shift(
+            name=data['name'],
+            code=data.get('code'),
+            type=data['type'],
+            start_time=datetime.strptime(data['start_time'], '%H:%M').time(),
+            end_time=datetime.strptime(data['end_time'], '%H:%M').time(),
+            break_minutes=data.get('break_minutes', 0),
+            grace_in=data.get('grace_in', 0),
+            grace_out=data.get('grace_out', 0),
+            active=data.get('active', True)
+        )
+        db.session.add(new_shift)
+        db.session.commit()
+        return jsonify(new_shift.to_dict()), 201
+
+    shifts = Shift.query.all()
+    return jsonify({"shifts": [s.to_dict() for s in shifts]})
+
+
+@app.route('/api/shifts/<int:id>', methods=['PUT', 'DELETE'])
+@jwt_required()
+def handle_shift(id):
+    shift = Shift.query.get_or_404(id)
+    if request.method == 'PUT':
+        data = request.get_json()
+        shift.name = data.get('name', shift.name)
+        shift.code = data.get('code', shift.code)
+        shift.type = data.get('type', shift.type)
+        shift.start_time = datetime.strptime(data['start_time'], '%H:%M').time()
+        shift.end_time = datetime.strptime(data['end_time'], '%H:%M').time()
+        shift.break_minutes = data.get('break_minutes', shift.break_minutes)
+        shift.grace_in = data.get('grace_in', shift.grace_in)
+        shift.grace_out = data.get('grace_out', shift.grace_out)
+        shift.active = data.get('active', shift.active)
+        db.session.commit()
+        return jsonify(shift.to_dict())
+
+    if request.method == 'DELETE':
+        db.session.delete(shift)
+        db.session.commit()
+        return jsonify({'message': 'Shift deleted successfully'})
+
+
 @app.route("/api/attendance", methods=['GET'])
 @jwt_required()
 def get_attendance():

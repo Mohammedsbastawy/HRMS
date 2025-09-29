@@ -1,5 +1,6 @@
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -68,12 +69,16 @@ export type User = {
 export type Attendance = {
   id: string;
   employee_id: number;
-  employeeName?: string;
-  employeeAvatar?: string | null;
+  employee_name?: string;
   date: string;
   check_in: string | null;
   check_out: string | null;
   status: 'Present' | 'Absent' | 'On Leave' | 'Late';
+  source?: string;
+  late_minutes?: number;
+  early_leave_minutes?: number;
+  overtime_minutes?: number;
+  notes?: string;
 };
 
 export type LeaveRequest = {
@@ -295,4 +300,17 @@ export type EmployeeWithCompliance = Employee & {
   missing_docs_count: number;
   expiring_docs_count: number;
   last_updated: string;
+};
+
+export type Shift = {
+    id: number;
+    name: string;
+    code?: string | null;
+    type: 'fixed' | 'flex' | 'night' | 'split';
+    start_time: string;
+    end_time: string;
+    break_minutes: number;
+    grace_in: number;
+    grace_out: number;
+    active: boolean;
 };
