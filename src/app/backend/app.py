@@ -1781,10 +1781,11 @@ def get_today_view_data():
     present_employee_ids = [a.employee_id for a in Attendance.query.filter(Attendance.date == today).all()]
     on_leave_employee_ids = [l.employee_id for l in LeaveRequest.query.filter(LeaveRequest.start_date <= today.isoformat(), LeaveRequest.end_date >= today.isoformat(), LeaveRequest.status == 'Approved').all()]
     
-    absent_employees = Employee.query.filter(
+    absent_employees_query = Employee.query.filter(
         Employee.status == 'Active',
         ~Employee.id.in_(present_employee_ids + on_leave_employee_ids)
-    ).all()
+    )
+    absent_employees = absent_employees_query.all()
     absent_count = len(absent_employees)
 
     offline_devices = ZktDevice.query.filter_by(status='offline').all()
@@ -1798,7 +1799,7 @@ def get_today_view_data():
     }
 
     def employee_to_dict_for_list(emp):
-        return {
+         return {
             'id': emp.id,
             'full_name': emp.full_name,
             'department': {'name_ar': emp.department.name_ar} if emp.department else None,
@@ -1809,7 +1810,6 @@ def get_today_view_data():
     late_employees = Employee.query.join(Attendance).filter(Attendance.date == today, Attendance.status == 'Late').all()
     
     # Live Punches
-    # This is a simplified version. A more robust implementation would consider shifts.
     live_punches_query = db.session.query(
         Attendance.employee_id,
         func.max(Attendance.check_in).label('last_punch_in'),
@@ -1823,11 +1823,22 @@ def get_today_view_data():
 
         last_punch_time = None
         last_punch_type = ""
-        if punch.last_punch_out:
-            last_punch_time = punch.last_punch_out
+        
+        last_in = punch.last_punch_in
+        last_out = punch.last_punch_out
+
+        if last_in and last_out:
+            if last_out > last_in:
+                last_punch_time = last_out
+                last_punch_type = "خروج"
+            else:
+                last_punch_time = last_in
+                last_punch_type = "دخول"
+        elif last_out:
+            last_punch_time = last_out
             last_punch_type = "خروج"
-        elif punch.last_punch_in:
-            last_punch_time = punch.last_punch_in
+        elif last_in:
+            last_punch_time = last_in
             last_punch_type = "دخول"
 
         att_record = Attendance.query.filter_by(employee_id=punch.employee_id, date=today).first()
