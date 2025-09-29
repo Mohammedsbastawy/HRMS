@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Job, Applicant } from '@/lib/types';
@@ -6,7 +7,8 @@ import { StageColumn } from './stage-column';
 interface JobPipelineProps {
   job: Job;
   applicants: Applicant[];
-  onApplicantAdded: () => void;
+  onActionComplete: () => void;
+  onEditApplicant: (applicant: Applicant) => void;
 }
 
 const STAGES = [
@@ -17,7 +19,7 @@ const STAGES = [
   { id: 'Hired', title: 'تم التوظيف' },
 ];
 
-export function JobPipeline({ job, applicants, onApplicantAdded }: JobPipelineProps) {
+export function JobPipeline({ job, applicants, onActionComplete, onEditApplicant }: JobPipelineProps) {
   return (
     <div className="flex-shrink-0 w-[calc(100vw-3rem)] md:w-[calc(100vw-20rem)] lg:w-[calc(100vw-35rem)]">
       <div className="p-4 rounded-lg bg-card border">
@@ -30,7 +32,8 @@ export function JobPipeline({ job, applicants, onApplicantAdded }: JobPipelinePr
               stage={stage}
               jobId={job.id}
               applicants={applicants.filter(a => a.stage === stage.id)}
-              onApplicantAdded={onApplicantAdded}
+              onActionComplete={onActionComplete}
+              onEditApplicant={onEditApplicant}
             />
           ))}
         </div>
@@ -38,3 +41,5 @@ export function JobPipeline({ job, applicants, onApplicantAdded }: JobPipelinePr
     </div>
   );
 }
+
+    

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -11,10 +12,11 @@ interface StageColumnProps {
   stage: { id: string; title: string };
   jobId: number;
   applicants: Applicant[];
-  onApplicantAdded: () => void;
+  onActionComplete: () => void;
+  onEditApplicant: (applicant: Applicant) => void;
 }
 
-export function StageColumn({ stage, jobId, applicants, onApplicantAdded }: StageColumnProps) {
+export function StageColumn({ stage, jobId, applicants, onActionComplete, onEditApplicant }: StageColumnProps) {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
   return (
@@ -28,7 +30,12 @@ export function StageColumn({ stage, jobId, applicants, onApplicantAdded }: Stag
         </div>
         <div className="bg-muted/50 rounded-lg p-2 min-h-64 flex-1">
           {applicants.map(applicant => (
-            <ApplicantCard key={applicant.id} applicant={applicant} />
+            <ApplicantCard 
+              key={applicant.id} 
+              applicant={applicant} 
+              onActionComplete={onActionComplete}
+              onEdit={onEditApplicant}
+            />
           ))}
           {stage.id === 'Applied' && (
              <Button variant="ghost" className="w-full mt-2" onClick={() => setIsAddDialogOpen(true)}>
@@ -44,9 +51,11 @@ export function StageColumn({ stage, jobId, applicants, onApplicantAdded }: Stag
         jobId={jobId}
         onSuccess={() => {
             setIsAddDialogOpen(false);
-            onApplicantAdded();
+            onActionComplete();
         }}
        />
     </>
   );
 }
+
+    

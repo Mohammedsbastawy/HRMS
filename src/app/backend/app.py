@@ -650,7 +650,7 @@ class PayrollComponent(db.Model):
     rate = db.Column(db.Float)
     base = db.Column(db.String, default='base')
     taxable = db.Column(db.Boolean, default=True)
-    pre_tax = db.Column(db.Boolean, default=False)
+    pre_tax = db.Column(db.Boolean, default=True)
     active = db.Column(db.Boolean, default=True)
 
     def to_dict(self):
@@ -1523,7 +1523,7 @@ def handle_applicants():
                 file.save(file_path)
                 
                 # Store relative path for retrieval
-                cv_path = os.path.join('applicants', applicant_folder_name, filename)
+                cv_path = os.path.join('applicants', applicant_folder_name, filename).replace("\\", "/")
 
         new_applicant.cv_path = cv_path
         db.session.commit()
@@ -1535,13 +1535,105 @@ def handle_applicants():
     applicants = Applicant.query.order_by(Applicant.created_at.desc()).all()
     return jsonify({'applicants': [a.to_dict() for a in applicants]})
 
+
+@app.route('/api/recruitment/applicants/<int:applicant_id>', methods=['GET', 'PUT', 'DELETE'])
+@jwt_required()
+def handle_single_applicant(applicant_id):
+    applicant = Applicant.query.get_or_404(applicant_id)
+    claims = get_jwt()
+    username = claims.get('username')
+    user_id = get_jwt_identity()
+
+    if request.method == 'GET':
+        return jsonify(applicant.to_dict())
+
+    if request.method == 'DELETE':
+        try:
+            # Optionally, delete associated files from filesystem
+            # ...
+            db.session.delete(applicant)
+            db.session.commit()
+            log_action("حذف متقدم", f"حذف المستخدم {username} المتقدم {applicant.full_name}", username=username, user_id=int(user_id))
+            return jsonify({'message': 'تم حذف المتقدم بنجاح'}), 200
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error deleting applicant: {e}")
+            return jsonify({'message': 'فشل حذف المتقدم'}), 500
+
+    if request.method == 'PUT':
+        data = request.form
+        try:
+            # Update fields
+            for key, value in data.items():
+                if hasattr(applicant, key) and key not in ['id', 'job_id', 'cv_path']:
+                    setattr(applicant, key, value)
+            
+            # Handle file update
+            if 'cv_file' in request.files:
+                file = request.files['cv_file']
+                if file and file.filename != '':
+                    applicant_folder_name = create_safe_folder_name(applicant.id, applicant.full_name)
+                    applicant_upload_path = os.path.join(app.config['APPLICANTS_FOLDER'], applicant_folder_name)
+                    if not os.path.exists(applicant_upload_path):
+                        os.makedirs(applicant_upload_path)
+
+                    filename = secure_filename(f"CV_updated_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf")
+                    file_path = os.path.join(applicant_upload_path, filename)
+                    file.save(file_path)
+                    applicant.cv_path = os.path.join('applicants', applicant_folder_name, filename).replace("\\", "/")
+
+            db.session.commit()
+            log_action("تعديل متقدم", f"عدل المستخدم {username} بيانات المتقدم {applicant.full_name}", username=username, user_id=int(user_id))
+            return jsonify(applicant.to_dict()), 200
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error updating applicant: {e}")
+            return jsonify({'message': 'فشل تحديث بيانات المتقدم'}), 500
+
+@app.route('/api/recruitment/applicants/<int:applicant_id>/stage', methods=['PUT'])
+@jwt_required()
+def move_applicant_stage(applicant_id):
+    applicant = Applicant.query.get_or_404(applicant_id)
+    data = request.get_json()
+    new_stage = data.get('stage')
+    
+    if not new_stage:
+        return jsonify({'message': 'المرحلة الجديدة مطلوبة'}), 400
+        
+    valid_stages = ['Applied', 'Screening', 'Interview', 'Offer', 'Hired', 'Rejected']
+    if new_stage not in valid_stages:
+        return jsonify({'message': 'مرحلة غير صالحة'}), 400
+
+    try:
+        old_stage = applicant.stage
+        applicant.stage = new_stage
+        db.session.commit()
+        
+        claims = get_jwt()
+        username = claims.get('username')
+        user_id = get_jwt_identity()
+        log_action(
+            "تغيير مرحلة متقدم", 
+            f"نقل المستخدم {username} المتقدم {applicant.full_name} من {old_stage} إلى {new_stage}",
+            username=username, 
+            user_id=int(user_id)
+        )
+        return jsonify(applicant.to_dict()), 200
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error moving applicant stage: {e}")
+        return jsonify({'message': 'فشل تغيير مرحلة المتقدم'}), 500
+
+
 @app.route('/api/uploads/<path:filepath>')
 @jwt_required()
 def uploaded_file(filepath):
     # This is a basic protection. For production, consider more robust access control.
     directory = app.config['UPLOAD_FOLDER']
     if filepath.startswith('applicants/'):
-        directory = os.path.abspath(os.path.join(app.config['UPLOAD_FOLDER'], '..'))
+        # Correctly join the base directory with the 'applicants' folder
+        directory = os.path.abspath(os.path.join(basedir, '..'))
+
     
     # Clean the path to prevent directory traversal
     clean_path = os.path.normpath(filepath).lstrip('./\\')
@@ -2046,7 +2138,7 @@ def upload_employee_document(employee_id):
     file.save(file_path)
 
     # Relative path for DB storage and URL generation
-    relative_path = os.path.join('employees', employee_folder_name, doc_type_folder, unique_filename)
+    relative_path = os.path.join('employees', employee_folder_name, doc_type_folder, unique_filename).replace("\\", "/")
 
     # Create or update DB record
     emp_doc = EmployeeDocument.query.filter_by(employee_id=employee_id, doc_type_id=int(doc_type_id)).first()
@@ -2157,5 +2249,7 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    
 
     
