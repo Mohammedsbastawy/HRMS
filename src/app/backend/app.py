@@ -9,7 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager, get_jwt
 from zk import ZK, const
 from collections import defaultdict
-from sqlalchemy import func, inspect, CheckConstraint, Time, Date, cast
+from sqlalchemy import func, inspect, CheckConstraint, Time, Date, cast, text
 from werkzeug.utils import secure_filename
 import re
 
@@ -2171,25 +2171,26 @@ def seed_document_types():
     with app.app_context():
         if DocumentType.query.first() is None:
             app.logger.info("Seeding document_types table...")
-            default_docs = [
-                {'code': 'NID', 'title_ar': 'بطاقة رقم قومي', 'title_en': 'National ID', 'requires_expiry': True},
-                {'code': 'BIRTH_CERT', 'title_ar': 'شهادة ميلاد', 'title_en': 'Birth Certificate'},
-                {'code': 'PHOTO', 'title_ar': 'صور شخصية', 'title_en': 'Personal Photo'},
-                {'code': 'MILITARY', 'title_ar': 'موقف التجنيد', 'title_en': 'Military Status', 'default_required': False},
-                {'code': 'CRIMINAL', 'title_ar': 'فيش وتشبيه', 'title_en': 'Criminal Record', 'requires_expiry': True},
-                {'code': 'HEALTH', 'title_ar': 'شهادة صحية', 'title_en': 'Health Certificate', 'requires_expiry': True, 'default_required': False},
-                {'code': 'DEGREE', 'title_ar': 'شهادة المؤهل', 'title_en': 'Degree Certificate'},
-                {'code': 'WORK_CARD', 'title_ar': 'كعب العمل', 'title_en': 'Work Card'},
-                {'code': 'SOCIAL_ID', 'title_ar': 'رقم التأمين الاجتماعي', 'title_en': 'Social Insurance ID'},
-                {'code': 'EXPERIENCE', 'title_ar': 'شهادات خبرة', 'title_en': 'Experience Certificate', 'category': 'additional', 'default_required': False},
-                {'code': 'TRAINING_CERT', 'title_ar': 'دورات تدريبية', 'title_en': 'Training Certificate', 'category': 'additional', 'default_required': False},
-                {'code': 'DRIVING', 'title_ar': 'رخصة قيادة', 'title_en': 'Driving License', 'category': 'additional', 'default_required': False, 'requires_expiry': True},
-                {'code': 'INSURANCE_PRINT', 'title_ar': 'برنت تأميني', 'title_en': 'Insurance Printout', 'category': 'additional', 'default_required': False},
-                {'code': 'CV', 'title_ar': 'السيرة الذاتية', 'title_en': 'CV', 'category': 'additional', 'default_required': False},
-            ]
-            for doc_data in default_docs:
-                doc_type = DocumentType(**doc_data)
-                db.session.add(doc_type)
+            seed_sql = """
+            INSERT OR IGNORE INTO document_types
+            (code, title_en, title_ar, category, default_required, requires_expiry, allowed_mime, max_size_mb, description, active)
+            VALUES
+            ('NID', 'National ID', 'بطاقة رقم قومي', 'basic', 1, 1, 'application/pdf,image/jpeg,image/png', 8, NULL, 1),
+            ('BIRTH_CERT', 'Birth Certificate', 'شهادة ميلاد', 'basic', 1, 0, 'application/pdf,image/jpeg,image/png', 8, NULL, 1),
+            ('PHOTO', 'Personal Photo', 'صورة شخصية', 'basic', 1, 0, 'image/jpeg,image/png', 5, NULL, 1),
+            ('MILITARY', 'Military Status', 'الموقف من التجنيد', 'basic', 0, 0, 'application/pdf,image/jpeg,image/png', 8, NULL, 1),
+            ('CRIMINAL', 'Criminal Record', 'فيش وتشبيه', 'basic', 1, 1, 'application/pdf,image/jpeg,image/png', 8, NULL, 1),
+            ('HEALTH', 'Health Certificate', 'شهادة صحية/كشف طبي', 'basic', 0, 1, 'application/pdf,image/jpeg,image/png', 8, NULL, 1),
+            ('DEGREE', 'Education Degree', 'شهادة المؤهل', 'basic', 1, 0, 'application/pdf,image/jpeg,image/png', 10, NULL, 1),
+            ('WORK_CARD', 'Work Card', 'كعب عمل', 'basic', 1, 0, 'application/pdf,image/jpeg,image/png', 8, NULL, 1),
+            ('SOCIAL_ID', 'Social Insurance Number', 'رقم التأمين الاجتماعي', 'basic', 1, 0, 'application/pdf,text/plain', 2, 'May be number proof', 1),
+            ('EXPERIENCE', 'Experience Certificate', 'شهادة خبرة', 'additional', 0, 0, 'application/pdf,image/jpeg', 10, NULL, 1),
+            ('TRAINING_CERT', 'Training Certificate', 'شهادة تدريب', 'additional', 0, 0, 'application/pdf,image/jpeg', 10, NULL, 1),
+            ('DRIVING', 'Driving License', 'رخصة قيادة', 'additional', 0, 1, 'application/pdf,image/jpeg', 8, NULL, 1),
+            ('INSURANCE_PRINT', 'Insurance Statement', 'برنت تأميني', 'additional', 0, 1, 'application/pdf,image/jpeg', 8, NULL, 1),
+            ('CV', 'Curriculum Vitae (CV)', 'السيرة الذاتية', 'additional', 1, 0, 'application/pdf', 10, 'Imported on hire from Recruitment', 1);
+            """
+            db.session.execute(text(seed_sql))
             db.session.commit()
             app.logger.info("Document types seeded successfully.")
 

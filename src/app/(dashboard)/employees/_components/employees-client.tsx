@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Search, Trash2, Edit, Eye, ListFilter, Loader2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Search, Trash2, Edit, Eye, ListFilter, Loader2, FileText } from 'lucide-react';
 import type { Employee } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
@@ -156,8 +156,7 @@ export function EmployeesPageClient() {
               <TableHead className="text-right">الاسم</TableHead>
               <TableHead className="text-right">البريد الإلكتروني</TableHead>
               <TableHead className="text-right">القسم</TableHead>
-              <TableHead className="text-right">الوظيفة</TableHead>
-              <TableHead className="text-right">تاريخ التعيين</TableHead>
+              <TableHead className="text-right">المستندات</TableHead>
               <TableHead className="text-right">الحالة</TableHead>
               <TableHead className="text-right">
                 <span className="sr-only">الإجراءات</span>
@@ -167,7 +166,7 @@ export function EmployeesPageClient() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
+                <TableCell colSpan={7} className="h-24 text-center">
                   <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                   <p>جاري تحميل البيانات...</p>
                 </TableCell>
@@ -187,8 +186,7 @@ export function EmployeesPageClient() {
                   </TableCell>
                   <TableCell className="text-right">{employee.email}</TableCell>
                   <TableCell className="text-right">{employee.department?.name_ar || 'N/A'}</TableCell>
-                  <TableCell className="text-right">{employee.jobTitle?.title_ar || 'N/A'}</TableCell>
-                  <TableCell className="text-right">{employee.hire_date ? new Date(employee.hire_date).toLocaleDateString('ar-EG') : 'N/A'}</TableCell>
+                  <TableCell className="text-right">N/A</TableCell>
                   <TableCell className="text-right">
                     {employee.status && (
                       <Badge 
@@ -211,7 +209,11 @@ export function EmployeesPageClient() {
                         <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
                         <DropdownMenuItem onSelect={() => router.push(`/employees/${employee.id}`)}>
                           <Eye className="ml-2 h-4 w-4" />
-                          عرض
+                          عرض الملف الشخصي
+                        </DropdownMenuItem>
+                         <DropdownMenuItem onSelect={() => router.push(`/documents/${employee.id}`)}>
+                          <FileText className="ml-2 h-4 w-4" />
+                          عرض المستندات
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => router.push(`/employees/${employee.id}/edit`)}>
                           <Edit className="ml-2 h-4 w-4" />
@@ -224,7 +226,7 @@ export function EmployeesPageClient() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
+                <TableCell colSpan={7} className="h-24 text-center">
                   لا يوجد موظفون حتى الآن.
                   <Button variant="link" asChild className="mt-2 block">
                     <Link href="/employees/new">ابدأ بإضافة موظف جديد</Link>
