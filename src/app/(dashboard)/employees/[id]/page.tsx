@@ -55,7 +55,7 @@ export default function EmployeeProfilePage() {
     const { toast } = useToast();
     const router = useRouter();
     const params = useParams();
-    const employeeId = params.employeeId as string;
+    const employeeId = params.id as string;
 
     useEffect(() => {
         if (!employeeId) return;
