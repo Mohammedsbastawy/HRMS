@@ -697,7 +697,7 @@ class DocumentRequirement(db.Model):
     effective_from = db.Column(db.String)
     effective_to = db.Column(db.String, nullable=True)
     notes = db.Column(db.Text)
-    __table_args__ = (db.UniqueConstraint('doc_type_id', 'scope', db.func.coalesce(scope_id, -1), 'effective_from', name='_doc_req_uc'),)
+    __table_args__ = (db.UniqueConstraint('doc_type_id', 'scope', 'scope_id', 'effective_from', name='_doc_req_uc'),)
 
 class EmployeeDocument(db.Model):
     __tablename__ = 'employee_documents'
@@ -2184,7 +2184,7 @@ def seed_document_types():
             ('DEGREE', 'Education Degree', 'شهادة المؤهل', 'basic', 1, 0, 'application/pdf,image/jpeg,image/png', 10, NULL, 1),
             ('WORK_CARD', 'Work Card', 'كعب عمل', 'basic', 1, 0, 'application/pdf,image/jpeg,image/png', 8, NULL, 1),
             ('SOCIAL_ID', 'Social Insurance Number', 'رقم التأمين الاجتماعي', 'basic', 1, 0, 'application/pdf,text/plain', 2, 'May be number proof', 1),
-            ('EXPERIENCE', 'Experience Certificate', 'شهادة خبرة', 'additional', 0, 0, 'application/pdf,image/jpeg', 10, NULL, 1),
+            ('EXPERIENCE', 'Experience Certificate', 'شهادات خبرة', 'additional', 0, 0, 'application/pdf,image/jpeg', 10, NULL, 1),
             ('TRAINING_CERT', 'Training Certificate', 'شهادة تدريب', 'additional', 0, 0, 'application/pdf,image/jpeg', 10, NULL, 1),
             ('DRIVING', 'Driving License', 'رخصة قيادة', 'additional', 0, 1, 'application/pdf,image/jpeg', 8, NULL, 1),
             ('INSURANCE_PRINT', 'Insurance Statement', 'برنت تأميني', 'additional', 0, 1, 'application/pdf,image/jpeg', 8, NULL, 1),
