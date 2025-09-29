@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 import os
@@ -9,6 +9,8 @@ from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_requir
 from zk import ZK, const
 from collections import defaultdict
 from sqlalchemy import func, inspect, CheckConstraint, Time, Date, cast
+from werkzeug.utils import secure_filename
+import re
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,13 +22,23 @@ CORS(app) # Enable CORS for all routes
 # Configure Database & Secret Key
 basedir = os.path.abspath(os.path.dirname(__file__))
 db_path = os.path.join(basedir, 'hrms.db')
+UPLOAD_FOLDER = os.path.join(basedir, 'uploads')
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config["JWT_SECRET_KEY"] = os.environ.get('SECRET_KEY', "super-secret-key-change-it") # Change this in your production environment
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Initialize extensions
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
+
+# Ensure upload directories exist
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+if not os.path.exists(os.path.join(UPLOAD_FOLDER, 'employees')):
+    os.makedirs(os.path.join(UPLOAD_FOLDER, 'employees'))
+
 
 # --- Database Models ---
 
@@ -1295,6 +1307,14 @@ def get_dashboard_data():
         "jobs": [j.to_dict() for j in Job.query.filter_by(status='Open').all()]
     })
 
+# --- File Uploads ---
+def create_safe_folder_name(applicant_id, applicant_name):
+    # Sanitize name
+    safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', applicant_name)
+    safe_name = re.sub(r'__+', '_', safe_name).strip('_')
+    folder_name = f"{applicant_id}_{safe_name}"
+    return folder_name
+
 # --- Recruitment API ---
 @app.route("/api/recruitment/jobs", methods=['GET', 'POST'])
 @jwt_required()
@@ -1352,7 +1372,10 @@ def handle_applicants():
     user_id = get_jwt_identity()
     
     if request.method == 'POST':
-        data = request.get_json()
+        if 'cv_file' not in request.files:
+            app.logger.warning("Applicant submission without CV file.")
+        
+        data = request.form
         required_fields = ['job_id', 'full_name', 'email']
         if not all(field in data for field in required_fields):
             return jsonify({'message': 'بيانات ناقصة'}), 400
@@ -1370,17 +1393,45 @@ def handle_applicants():
             stage='Applied',
             source=data.get('source', 'manual'),
             linkedin_url=data.get('linkedin_url'),
-            portfolio_url=data.get('portfolio_url'),
-            cv_path=data.get('cv_path'),
+            portfolio_url=data.get('portfolio_url')
         )
         db.session.add(new_applicant)
+        db.session.flush() # Flush to get the new_applicant.id
+
+        cv_path = None
+        if 'cv_file' in request.files:
+            file = request.files['cv_file']
+            if file and file.filename != '':
+                # Create a safe folder name from applicant ID and name
+                applicant_folder_name = create_safe_folder_name(new_applicant.id, new_applicant.full_name)
+                applicant_upload_path = os.path.join(app.config['UPLOAD_FOLDER'], 'employees', applicant_folder_name)
+                
+                if not os.path.exists(applicant_upload_path):
+                    os.makedirs(applicant_upload_path)
+
+                filename = secure_filename(f"CV_{new_applicant.full_name.replace(' ','_')}.pdf")
+                file_path = os.path.join(applicant_upload_path, filename)
+                file.save(file_path)
+                
+                # Store relative path for retrieval
+                cv_path = os.path.join('employees', applicant_folder_name, filename)
+
+        new_applicant.cv_path = cv_path
         db.session.commit()
+        
         log_action("إضافة متقدم", f"أضاف المستخدم {username} المتقدم {data['full_name']} إلى الوظيفة ID {data['job_id']}", username=username, user_id=int(user_id))
         return jsonify(new_applicant.to_dict()), 201
 
     # GET all applicants
     applicants = Applicant.query.order_by(Applicant.created_at.desc()).all()
     return jsonify({'applicants': [a.to_dict() for a in applicants]})
+
+@app.route('/uploads/<path:filepath>')
+@jwt_required()
+def uploaded_file(filepath):
+    # This is a basic protection. For production, consider more robust access control.
+    # e.g., check if the user has rights to see this specific employee's documents.
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filepath)
     
 # --- Other Read-only APIs ---
 @app.route("/api/payrolls", methods=['GET'])
@@ -1817,11 +1868,11 @@ def get_today_view_data():
     present_employee_ids = [a.employee_id for a in Attendance.query.filter(Attendance.date == today).all()]
     on_leave_employee_ids = [l.employee_id for l in LeaveRequest.query.filter(LeaveRequest.start_date <= today.isoformat(), LeaveRequest.end_date >= today.isoformat(), LeaveRequest.status == 'Approved').all()]
     
-    absent_employees_query = Employee.query.filter(
+    active_employees = Employee.query.filter(
         Employee.status == 'Active',
         ~Employee.id.in_(present_employee_ids + on_leave_employee_ids)
     )
-    absent_employees = absent_employees_query.all()
+    absent_employees = active_employees.all()
     absent_count = len(absent_employees)
 
     offline_devices = ZktDevice.query.filter_by(status='offline').all()
@@ -1871,12 +1922,13 @@ def get_today_view_data():
             else:
                 last_punch_time = last_in
                 last_punch_type = "دخول"
-        elif last_out:
-            last_punch_time = last_out
-            last_punch_type = "خروج"
         elif last_in:
             last_punch_time = last_in
             last_punch_type = "دخول"
+        elif last_out:
+            last_punch_time = last_out
+            last_punch_type = "خروج"
+
 
         att_record = Attendance.query.filter_by(employee_id=punch.employee_id, date=today).first()
 

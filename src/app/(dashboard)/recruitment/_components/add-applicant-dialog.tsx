@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useState } from 'react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useState, useRef } from 'react';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -17,9 +17,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, Plus, Trash2, UploadCloud } from 'lucide-react';
+import { Loader2, Plus, Trash2, UploadCloud, FileCheck2, AlertCircle } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Progress } from '@/components/ui/progress';
 
 interface AddApplicantDialogProps {
   open: boolean;
@@ -35,7 +36,8 @@ const applicantSchema = z.object({
   source: z.string().default('manual'),
   linkedin_url: z.string().url().optional().or(z.literal('')),
   portfolio_url: z.string().url().optional().or(z.literal('')),
-  cv_path: z.string().optional(), // For file upload simulation
+  cvFile: z.instanceof(File).optional(),
+  cv_path: z.string().optional(),
 });
 
 const formSchema = z.object({
@@ -43,6 +45,67 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+const FileUploader = ({ control, index }: { control: any, index: number }) => {
+    const [fileName, setFileName] = useState<string | null>(null);
+    const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, field: any) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            if (file.type !== 'application/pdf') {
+                 setError('يرجى اختيار ملف بصيغة PDF فقط.');
+                 setFileName(null);
+                 field.onChange(undefined);
+                 return;
+            }
+            if (file.size > 5 * 1024 * 1024) { // 5MB
+                setError('حجم الملف يجب أن يكون أقل من 5 ميجابايت.');
+                setFileName(null);
+                field.onChange(undefined);
+                return;
+            }
+            setError(null);
+            setFileName(file.name);
+            field.onChange(file);
+        }
+    };
+    
+    return (
+         <div className="space-y-2">
+            <Label>السيرة الذاتية (PDF)</Label>
+             <FormField
+                control={control}
+                name={`applicants.${index}.cvFile`}
+                render={({ field }) => (
+                    <FormItem>
+                        <FormControl>
+                            <Input id={`cv_upload_${index}`} type="file" className="hidden" accept="application/pdf" onChange={(e) => handleFileChange(e, field)} />
+                        </FormControl>
+                        <Label htmlFor={`cv_upload_${index}`} className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer bg-muted hover:bg-muted/80">
+                           {fileName ? (
+                                <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
+                                    <FileCheck2 className="w-8 h-8 mb-2 text-green-500"/>
+                                    <p className="font-semibold">{fileName}</p>
+                                    <p className="text-xs text-muted-foreground">تم اختيار الملف بنجاح</p>
+                                </div>
+                            ) : (
+                               <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    <UploadCloud className="w-8 h-8 mb-2 text-muted-foreground" />
+                                    <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">انقر للرفع</span> أو قم بسحب الملف وإفلاته</p>
+                                    <p className="text-xs text-muted-foreground">PDF (بحد أقصى 5 ميجا)</p>
+                                </div>
+                            )}
+                        </Label>
+                         {error && <p className="text-sm text-destructive mt-2 flex items-center gap-1"><AlertCircle className="h-4 w-4" /> {error}</p>}
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+        </div>
+    )
+}
 
 export function AddApplicantDialog({ open, onOpenChange, jobId, onSuccess }: AddApplicantDialogProps) {
   const { toast } = useToast();
@@ -62,24 +125,40 @@ export function AddApplicantDialog({ open, onOpenChange, jobId, onSuccess }: Add
 
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true);
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+        toast({ variant: 'destructive', title: 'خطأ', description: 'الجلسة منتهية، يرجى تسجيل الدخول مرة أخرى.' });
+        setIsSubmitting(false);
+        return;
+    }
+
     try {
-      const token = localStorage.getItem('authToken');
-      const promises = data.applicants.map(applicant =>
-        fetch('/api/recruitment/applicants', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ ...applicant, job_id: jobId }),
-        })
-      );
-      
-      const results = await Promise.all(promises);
-      const failed = results.filter(res => !res.ok);
+        const createdApplicants = [];
+        for (const applicantData of data.applicants) {
+            const formData = new FormData();
+            formData.append('job_id', String(jobId));
+            formData.append('full_name', applicantData.full_name);
+            formData.append('email', applicantData.email);
+            formData.append('phone', applicantData.phone || '');
+            formData.append('source', applicantData.source || 'manual');
+            if (applicantData.cvFile) {
+                formData.append('cv_file', applicantData.cvFile);
+            }
+            
+            const response = await fetch('/api/recruitment/applicants', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData,
+            });
+            
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.message || `فشل إضافة المتقدم: ${applicantData.full_name}`);
+            }
+            createdApplicants.push(result);
+        }
 
-      if (failed.length > 0) {
-        throw new Error(`فشل إضافة ${failed.length} من المتقدمين.`);
-      }
-
-      toast({ title: `تم إضافة ${data.applicants.length} متقدمين بنجاح` });
+      toast({ title: `تم إضافة ${createdApplicants.length} متقدمين بنجاح` });
       form.reset();
       onSuccess();
       onOpenChange(false);
@@ -179,18 +258,7 @@ export function AddApplicantDialog({ open, onOpenChange, jobId, onSuccess }: Add
                       )}
                     />
                   </div>
-                   <div className="space-y-2">
-                        <Label>السيرة الذاتية (CV)</Label>
-                        <div className="flex items-center justify-center w-full">
-                            <Label htmlFor={`cv_upload_${index}`} className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer bg-muted hover:bg-muted/80">
-                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                    <UploadCloud className="w-8 h-8 mb-2 text-muted-foreground" />
-                                    <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">انقر للرفع</span> أو قم بسحب الملف وإفلاته</p>
-                                </div>
-                                <Input id={`cv_upload_${index}`} type="file" className="hidden" />
-                            </Label>
-                        </div>
-                    </div>
+                   <FileUploader control={form.control} index={index} />
                 </div>
               ))}
             </div>
