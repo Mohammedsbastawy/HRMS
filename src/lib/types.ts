@@ -4,6 +4,7 @@
 
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -66,14 +67,6 @@ export type User = {
   password_hash: string;
   role: 'Admin' | 'HR' | 'Manager' | 'Employee';
   account_status?: 'Active' | 'Inactive';
-};
-
-export type Document = {
-  id: number;
-  employee_id: number;
-  file_path: string;
-  type: 'Contract' | 'Identity' | 'Certificate' | 'CV';
-  uploaded_at?: string;
 };
 
 export type ZktDevice = {

@@ -723,7 +723,7 @@ class EmployeeDocument(db.Model):
     version = db.Column(db.Integer, default=1)
     not_applicable = db.Column(db.Boolean, default=False)
     versions = db.relationship('EmployeeDocumentVersion', backref='main_document', lazy='dynamic', cascade="all, delete-orphan")
-    __table_args__ = (db.UniqueConstraint('employee_id', 'doc_type_id', 'version', name='_emp_doc_version_uc'),)
+    __table_args__ = (db.UniqueConstraint('employee_id', 'doc_type_id', name='_emp_doc_type_uc'),)
 
 class EmployeeDocumentVersion(db.Model):
     __tablename__ = 'employee_document_versions'
@@ -1504,12 +1504,12 @@ def handle_applicants():
     applicants = Applicant.query.order_by(Applicant.created_at.desc()).all()
     return jsonify({'applicants': [a.to_dict() for a in applicants]})
 
-@app.route('/uploads/<path:filepath>')
+@app.route('/api/uploads/<path:filepath>')
 @jwt_required()
 def uploaded_file(filepath):
     # This is a basic protection. For production, consider more robust access control.
     # e.g., check if the user has rights to see this specific employee's documents.
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filepath)
+    return send_from_directory(os.path.join(app.config['UPLOAD_FOLDER'], '..'), filepath)
     
 # --- Other Read-only APIs ---
 @app.route("/api/payrolls", methods=['GET'])
@@ -1941,16 +1941,20 @@ def get_employee_checklist(employee_id):
             "doc_type": doc_type.to_dict(),
             "status": "Missing",
             "file_path": None,
+            "file_name": None,
+            "mime_type": None,
             "expiry_date": None,
             "note": None
         }
         
         # This is a simplified logic. Will be replaced with the complex SQL later.
-        if doc_type.default_required:
+        if doc_type.default_required: # For now, only show required docs. Can be expanded.
             if doc_type.id in doc_status_map:
                 emp_doc = doc_status_map[doc_type.id]
                 status_info["status"] = emp_doc.status
                 status_info["file_path"] = emp_doc.file_path
+                status_info["file_name"] = emp_doc.file_name
+                status_info["mime_type"] = emp_doc.mime_type
                 status_info["expiry_date"] = emp_doc.expiry_date
                 status_info["note"] = emp_doc.note
                 
@@ -1966,6 +1970,77 @@ def get_employee_checklist(employee_id):
             checklist.append(status_info)
             
     return jsonify({"checklist": checklist})
+
+
+@app.route('/api/documents/employee/<int:employee_id>/upload', methods=['POST'])
+@jwt_required()
+def upload_employee_document(employee_id):
+    employee = Employee.query.get_or_404(employee_id)
+    user_id = get_jwt_identity()
+
+    if 'file' not in request.files:
+        return jsonify({'message': 'لا يوجد ملف في الطلب'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'message': 'لم يتم اختيار ملف'}), 400
+        
+    doc_type_id = request.form.get('doc_type_id')
+    if not doc_type_id:
+        return jsonify({'message': 'لم يتم تحديد نوع المستند'}), 400
+
+    doc_type = DocumentType.query.get_or_404(int(doc_type_id))
+
+    # Save file
+    filename = secure_filename(file.filename)
+    unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+    
+    # Path: uploads/employees/101_JohnDoe/NID/2024..._nid.pdf
+    employee_folder_name = f"{employee.id}_{re.sub(r'[^a-zA-Z0-9_]', '_', employee.full_name)}"
+    doc_type_folder = doc_type.code
+    
+    save_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'employees', employee_folder_name, doc_type_folder)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+        
+    file_path = os.path.join(save_dir, unique_filename)
+    file.save(file_path)
+
+    # Relative path for DB storage and URL generation
+    relative_path = os.path.join('employees', employee_folder_name, doc_type_folder, unique_filename)
+
+    # Create or update DB record
+    emp_doc = EmployeeDocument.query.filter_by(employee_id=employee_id, doc_type_id=int(doc_type_id)).first()
+
+    if emp_doc: # Update existing record
+        emp_doc.file_path = relative_path
+        emp_doc.file_name = filename
+        emp_doc.mime_type = file.mimetype
+        emp_doc.file_size = file.content_length
+        emp_doc.uploaded_at = datetime.utcnow()
+        emp_doc.uploaded_by = int(user_id)
+        emp_doc.status = 'Uploaded'
+        emp_doc.version += 1
+        if doc_type.requires_expiry:
+            emp_doc.expiry_date = request.form.get('expiry_date') or None
+    else: # Create new record
+        emp_doc = EmployeeDocument(
+            employee_id=employee_id,
+            doc_type_id=int(doc_type_id),
+            file_path=relative_path,
+            file_name=filename,
+            mime_type=file.mimetype,
+            file_size=file.content_length,
+            uploaded_by=int(user_id),
+            status='Uploaded',
+            expiry_date=request.form.get('expiry_date') if doc_type.requires_expiry else None
+        )
+        db.session.add(emp_doc)
+
+    db.session.commit()
+    log_action("رفع مستند", f"تم رفع مستند '{doc_type.title_ar}' للموظف {employee.full_name}", user_id=int(user_id))
+
+    return jsonify({'message': 'تم رفع الملف بنجاح', 'file_path': relative_path}), 201
 
 
 def create_initial_admin_user():
@@ -2021,6 +2096,19 @@ def init_db():
         
         # Now, run migrations and seeding
         migrate_db()
+        # The following needs a unique constraint on employee_documents to be safe on re-runs
+        inspector = inspect(db.engine)
+        constraints = inspector.get_unique_constraints('employee_documents')
+        if not any(c['name'] == '_emp_doc_type_uc' for c in constraints):
+            try:
+                # This will fail on subsequent runs if the constraint exists, which is fine.
+                 with db.engine.connect() as con:
+                    con.execute(text('CREATE UNIQUE INDEX _emp_doc_type_uc ON employee_documents (employee_id, doc_type_id)'))
+                 app.logger.info("Added unique constraint to employee_documents.")
+            except Exception as e:
+                if "already exists" not in str(e):
+                     app.logger.error(f"Could not add unique constraint to employee_documents: {e}")
+       
         create_initial_admin_user()
         seed_document_types()
         app.logger.info("Database initialization complete.")
