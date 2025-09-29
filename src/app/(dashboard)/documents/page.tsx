@@ -16,8 +16,8 @@ import { Input } from '@/components/ui/input';
 
 interface EmployeeWithCompliance extends Employee {
     compliance_percent: number;
-    missing_docs: number;
-    expiring_docs: number;
+    missing_docs_count: number;
+    expiring_docs_count: number;
     last_updated: string;
 }
 
@@ -50,16 +50,8 @@ export default function DocumentsOverviewPage() {
                 if (!response.ok) throw new Error('فشل في جلب بيانات نظرة عامة المستندات');
                 const data = await response.json();
                 
-                // Placeholder data for now
-                const employeesWithPlaceholderData = data.employees.map((emp: Employee) => ({
-                    ...emp,
-                    compliance_percent: 75, // Placeholder
-                    missing_docs: 2, // Placeholder
-                    expiring_docs: 1, // Placeholder
-                    last_updated: 'يومين', // Placeholder
-                }));
+                setEmployees(data.employees_compliance);
 
-                setEmployees(employeesWithPlaceholderData);
             } catch (error: any) {
                 toast({
                     variant: 'destructive',
@@ -114,13 +106,13 @@ export default function DocumentsOverviewPage() {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>الموظف</TableHead>
-                            <TableHead>القسم / الوظيفة</TableHead>
-                            <TableHead className="w-[150px]">حالة الامتثال</TableHead>
-                            <TableHead>ناقص</TableHead>
-                            <TableHead>ينتهي قريبًا</TableHead>
-                            <TableHead>آخر تحديث</TableHead>
-                            <TableHead>الإجراءات</TableHead>
+                            <TableHead className="text-right">الموظف</TableHead>
+                            <TableHead className="text-right">القسم / الوظيفة</TableHead>
+                            <TableHead className="w-[150px] text-right">حالة الامتثال</TableHead>
+                            <TableHead className="text-right">ناقص</TableHead>
+                            <TableHead className="text-right">ينتهي قريبًا</TableHead>
+                            <TableHead className="text-right">آخر تحديث</TableHead>
+                            <TableHead className="text-right">الإجراءات</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -134,37 +126,37 @@ export default function DocumentsOverviewPage() {
                         ) : employees.length > 0 ? (
                             employees.map((emp) => (
                                 <TableRow key={emp.id}>
-                                    <TableCell>
-                                        <div className="flex items-center gap-3">
-                                             <Avatar>
-                                                <AvatarImage src={emp.avatar} alt={emp.full_name} />
-                                                <AvatarFallback>{emp.full_name.charAt(0)}</AvatarFallback>
-                                            </Avatar>
+                                    <TableCell className="text-right">
+                                        <div className="flex items-center justify-end gap-3">
                                             <div>
                                                 <div className="font-medium">{emp.full_name}</div>
                                                 <div className="text-xs text-muted-foreground">#{emp.id}</div>
                                             </div>
+                                             <Avatar>
+                                                <AvatarImage src={emp.avatar} alt={emp.full_name} />
+                                                <AvatarFallback>{emp.full_name.charAt(0)}</AvatarFallback>
+                                            </Avatar>
                                         </div>
                                     </TableCell>
-                                    <TableCell>
+                                    <TableCell className="text-right">
                                         <div className="font-medium">{emp.department?.name_ar || '-'}</div>
                                         <div className="text-xs text-muted-foreground">{emp.jobTitle?.title_ar || '-'}</div>
                                     </TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <ComplianceBar value={emp.compliance_percent} />
-                                            <span className="text-xs font-mono">{emp.compliance_percent}%</span>
+                                    <TableCell className="text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                            <span className="text-xs font-mono">{emp.compliance_percent || 0}%</span>
+                                            <ComplianceBar value={emp.compliance_percent || 0} />
                                         </div>
                                     </TableCell>
-                                    <TableCell>{emp.missing_docs}</TableCell>
-                                    <TableCell>{emp.expiring_docs}</TableCell>
-                                    <TableCell className="text-xs text-muted-foreground">{emp.last_updated}</TableCell>
-                                    <TableCell>
+                                    <TableCell className="text-right">{emp.missing_docs_count}</TableCell>
+                                    <TableCell className="text-right">{emp.expiring_docs_count}</TableCell>
+                                    <TableCell className="text-right text-xs text-muted-foreground">{emp.last_updated || 'لم يحدث'}</TableCell>
+                                    <TableCell className="text-right">
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
                                             </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="start">
+                                            <DropdownMenuContent align="end">
                                                 <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
                                                 <DropdownMenuItem onSelect={() => router.push(`/documents/${emp.id}`)}>
                                                     <Eye className="ml-2 h-4 w-4" />

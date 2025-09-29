@@ -1491,7 +1491,7 @@ def handle_applicants():
                 file.save(file_path)
                 
                 # Store relative path for retrieval
-                cv_path = os.path.join(applicant_folder_name, filename)
+                cv_path = os.path.join('..', 'applicants', applicant_folder_name, filename)
 
         new_applicant.cv_path = cv_path
         db.session.commit()
@@ -2160,12 +2160,130 @@ def mark_all_notifications_as_read():
 @app.route('/api/documents/overview', methods=['GET'])
 @jwt_required()
 def get_documents_overview():
-    # Simplified version for now
     employees = Employee.query.options(
         db.joinedload(Employee.department), 
         db.joinedload(Employee.job_title)
     ).order_by(Employee.full_name).all()
-    return jsonify({'employees': [e.to_dict() for e in employees]})
+
+    employees_with_compliance = []
+    for emp in employees:
+        # Get compliance percentage
+        compliance_sql = text("""
+            WITH required AS (
+                SELECT dt.id AS doc_type_id,
+                       COALESCE(MAX(CASE
+                           WHEN dr.required IS NOT NULL
+                            AND date('now') BETWEEN dr.effective_from AND COALESCE(dr.effective_to,'9999-12-31')
+                            AND (
+                               dr.scope='company'
+                               OR (dr.scope='department' AND dr.scope_id=:dept_id)
+                               OR (dr.scope='job_title' AND dr.scope_id=:job_title_id)
+                               OR (dr.scope='location'  AND dr.scope_id=:location_id)
+                            )
+                           THEN dr.required END),
+                           dt.default_required
+                         ) AS is_required,
+                         dt.requires_expiry
+                FROM document_types dt
+                LEFT JOIN document_requirements dr ON dr.doc_type_id = dt.id
+                WHERE dt.active=1
+                GROUP BY dt.id
+            ),
+            latest_docs AS (
+              SELECT doc_type_id,
+                     MAX(CASE WHEN status IN ('Uploaded','Verified') THEN 1 ELSE 0 END) AS has_file,
+                     MAX(CASE WHEN expiry_date IS NOT NULL AND date(expiry_date) < date('now') THEN 1 ELSE 0 END) AS is_expired
+              FROM employee_documents
+              WHERE employee_id = :emp_id
+              GROUP BY doc_type_id
+            )
+            SELECT
+              CAST(ROUND(
+                100.0 *
+                SUM(CASE WHEN r.is_required=1 AND COALESCE(ld.has_file,0)=1
+                             AND (r.requires_expiry=0 OR COALESCE(ld.is_expired,0)=0)
+                         THEN 1 ELSE 0 END)
+                /
+                NULLIF(SUM(CASE WHEN r.is_required=1 THEN 1 ELSE 0 END), 0)
+              , 0) AS INTEGER) AS compliance_percent
+            FROM required r
+            LEFT JOIN latest_docs ld ON ld.doc_type_id=r.doc_type_id;
+        """)
+        compliance_result = db.session.execute(compliance_sql, {
+            'emp_id': emp.id, 
+            'dept_id': emp.department_id, 
+            'job_title_id': emp.job_title_id, 
+            'location_id': emp.location_id
+        }).scalar()
+
+        # Get missing docs count
+        missing_docs_sql = text("""
+            WITH required AS (
+              SELECT dt.id AS doc_type_id,
+                     COALESCE(MAX(CASE
+                       WHEN dr.required IS NOT NULL
+                        AND date('now') BETWEEN dr.effective_from AND COALESCE(dr.effective_to,'9999-12-31')
+                        AND (
+                           dr.scope='company'
+                           OR (dr.scope='department' AND dr.scope_id=:dept_id)
+                           OR (dr.scope='job_title' AND dr.scope_id=:job_title_id)
+                           OR (dr.scope='location'  AND dr.scope_id=:location_id)
+                        )
+                       THEN dr.required END),
+                       dt.default_required
+                     ) AS is_required
+              FROM document_types dt
+              LEFT JOIN document_requirements dr ON dr.doc_type_id = dt.id
+              WHERE dt.active=1
+              GROUP BY dt.id
+            ),
+            latest_docs AS (
+              SELECT doc_type_id,
+                     MAX(CASE WHEN status IN ('Uploaded','Verified') THEN 1 ELSE 0 END) AS has_file,
+                     MAX(CASE WHEN expiry_date IS NOT NULL AND date(expiry_date) < date('now') THEN 1 ELSE 0 END) AS is_expired
+              FROM employee_documents
+              WHERE employee_id = :emp_id
+              GROUP BY doc_type_id
+            )
+            SELECT COUNT(dt.id)
+            FROM required r
+            JOIN document_types dt ON dt.id=r.doc_type_id
+            LEFT JOIN latest_docs d ON d.doc_type_id = r.doc_type_id
+            WHERE r.is_required=1
+              AND (
+                   d.has_file IS NULL OR d.has_file=0
+                   OR (dt.requires_expiry=1 AND d.is_expired=1)
+              )
+        """)
+        missing_docs_count = db.session.execute(missing_docs_sql, {
+            'emp_id': emp.id, 
+            'dept_id': emp.department_id, 
+            'job_title_id': emp.job_title_id, 
+            'location_id': emp.location_id
+        }).scalar()
+        
+        # Get expiring docs count
+        expiring_docs_sql = text("""
+            SELECT COUNT(ed.id)
+            FROM employee_documents ed
+            JOIN document_types dt ON dt.id=ed.doc_type_id
+            WHERE dt.requires_expiry=1
+              AND ed.status IN ('Uploaded','Verified')
+              AND ed.expiry_date IS NOT NULL
+              AND date(ed.expiry_date) BETWEEN date('now') AND date('now', '+' || :days || ' day')
+              AND ed.employee_id = :emp_id
+        """)
+        expiring_docs_count = db.session.execute(expiring_docs_sql, {'days': 30, 'emp_id': emp.id}).scalar()
+
+
+        emp_data = emp.to_dict()
+        emp_data['compliance_percent'] = compliance_result if compliance_result is not None else 0
+        emp_data['missing_docs_count'] = missing_docs_count if missing_docs_count is not None else 0
+        emp_data['expiring_docs_count'] = expiring_docs_count if expiring_docs_count is not None else 0
+        emp_data['last_updated'] = "يومين" # Placeholder
+        employees_with_compliance.append(emp_data)
+
+    return jsonify({'employees_compliance': employees_with_compliance})
 
 @app.route('/api/documents/types', methods=['GET', 'POST'])
 @jwt_required()
@@ -2304,6 +2422,7 @@ def seed_document_types():
 # --- App Context and DB Initialization ---
 def init_db():
     with app.app_context():
+        # db.drop_all() # Use for clean testing
         db.create_all()
         app.logger.info("Tables created (if not exist).")
         
