@@ -24,11 +24,15 @@ CORS(app) # Enable CORS for all routes
 basedir = os.path.abspath(os.path.dirname(__file__))
 db_path = os.path.join(basedir, 'hrms.db')
 UPLOAD_FOLDER = os.path.join(basedir, 'uploads')
+APPLICANTS_FOLDER = os.path.join(basedir, 'applicants')
+
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config["JWT_SECRET_KEY"] = os.environ.get('SECRET_KEY', "super-secret-key-change-it") # Change this in your production environment
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['APPLICANTS_FOLDER'] = APPLICANTS_FOLDER
+
 
 # Initialize extensions
 db = SQLAlchemy(app)
@@ -39,6 +43,8 @@ if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 if not os.path.exists(os.path.join(UPLOAD_FOLDER, 'employees')):
     os.makedirs(os.path.join(UPLOAD_FOLDER, 'employees'))
+if not os.path.exists(APPLICANTS_FOLDER):
+    os.makedirs(APPLICANTS_FOLDER)
 
 
 # --- Database Models ---
@@ -1502,10 +1508,8 @@ def handle_applicants():
         if 'cv_file' in request.files:
             file = request.files['cv_file']
             if file and file.filename != '':
-                # Create a safe folder name from applicant ID and name
                 applicant_folder_name = create_safe_folder_name(new_applicant.id, new_applicant.full_name)
-                # The folder for applicant CVs should be separate from employees
-                applicant_upload_path = os.path.join(app.config['UPLOAD_FOLDER'], '..', 'applicants', applicant_folder_name)
+                applicant_upload_path = os.path.join(app.config['APPLICANTS_FOLDER'], applicant_folder_name)
                 
                 if not os.path.exists(applicant_upload_path):
                     os.makedirs(applicant_upload_path)
@@ -1515,7 +1519,7 @@ def handle_applicants():
                 file.save(file_path)
                 
                 # Store relative path for retrieval
-                cv_path = os.path.join('..', 'applicants', applicant_folder_name, filename)
+                cv_path = os.path.join('applicants', applicant_folder_name, filename)
 
         new_applicant.cv_path = cv_path
         db.session.commit()
@@ -1531,8 +1535,11 @@ def handle_applicants():
 @jwt_required()
 def uploaded_file(filepath):
     # This is a basic protection. For production, consider more robust access control.
-    # e.g., check if the user has rights to see this specific employee's documents.
-    return send_from_directory(os.path.join(app.config['UPLOAD_FOLDER'], '..'), filepath)
+    directory = app.config['UPLOAD_FOLDER']
+    if filepath.startswith('applicants/'):
+        directory = os.path.abspath(os.path.join(app.config['UPLOAD_FOLDER'], '..'))
+    
+    return send_from_directory(directory, filepath)
     
 # --- Other Read-only APIs ---
 @app.route("/api/payrolls", methods=['GET'])

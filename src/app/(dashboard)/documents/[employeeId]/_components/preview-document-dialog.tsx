@@ -29,11 +29,18 @@ export function PreviewDocumentDialog({ open, onOpenChange, item }: PreviewDocum
         setIsLoading(true);
         setFileUrl(null); // Reset previous URL
         const token = localStorage.getItem('authToken');
-        const url = `/api/uploads/${filePath}`;
+        
+        // Clean up path to remove any '..' parts just in case
+        const cleanedPath = filePath.replace(/\.\.\//g, '');
+        const url = `/api/uploads/${cleanedPath}`;
         
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!res.ok) throw new Error('Failed to fetch file');
+            if (!res.ok) {
+              const errorBody = await res.text();
+              console.error("Fetch error:", res.status, errorBody);
+              throw new Error('Failed to fetch file');
+            }
             const blob = await res.blob();
             objectUrl = URL.createObjectURL(blob);
             setFileUrl(objectUrl);
@@ -62,6 +69,12 @@ export function PreviewDocumentDialog({ open, onOpenChange, item }: PreviewDocum
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, item.file_path, item.mime_type]);
+  
+  const getDownloadUrl = () => {
+    if (!item.file_path) return '#';
+    const cleanedPath = item.file_path.replace(/\.\.\//g, '');
+    return `/api/uploads/${cleanedPath}`;
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -70,7 +83,7 @@ export function PreviewDocumentDialog({ open, onOpenChange, item }: PreviewDocum
           <DialogTitle className="flex justify-between items-center">
             <span>معاينة: {item.doc_type.title_ar}</span>
             {item.file_path && (
-                <a href={`/api/uploads/${item.file_path}`} download={item.file_name || 'document'}>
+                <a href={getDownloadUrl()} download={item.file_name || 'document'}>
                 <Button variant="outline" size="sm">
                     <Download className="ml-2 h-4 w-4"/>
                     تحميل
