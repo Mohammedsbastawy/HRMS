@@ -686,6 +686,9 @@ class DocumentType(db.Model):
     max_size_mb = db.Column(db.Integer, default=15)
     description = db.Column(db.Text)
     active = db.Column(db.Boolean, default=True)
+    
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 class DocumentRequirement(db.Model):
     __tablename__ = 'document_requirements'
@@ -1476,7 +1479,7 @@ def handle_applicants():
             if file and file.filename != '':
                 # Create a safe folder name from applicant ID and name
                 applicant_folder_name = create_safe_folder_name(new_applicant.id, new_applicant.full_name)
-                applicant_upload_path = os.path.join(app.config['UPLOAD_FOLDER'], 'employees', applicant_folder_name, 'CV')
+                applicant_upload_path = os.path.join(app.config['UPLOAD_FOLDER'], applicant_folder_name, 'CV')
                 
                 if not os.path.exists(applicant_upload_path):
                     os.makedirs(applicant_upload_path)
@@ -1486,7 +1489,7 @@ def handle_applicants():
                 file.save(file_path)
                 
                 # Store relative path for retrieval
-                cv_path = os.path.join('employees', applicant_folder_name, 'CV', filename)
+                cv_path = os.path.join(applicant_folder_name, 'CV', filename)
 
         new_applicant.cv_path = cv_path
         db.session.commit()
@@ -2161,6 +2164,74 @@ def get_documents_overview():
         db.joinedload(Employee.job_title)
     ).order_by(Employee.full_name).all()
     return jsonify({'employees': [e.to_dict() for e in employees]})
+
+@app.route('/api/documents/types', methods=['GET'])
+@jwt_required()
+def get_document_types():
+    doc_types = DocumentType.query.order_by(DocumentType.category, DocumentType.id).all()
+    return jsonify({'document_types': [dt.to_dict() for dt in doc_types]})
+
+@app.route('/api/documents/types/<int:id>', methods=['PUT'])
+@jwt_required()
+def update_document_type(id):
+    claims = get_jwt()
+    if claims.get('role') not in ['Admin', 'HR']:
+        return jsonify({"message": "صلاحيات غير كافية"}), 403
+    
+    doc_type = DocumentType.query.get_or_404(id)
+    data = request.get_json()
+    
+    # Only allow updating 'active' and 'default_required' for now
+    if 'active' in data:
+        doc_type.active = bool(data['active'])
+    if 'default_required' in data:
+        doc_type.default_required = bool(data['default_required'])
+    
+    db.session.commit()
+    log_action("تحديث نوع مستند", f"تم تحديث إعدادات نوع المستند: {doc_type.title_ar}", username=claims.get('username'), user_id=int(get_jwt_identity()))
+    return jsonify(doc_type.to_dict())
+
+@app.route('/api/documents/employee/<int:employee_id>/checklist', methods=['GET'])
+@jwt_required()
+def get_employee_checklist(employee_id):
+    employee = Employee.query.get_or_404(employee_id)
+    all_doc_types = DocumentType.query.filter_by(active=True).all()
+    employee_docs = EmployeeDocument.query.filter_by(employee_id=employee_id).all()
+    
+    doc_status_map = {doc.doc_type_id: doc for doc in employee_docs}
+
+    checklist = []
+    for doc_type in all_doc_types:
+        status_info = {
+            "doc_type": doc_type.to_dict(),
+            "status": "Missing",
+            "file_path": None,
+            "expiry_date": None,
+            "note": None
+        }
+        
+        # This is a simplified logic. Will be replaced with the complex SQL later.
+        if doc_type.default_required:
+            if doc_type.id in doc_status_map:
+                emp_doc = doc_status_map[doc_type.id]
+                status_info["status"] = emp_doc.status
+                status_info["file_path"] = emp_doc.file_path
+                status_info["expiry_date"] = emp_doc.expiry_date
+                status_info["note"] = emp_doc.note
+                
+                if emp_doc.status not in ['Rejected', 'Expired'] and emp_doc.expiry_date:
+                    try:
+                        expiry = date.fromisoformat(emp_doc.expiry_date)
+                        if expiry < date.today():
+                            status_info["status"] = "Expired"
+                        elif (expiry - date.today()).days <= 30:
+                             status_info["status"] = "Expiring"
+                    except (ValueError, TypeError):
+                        pass # Ignore invalid date formats
+            checklist.append(status_info)
+            
+    return jsonify({"checklist": checklist})
+
 
 def create_initial_admin_user():
     with app.app_context():

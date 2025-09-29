@@ -2,6 +2,7 @@
 
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -286,4 +287,18 @@ export type TaxScheme = {
   method: 'slab' | 'flat';
   active: boolean;
   brackets?: TaxBracket[];
+};
+
+export type DocumentType = {
+  id: number;
+  code: string;
+  title_ar: string;
+  title_en: string;
+  category: string;
+  default_required: boolean;
+  requires_expiry: boolean;
+  allowed_mime: string | null;
+  max_size_mb: number;
+  description: string | null;
+  active: boolean;
 };
