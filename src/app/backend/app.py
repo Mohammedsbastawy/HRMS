@@ -1536,6 +1536,24 @@ def get_attendance():
     attendance_records = Attendance.query.options(db.joinedload(Attendance.employee)).order_by(Attendance.date.desc(), Attendance.check_in.desc()).all()
     return jsonify({"attendance": [record.to_dict() for record in attendance_records]})
 
+@app.route("/api/attendance/history/<int:employee_id>", methods=['GET'])
+@jwt_required()
+def get_employee_attendance_history(employee_id):
+    employee = Employee.query.options(db.joinedload(Employee.department), db.joinedload(Employee.job_title)).get_or_404(employee_id)
+    
+    # Fetch last 30 days of attendance
+    thirty_days_ago = date.today() - timedelta(days=30)
+    attendance_records = Attendance.query.filter(
+        Attendance.employee_id == employee_id,
+        Attendance.date >= thirty_days_ago
+    ).order_by(Attendance.date.desc()).all()
+
+    return jsonify({
+        "employee": employee.to_dict(full=True),
+        "attendance": [record.to_dict() for record in attendance_records]
+    })
+
+
 @app.route("/api/attendance/daily-log", methods=['GET'])
 @jwt_required()
 def get_daily_log():
@@ -1975,12 +1993,11 @@ def get_today_view_data():
     late_employees = Employee.query.join(Attendance).filter(Attendance.date == today, Attendance.status == 'Late').all()
     
     # Live Punches
-    # Get employees who have any raw device log today
     employee_ids_with_punches_today = db.session.query(DeviceLog.employee_id).filter(
         cast(DeviceLog.log_datetime, Date) == today
     ).distinct().all()
 
-    employee_ids_with_punches_today = [eid[0] for eid in employee_ids_with_punches_today]
+    employee_ids_with_punches_today = [eid[0] for eid in employee_ids_with_punches_today if eid[0] is not None]
 
     employees_with_punches_today = Employee.query.filter(Employee.id.in_(employee_ids_with_punches_today)).all()
 
@@ -2187,22 +2204,17 @@ def get_documents_overview():
         db.joinedload(Employee.department), 
         db.joinedload(Employee.job_title)
     ).order_by(Employee.full_name)
-
-    # Basic search
-    search_term = request.args.get('q')
-    if search_term:
-        employees_query = employees_query.filter(Employee.full_name.ilike(f"%{search_term}%"))
     
     employees = employees_query.all()
     
     employees_with_compliance = []
     for emp in employees:
         emp_data = emp.to_dict()
-        # Using placeholders for now
-        emp_data['compliance_percent'] = 82 # Placeholder
-        emp_data['missing_docs_count'] = 1 # Placeholder
-        emp_data['expiring_docs_count'] = 0 # Placeholder
-        emp_data['last_updated'] = "يومين" # Placeholder
+        # Using placeholders for now until the compliance logic is fully implemented
+        emp_data['compliance_percent'] = 0
+        emp_data['missing_docs_count'] = 0
+        emp_data['expiring_docs_count'] = 0
+        emp_data['last_updated'] = "قيد التطوير"
         employees_with_compliance.append(emp_data)
 
     return jsonify({'employees_compliance': employees_with_compliance})

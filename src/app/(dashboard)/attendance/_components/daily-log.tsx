@@ -10,6 +10,7 @@ import { MoreHorizontal, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useRouter } from 'next/navigation';
 import type { Attendance } from '@/lib/types';
+import Link from 'next/link';
 
 interface DailyLogRecord extends Attendance {
     employee_name?: string;
@@ -126,7 +127,11 @@ export function DailyLog() {
                         ) : logData.length > 0 ? (
                             logData.map(item => (
                                 <TableRow key={item.id}>
-                                    <TableCell className="font-medium">{item.employee_name}</TableCell>
+                                    <TableCell className="font-medium">
+                                        <Link href={`/attendance/history/${item.employee_id}`} className="hover:underline">
+                                            {item.employee_name}
+                                        </Link>
+                                    </TableCell>
                                     <TableCell>{item.check_in || '-'}</TableCell>
                                     <TableCell>{item.check_out || '-'}</TableCell>
                                     <TableCell>{calculateHours(item.check_in, item.check_out)}</TableCell>
