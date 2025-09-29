@@ -1559,364 +1559,73 @@ def get_employee_attendance_history(employee_id):
 @jwt_required()
 def get_daily_log():
     today = date.today()
-    # For now, we fetch for today. Later we can add a date parameter.
+    
+    # KPIs
+    present_count = Attendance.query.filter(Attendance.date == today, Attendance.status.in_(['Present', 'Late'])).count()
+    late_count = Attendance.query.filter(Attendance.date == today, Attendance.status == 'Late').count()
+    
+    present_employee_ids = {a.employee_id for a in Attendance.query.filter(Attendance.date == today).all()}
+    on_leave_employee_ids = {l.employee_id for l in LeaveRequest.query.filter(LeaveRequest.start_date <= today.isoformat(), LeaveRequest.end_date >= today.isoformat(), LeaveRequest.status == 'Approved').all()}
+    
+    active_employees = Employee.query.filter(
+        Employee.status == 'Active',
+        ~Employee.id.in_(list(present_employee_ids) + list(on_leave_employee_ids))
+    )
+    absent_employees = active_employees.all()
+    absent_count = len(absent_employees)
+
+    offline_devices_count = ZktDevice.query.filter_by(status='offline').count()
+
+    kpis = {
+        'present': present_count,
+        'late': late_count,
+        'absent': absent_count,
+        'offline_devices': offline_devices_count
+    }
+
+    # Daily Log Table
     records = Attendance.query.options(db.joinedload(Attendance.employee)).filter(Attendance.date == today).all()
-    
-    # Also get absent employees for today
-    present_ids = {r.employee_id for r in records}
-    on_leave_ids = {lr.employee_id for lr in LeaveRequest.query.filter(LeaveRequest.start_date <= today.isoformat(), LeaveRequest.end_date >= today.isoformat(), LeaveRequest.status == 'Approved').all()}
-    
-    active_employees = Employee.query.filter_by(status='Active').all()
-    
     all_daily_records = [r.to_dict() for r in records]
 
-    for emp in active_employees:
-        if emp.id not in present_ids and emp.id not in on_leave_ids:
-            all_daily_records.append({
-                'id': f'absent-{emp.id}',
-                'employee_id': emp.id,
-                'employee_name': emp.full_name,
-                'date': today.isoformat(),
-                'check_in': None,
-                'check_out': None,
-                'status': 'Absent',
-                'source': '-',
-            })
-
-    return jsonify({"dailyLog": all_daily_records})
-
-
-# --- Reports API ---
-@app.route("/api/reports", methods=['GET'])
-@jwt_required()
-def get_reports_data():
-    # KPIs
-    total_employees = db.session.query(func.count(Employee.id)).scalar()
-    pending_leaves = db.session.query(func.count(LeaveRequest.id)).filter(LeaveRequest.status == 'Pending').scalar()
-    open_jobs_count = db.session.query(func.count(Job.id)).filter(Job.status == 'Open').scalar()
-    avg_performance_score = db.session.query(func.avg(PerformanceReview.score)).scalar()
-
-    kpis = [
-        {'title': 'إجمالي الموظفين', 'value': total_employees, 'icon': 'Users'},
-        {'title': 'طلبات إجازة معلقة', 'value': pending_leaves, 'icon': 'CalendarClock'},
-        {'title': 'وظائف شاغرة', 'value': open_jobs_count, 'icon': 'Briefcase'},
-        {'title': 'متوسط تقييم الأداء', 'value': round(avg_performance_score, 1) if avg_performance_score else 'N/A', 'icon': 'Star'}
+    for emp in absent_employees:
+        all_daily_records.append({
+            'id': f'absent-{emp.id}',
+            'employee_id': emp.id,
+            'employee_name': emp.full_name,
+            'date': today.isoformat(),
+            'check_in': None,
+            'check_out': None,
+            'status': 'Absent',
+            'source': '-',
+        })
+        
+    # Modal Lists (for KPI cards)
+    present_employees_list = [
+        {'id': emp.id, 'full_name': emp.full_name, 'department': {'name_ar': emp.department.name_ar if emp.department else None}} 
+        for emp in Employee.query.join(Attendance).filter(Attendance.date == today, Attendance.status.in_(['Present', 'Late'])).all()
     ]
-
-    # Chart Data
-    employees_by_dept_query = db.session.query(Department.name_ar, func.count(Employee.id)).join(Employee, Department.id == Employee.department_id).group_by(Department.name_ar).all()
-    employees_by_dept = [{'name': name, 'value': count} for name, count in employees_by_dept_query]
-
-    leaves_by_type_query = db.session.query(LeaveRequest.leave_type, func.count(LeaveRequest.id)).group_by(LeaveRequest.leave_type).all()
-    leave_type_translations = {'Annual': 'سنوية', 'Sick': 'مرضية', 'Unpaid': 'غير مدفوعة', 'Maternity': 'أمومة'}
-    leaves_by_type = [{'name': leave_type_translations.get(ltype, ltype), 'value': count} for ltype, count in leaves_by_type_query]
-
-
-    # Table Data
-    employees = Employee.query.options(db.joinedload(Employee.department), db.joinedload(Employee.job_title)).order_by(Employee.hire_date.desc()).limit(20).all()
+    late_employees_list = [
+        {'id': emp.id, 'full_name': emp.full_name, 'department': {'name_ar': emp.department.name_ar if emp.department else None}} 
+        for emp in Employee.query.join(Attendance).filter(Attendance.date == today, Attendance.status == 'Late').all()
+    ]
+    absent_employees_list = [
+        {'id': emp.id, 'full_name': emp.full_name, 'department': {'name_ar': emp.department.name_ar if emp.department else None}}
+        for emp in absent_employees
+    ]
+    offline_devices_list = [dev.to_dict() for dev in ZktDevice.query.filter_by(status='offline').all()]
+    
+    modal_lists = {
+        'present': present_employees_list,
+        'late': late_employees_list,
+        'absent': absent_employees_list,
+        'offline_devices': offline_devices_list
+    }
 
     return jsonify({
-        'kpis': kpis,
-        'employeesByDept': employees_by_dept,
-        'leavesByType': leaves_by_type,
-        'employees': [emp.to_dict() for emp in employees]
+        "kpis": kpis,
+        "dailyLog": all_daily_records,
+        "modalLists": modal_lists
     })
-
-
-# --- Training Courses & Records ---
-
-@app.route('/api/training-courses', methods=['GET', 'POST'])
-@jwt_required()
-def handle_training_courses():
-    if request.method == 'POST':
-        data = request.get_json()
-        new_course = TrainingCourse(
-            title=data.get('title'),
-            provider=data.get('provider'),
-            description=data.get('description'),
-            start_date=data.get('start_date') or None,
-            end_date=data.get('end_date') or None,
-            price=float(data.get('price')) if data.get('price') else None,
-        )
-        db.session.add(new_course)
-        db.session.commit()
-        return jsonify(new_course.to_dict()), 201
-    
-    courses = TrainingCourse.query.order_by(TrainingCourse.created_at.desc()).all()
-    return jsonify({'courses': [c.to_dict() for c in courses]})
-
-@app.route('/api/training-courses/<int:id>', methods=['PUT', 'DELETE'])
-@jwt_required()
-def handle_training_course(id):
-    course = TrainingCourse.query.get_or_404(id)
-    if request.method == 'PUT':
-        data = request.get_json()
-        course.title = data.get('title', course.title)
-        course.provider = data.get('provider', course.provider)
-        course.description = data.get('description', course.description)
-        course.start_date = data.get('start_date', course.start_date)
-        course.end_date = data.get('end_date', course.end_date)
-        course.price = float(data.get('price')) if data.get('price') else course.price
-        db.session.commit()
-        return jsonify(course.to_dict())
-    
-    if request.method == 'DELETE':
-        db.session.delete(course)
-        db.session.commit()
-        return jsonify({'message': 'Course deleted'})
-
-@app.route('/api/training-records', methods=['GET', 'POST'])
-@jwt_required()
-def handle_training_records():
-    if request.method == 'POST': # Assign employees
-        data = request.get_json()
-        course_id = data.get('course_id')
-        employee_ids = data.get('employee_ids', [])
-        for emp_id in employee_ids:
-            # Avoid duplicates
-            existing = TrainingRecord.query.filter_by(course_id=course_id, employee_id=emp_id).first()
-            if not existing:
-                record = TrainingRecord(course_id=course_id, employee_id=emp_id, status='Enrolled')
-                db.session.add(record)
-        db.session.commit()
-        return jsonify({'message': 'Employees assigned successfully'}), 201
-
-    course_id = request.args.get('course_id')
-    records = TrainingRecord.query
-    if course_id:
-        records = records.filter_by(course_id=course_id)
-    
-    return jsonify({'records': [r.to_dict() for r in records.all()]})
-
-@app.route('/api/training-records/<int:id>', methods=['PUT', 'DELETE'])
-@jwt_required()
-def handle_training_record(id):
-    record = TrainingRecord.query.get_or_404(id)
-    if request.method == 'PUT': # Update status/result
-        data = request.get_json()
-        record.status = data.get('status', record.status)
-        record.result = data.get('result', record.result)
-        db.session.commit()
-        return jsonify(record.to_dict())
-
-    if request.method == 'DELETE':
-        db.session.delete(record)
-        db.session.commit()
-        return jsonify({'message': 'Participant removed'})
-
-
-# --- ZKTeco Devices API ---
-@app.route('/api/zkt-devices', methods=['GET', 'POST'])
-@jwt_required()
-def handle_zkt_devices():
-    claims = get_jwt()
-    user_role = claims.get('role')
-
-    if user_role not in ['Admin', 'HR']:
-        return jsonify({"message": "صلاحيات غير كافية"}), 403
-
-    if request.method == 'POST':
-        data = request.get_json()
-        if not data or not data.get('name') or not data.get('ip_address'):
-            return jsonify({'message': 'بيانات غير مكتملة'}), 400
-        
-        existing_device = ZktDevice.query.filter_by(ip_address=data['ip_address']).first()
-        if existing_device:
-            return jsonify({'message': 'جهاز بنفس عنوان IP موجود بالفعل'}), 409
-
-        new_device = ZktDevice(
-            name=data['name'],
-            ip_address=data['ip_address'],
-            provider='zkteco',
-            location_id=int(data['location_id']) if data.get('location_id') and str(data.get('location_id')).isdigit() else None
-        )
-        db.session.add(new_device)
-        db.session.commit()
-        
-        user_id = get_jwt_identity()
-        username = claims.get('username')
-        log_action("إضافة جهاز بصمة", f"تمت إضافة جهاز جديد: {new_device.name} ({new_device.ip_address})", username=username, user_id=int(user_id))
-        return jsonify(new_device.to_dict()), 201
-
-    devices = ZktDevice.query.options(db.joinedload(ZktDevice.location)).order_by(ZktDevice.name).all()
-    return jsonify({'devices': [d.to_dict() for d in devices] or []})
-
-@app.route('/api/zkt-devices/<int:id>', methods=['PUT', 'DELETE'])
-@jwt_required()
-def handle_zkt_device(id):
-    claims = get_jwt()
-    user_role = claims.get('role')
-    
-    if user_role not in ['Admin', 'HR']:
-        return jsonify({"message": "صلاحيات غير كافية"}), 403
-    
-    device = ZktDevice.query.get_or_404(id)
-    if request.method == 'PUT':
-        data = request.get_json()
-        device.name = data.get('name', device.name)
-        device.ip_address = data.get('ip_address', device.ip_address)
-        device.location_id = int(data['location_id']) if data.get('location_id') and str(data.get('location_id')).isdigit() else None
-        db.session.commit()
-        
-        user_id = get_jwt_identity()
-        username = claims.get('username')
-        log_action("تحديث جهاز بصمة", f"تم تحديث بيانات الجهاز: {device.name}", username=username, user_id=int(user_id))
-        return jsonify(device.to_dict())
-    
-    if request.method == 'DELETE':
-        user_id = get_jwt_identity()
-        username = claims.get('username')
-        log_action("حذف جهاز بصمة", f"تم حذف الجهاز: {device.name} ({device.ip_address})", username=username, user_id=int(user_id))
-        db.session.delete(device)
-        db.session.commit()
-        return jsonify({'message': 'تم حذف الجهاز بنجاح'})
-
-# --- Disciplinary Actions API ---
-@app.route('/api/disciplinary/actions', methods=['GET', 'POST'])
-@jwt_required()
-def handle_disciplinary_actions():
-    claims = get_jwt()
-    user_role = claims.get('role')
-
-    if user_role not in ['Admin', 'HR']:
-        return jsonify({"message": "صلاحيات غير كافية"}), 403
-
-    if request.method == 'POST':
-        data = request.get_json()
-        new_action = DisciplinaryAction(
-            employee_id=data['employee_id'],
-            title=data['title'],
-            description=data.get('description'),
-            type=data['type'],
-            severity=data['severity'],
-            status='Draft',
-            source='manual'
-        )
-        db.session.add(new_action)
-        db.session.commit()
-        
-        user_id = get_jwt_identity()
-        username = claims.get('username')
-        log_action("إجراء تأديبي يدوي", f"تم إنشاء إجراء يدوي '{new_action.title}' للموظف ID {new_action.employee_id}", username=username, user_id=int(user_id))
-        return jsonify(new_action.to_dict()), 201
-
-    actions = DisciplinaryAction.query.options(db.joinedload(DisciplinaryAction.employee)).order_by(DisciplinaryAction.created_at.desc()).all()
-    return jsonify({"actions": [a.to_dict() for a in actions]})
-
-# --- Payroll Components API ---
-@app.route('/api/payroll-components', methods=['GET', 'POST'])
-@jwt_required()
-def handle_payroll_components():
-    claims = get_jwt()
-    user_role = claims.get('role')
-
-    if user_role not in ['Admin', 'HR']:
-        return jsonify({"message": "صلاحيات غير كافية"}), 403
-
-    if request.method == 'POST':
-        data = request.get_json()
-        # Basic validation
-        if not data.get('code') or not data.get('name') or not data.get('component_type') or not data.get('calculation_type'):
-            return jsonify({'message': 'بيانات ناقصة'}), 400
-
-        new_component = PayrollComponent(
-            code=data['code'],
-            name=data['name'],
-            component_type=data['component_type'],
-            calculation_type=data['calculation_type'],
-            value=data.get('value'),
-            rate=data.get('rate'),
-            base=data.get('base', 'base'),
-            taxable=data.get('taxable', True),
-            pre_tax=data.get('pre_tax', False),
-            active=data.get('active', True)
-        )
-        db.session.add(new_component)
-        db.session.commit()
-        
-        user_id = get_jwt_identity()
-        username = claims.get('username')
-        log_action("إنشاء مكون راتب", f"تم إنشاء المكون: {new_component.name}", username=username, user_id=int(user_id))
-        return jsonify(new_component.to_dict()), 201
-
-    components = PayrollComponent.query.order_by(PayrollComponent.name).all()
-    return jsonify({'components': [c.to_dict() for c in components]})
-
-@app.route('/api/payroll-components/<int:id>', methods=['PUT', 'DELETE'])
-@jwt_required()
-def handle_payroll_component(id):
-    claims = get_jwt()
-    user_role = claims.get('role')
-
-    if user_role not in ['Admin', 'HR']:
-        return jsonify({"message": "صلاحيات غير كافية"}), 403
-
-    component = PayrollComponent.query.get_or_404(id)
-
-    if request.method == 'PUT':
-        data = request.get_json()
-        for key, value in data.items():
-            if hasattr(component, key) and key != 'id':
-                setattr(component, key, value)
-        db.session.commit()
-        
-        user_id = get_jwt_identity()
-        username = claims.get('username')
-        log_action("تحديث مكون راتب", f"تم تحديث المكون: {component.name}", username=username, user_id=int(user_id))
-        return jsonify(component.to_dict())
-
-    if request.method == 'DELETE':
-        user_id = get_jwt_identity()
-        username = claims.get('username')
-        log_action("حذف مكون راتب", f"تم حذف المكون: {component.name}", username=username, user_id=int(user_id))
-        db.session.delete(component)
-        db.session.commit()
-        return jsonify({'message': 'تم حذف المكون بنجاح'})
-
-# --- Tax Schemes API ---
-@app.route('/api/tax-schemes', methods=['GET', 'POST'])
-@jwt_required()
-def handle_tax_schemes():
-    claims = get_jwt()
-    user_role = claims.get('role')
-
-    if user_role not in ['Admin', 'HR']:
-        return jsonify({"message": "صلاحيات غير كافية"}), 403
-    
-    if request.method == 'POST':
-        data = request.get_json()
-        if not data.get('name') or not data.get('method'):
-            return jsonify({'message': 'بيانات ناقصة'}), 400
-
-        new_scheme = TaxScheme(name=data['name'], method=data['method'], active=data.get('active', True))
-        db.session.add(new_scheme)
-        db.session.commit()
-        
-        if data.get('method') == 'slab' and 'brackets' in data:
-            for b_data in data['brackets']:
-                new_bracket = TaxBracket(
-                    scheme_id=new_scheme.id,
-                    min_amount=b_data['min_amount'],
-                    max_amount=b_data.get('max_amount'),
-                    rate=b_data['rate']
-                )
-                db.session.add(new_bracket)
-            db.session.commit()
-        
-        user_id = get_jwt_identity()
-        username = claims.get('username')
-        log_action("إنشاء مخطط ضريبي", f"تم إنشاء مخطط: {new_scheme.name}", username=username, user_id=int(user_id))
-        return jsonify(new_scheme.to_dict(include_brackets=True)), 201
-
-    schemes = TaxScheme.query.order_by(TaxScheme.name).all()
-    return jsonify({'schemes': [s.to_dict() for s in schemes]})
-
-@app.route('/api/tax-schemes/<int:id>', methods=['GET', 'PUT', 'DELETE'])
-@jwt_required()
-def handle_tax_scheme(id):
-    # (Implementation for PUT and DELETE would go here)
-    scheme = TaxScheme.query.options(db.joinedload(TaxScheme.brackets)).get_or_404(id)
-    return jsonify(scheme.to_dict(include_brackets=True))
 
 
 # --- ZKTeco Sync ---
@@ -1949,106 +1658,6 @@ def test_connection_route():
     except Exception as e:
         app.logger.error(f"Unexpected error during ZK test: {e}")
         return jsonify({"success": False, "message": f"خطأ غير متوقع: {e}"}), 500
-
-# --- Attendance View API ---
-@app.route("/api/attendance/today-view", methods=['GET'])
-@jwt_required()
-def get_today_view_data():
-    today = date.today()
-    
-    # KPIs
-    present_count = Attendance.query.filter(Attendance.date == today, Attendance.status.in_(['Present', 'Late'])).count()
-    late_count = Attendance.query.filter(Attendance.date == today, Attendance.status == 'Late').count()
-    
-    # Find absent employees
-    present_employee_ids = {a.employee_id for a in Attendance.query.filter(Attendance.date == today).all()}
-    on_leave_employee_ids = {l.employee_id for l in LeaveRequest.query.filter(LeaveRequest.start_date <= today.isoformat(), LeaveRequest.end_date >= today.isoformat(), LeaveRequest.status == 'Approved').all()}
-    
-    active_employees = Employee.query.filter(
-        Employee.status == 'Active',
-        ~Employee.id.in_(list(present_employee_ids) + list(on_leave_employee_ids))
-    )
-    absent_employees = active_employees.all()
-    absent_count = len(absent_employees)
-
-    offline_devices = ZktDevice.query.filter_by(status='offline').all()
-    offline_devices_count = len(offline_devices)
-
-    kpis = {
-        'present': present_count,
-        'late': late_count,
-        'absent': absent_count,
-        'offline_devices': offline_devices_count
-    }
-
-    def employee_to_dict_for_list(emp):
-        if not emp: return None
-        return {
-            'id': emp.id,
-            'full_name': emp.full_name,
-            'department': {'name_ar': emp.department.name_ar} if emp.department else None,
-        }
-
-    # Lists for modals
-    present_employees = Employee.query.join(Attendance).filter(Attendance.date == today, Attendance.status.in_(['Present', 'Late'])).all()
-    late_employees = Employee.query.join(Attendance).filter(Attendance.date == today, Attendance.status == 'Late').all()
-    
-    # Live Punches - Use Attendance records as the source of truth for who is present
-    present_attendance_records = Attendance.query.filter(
-        Attendance.date == today,
-        Attendance.status.in_(['Present', 'Late'])
-    ).options(db.joinedload(Attendance.employee).joinedload(Employee.location)).all()
-
-    live_punches_data = []
-    for att_record in present_attendance_records:
-        emp = att_record.employee
-        if not emp:
-            continue
-
-        # Get raw punches to find the absolute last one
-        last_punch = DeviceLog.query.filter(
-            DeviceLog.employee_id == emp.id,
-            cast(DeviceLog.log_datetime, Date) == today
-        ).order_by(DeviceLog.log_datetime.desc()).first()
-
-        # Determine last punch time and type
-        last_punch_time_str = '-'
-        last_punch_type_str = '-'
-
-        if last_punch:
-            last_punch_time_str = last_punch.log_datetime.strftime('%H:%M:%S')
-            # Determine if it was an IN or OUT punch by checking how many punches exist
-            punch_count = DeviceLog.query.filter(
-                DeviceLog.employee_id == emp.id,
-                cast(DeviceLog.log_datetime, Date) == today
-            ).count()
-            last_punch_type_str = "دخول" if punch_count % 2 != 0 else "خروج"
-        else:
-            # Fallback if no raw punch (e.g., manual entry)
-            if att_record.check_in:
-                last_punch_time_str = att_record.check_in.strftime('%H:%M:%S')
-                last_punch_type_str = "دخول"
-
-        live_punches_data.append({
-            'id': emp.id,
-            'employee': emp.to_dict(),
-            'shift': None, # Simplified for now
-            'last_punch_time': last_punch_time_str,
-            'last_punch_type': last_punch_type_str,
-            'status': att_record.status,
-            'location': emp.location.name_ar if emp.location else None
-        })
-        
-    lists = {
-        'present': [employee_to_dict_for_list(emp) for emp in present_employees],
-        'late': [employee_to_dict_for_list(emp) for emp in late_employees],
-        'absent': [employee_to_dict_for_list(emp) for emp in absent_employees],
-        'live_punches': live_punches_data,
-        'offline_devices': [dev.to_dict() for dev in offline_devices]
-    }
-    
-    return jsonify({'kpis': kpis, 'lists': lists})
-
 
 @app.route("/api/attendance/sync-all", methods=['POST'])
 @jwt_required()

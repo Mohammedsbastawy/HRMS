@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -5,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { ListFilter, Upload, PlusCircle, ServerCog, Loader2 } from 'lucide-react';
-import { TodayView } from './_components/today-view';
 import { DailyLog } from './_components/daily-log';
 import { WeeklyTimesheet } from './_components/weekly-timesheet';
 import { MonthlyCalendar } from './_components/monthly-calendar';
@@ -106,9 +106,8 @@ export default function AttendancePage() {
         </CardHeader>
       </Card>
       
-      <Tabs defaultValue="today" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 lg:grid-cols-9">
-          <TabsTrigger value="today">اليوم</TabsTrigger>
+      <Tabs defaultValue="daily" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
           <TabsTrigger value="daily">السجل اليومي</TabsTrigger>
           <TabsTrigger value="weekly">الجدول الأسبوعي</TabsTrigger>
           <TabsTrigger value="monthly">التقويم الشهري</TabsTrigger>
@@ -119,9 +118,6 @@ export default function AttendancePage() {
           <TabsTrigger value="devices">الأجهزة</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="today">
-          <TodayView />
-        </TabsContent>
         <TabsContent value="daily">
           <DailyLog />
         </TabsContent>
