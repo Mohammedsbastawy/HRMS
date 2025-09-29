@@ -20,6 +20,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/components/ui/use-toast';
 import { RequestLeaveDialog } from './request-leave-dialog';
 import { useRouter } from 'next/navigation';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 type User = {
   id: number;
@@ -32,6 +35,9 @@ export function LeaveRequestClientPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [selectedRequest, setSelectedRequest] = useState<LeaveRequest | null>(null);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -115,11 +121,18 @@ export function LeaveRequestClientPage() {
     handleAction(id, 'approve');
   };
 
-  const handleReject = (id: number) => {
-    const notes = prompt('يرجى إدخال سبب الرفض:');
-    if (notes !== null) {
-      handleAction(id, 'reject', notes);
+  const handleRejectClick = (request: LeaveRequest) => {
+    setSelectedRequest(request);
+    setIsRejectDialogOpen(true);
+  };
+  
+  const confirmReject = () => {
+    if (selectedRequest) {
+      handleAction(selectedRequest.id, 'reject', rejectionReason);
     }
+    setIsRejectDialogOpen(false);
+    setRejectionReason('');
+    setSelectedRequest(null);
   };
 
   const getStatusVariant = (status: 'Pending' | 'Approved' | 'Rejected') => {
@@ -230,7 +243,7 @@ export function LeaveRequestClientPage() {
                                 <CheckCircle className="ml-2 h-4 w-4 text-green-500" />
                                 موافقة
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleReject(request.id)} className="text-destructive focus:text-destructive">
+                                <DropdownMenuItem onClick={() => handleRejectClick(request)} className="text-destructive focus:text-destructive">
                                 <XCircle className="ml-2 h-4 w-4" />
                                 رفض
                                 </DropdownMenuItem>
@@ -263,6 +276,31 @@ export function LeaveRequestClientPage() {
           fetchLeaveRequests();
         }}
       />
+      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>تأكيد رفض طلب الإجازة</DialogTitle>
+            <DialogDescription>
+              أنت على وشك رفض طلب الإجازة للموظف "{selectedRequest?.employee.full_name}". يرجى كتابة سبب الرفض.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="rejection-reason">سبب الرفض</Label>
+              <Textarea
+                id="rejection-reason"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="مثال: نقص في عدد الموظفين خلال هذه الفترة."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)}>إلغاء</Button>
+            <Button variant="destructive" onClick={confirmReject} disabled={!rejectionReason}>تأكيد الرفض</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
