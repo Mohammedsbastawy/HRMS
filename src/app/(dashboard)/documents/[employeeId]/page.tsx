@@ -124,6 +124,10 @@ export default function EmployeeChecklistPage() {
         {checklist.map(item => {
             const status = statusMap[item.status] || statusMap.Missing;
             const Icon = status.icon;
+            let expiryColor = "text-muted-foreground";
+            if (item.status === 'Expired') expiryColor = "text-destructive font-semibold";
+            if (item.status === 'Expiring') expiryColor = "text-amber-600 font-semibold";
+
             return (
                 <Card key={item.doc_type.id} className={`${status.bg} border-0`}>
                     <CardHeader>
@@ -139,8 +143,10 @@ export default function EmployeeChecklistPage() {
                     </CardHeader>
                     <CardContent>
                         <p className={`text-sm font-semibold ${status.color}`}>{status.text}</p>
-                        {item.expiry_date && (
-                             <p className="text-xs text-muted-foreground mt-1">تاريخ الانتهاء: {new Date(item.expiry_date).toLocaleDateString('ar-EG')}</p>
+                        {item.doc_type.requires_expiry && (
+                             <p className={`text-xs mt-1 ${expiryColor}`}>
+                                {item.expiry_date ? `تاريخ الانتهاء: ${new Date(item.expiry_date).toLocaleDateString('ar-EG')}` : 'تاريخ الانتهاء غير محدد'}
+                             </p>
                         )}
                          <div className="mt-4 flex gap-2">
                             <Button size="sm" variant="outline">
