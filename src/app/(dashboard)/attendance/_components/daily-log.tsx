@@ -126,6 +126,11 @@ export function DailyLog() {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
+                if (response.status === 401) {
+                  toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
+                  return;
+                }
+
                 if (!response.ok) {
                     throw new Error('فشل في جلب السجل اليومي');
                 }
