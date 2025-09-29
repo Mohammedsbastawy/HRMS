@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
 import { addDays, format, isSameDay } from 'date-fns';
+import { arSA } from 'date-fns/locale';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
@@ -153,10 +154,10 @@ export function RequestLeaveDialog({ open, onOpenChange, onSuccess, employees, i
                     {dateRange?.from ? (
                       dateRange.to ? (
                         <>
-                          {format(dateRange.from, 'dd LLL, yyyy')} - {format(dateRange.to, 'dd LLL, yyyy')}
+                          {format(dateRange.from, 'd MMMM yyyy', {locale: arSA})} - {format(dateRange.to, 'd MMMM yyyy', {locale: arSA})}
                         </>
                       ) : (
-                        format(dateRange.from, 'dd LLL, yyyy')
+                        format(dateRange.from, 'd MMMM yyyy', {locale: arSA})
                       )
                     ) : (
                       <span>اختر تاريخًا</span>
@@ -170,7 +171,8 @@ export function RequestLeaveDialog({ open, onOpenChange, onSuccess, employees, i
                     defaultMonth={dateRange?.from}
                     selected={dateRange}
                     onSelect={setDateRange}
-                    numberOfMonths={2}
+                    numberOfMonths={1}
+                    locale={arSA}
                   />
                 </PopoverContent>
               </Popover>
