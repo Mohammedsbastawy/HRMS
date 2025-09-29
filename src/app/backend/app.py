@@ -900,37 +900,38 @@ def create_notification(recipient_user_id, title, message, type, related_link=No
 
 def migrate_db():
     """A simple migration utility to add missing columns."""
-    inspector = inspect(db.engine)
-    all_tables = inspector.get_table_names()
-    
-    for table_name, model in db.metadata.tables.items():
-        if table_name not in all_tables:
-            continue
+    with app.app_context():
+        inspector = inspect(db.engine)
+        all_tables = inspector.get_table_names()
+        
+        for table_name, model in db.metadata.tables.items():
+            if table_name not in all_tables:
+                continue
+                
+            # Get existing columns in the database table
+            existing_columns = {c['name'] for c in inspector.get_columns(table_name)}
             
-        # Get existing columns in the database table
-        existing_columns = {c['name'] for c in inspector.get_columns(table_name)}
-        
-        # Get columns defined in the model
-        model_columns = {c.name for c in model.columns}
-        
-        # Find missing columns
-        missing_columns = model_columns - existing_columns
-        
-        if missing_columns:
-            app.logger.info(f"Table '{table_name}': Found missing columns: {', '.join(missing_columns)}")
-            for column_name in missing_columns:
-                column_obj = model.columns[column_name]
-                # Using a raw ALTER TABLE statement for simplicity
-                # This works for SQLite but might need adjustments for other DBs
-                try:
-                    col_type = column_obj.type.compile(db.engine.dialect)
-                    # A very basic ALTER TABLE. More complex changes (like NOT NULL on existing tables) need more care.
-                    stmt = f'ALTER TABLE {table_name} ADD COLUMN {column_name} {col_type}'
-                    db.session.execute(db.text(stmt))
-                    app.logger.info(f"Added column '{column_name}' to table '{table_name}'.")
-                except Exception as e:
-                    app.logger.error(f"Error adding column {column_name} to {table_name}: {e}")
-            db.session.commit()
+            # Get columns defined in the model
+            model_columns = {c.name for c in model.columns}
+            
+            # Find missing columns
+            missing_columns = model_columns - existing_columns
+            
+            if missing_columns:
+                app.logger.info(f"Table '{table_name}': Found missing columns: {', '.join(missing_columns)}")
+                for column_name in missing_columns:
+                    column_obj = model.columns[column_name]
+                    # Using a raw ALTER TABLE statement for simplicity
+                    # This works for SQLite but might need adjustments for other DBs
+                    try:
+                        col_type = column_obj.type.compile(db.engine.dialect)
+                        # A very basic ALTER TABLE. More complex changes (like NOT NULL on existing tables) need more care.
+                        stmt = f'ALTER TABLE {table_name} ADD COLUMN {column_name} {col_type}'
+                        db.session.execute(text(stmt))
+                        app.logger.info(f"Added column '{column_name}' to table '{table_name}'.")
+                    except Exception as e:
+                        app.logger.error(f"Error adding column {column_name} to {table_name}: {e}")
+                db.session.commit()
 
 # --- API Routes ---
 
@@ -1727,7 +1728,7 @@ def handle_zkt_devices():
             name=data['name'],
             ip_address=data['ip_address'],
             provider='zkteco',
-            location_id=int(data['location_id']) if data.get('location_id') and data.get('location_id') != 'none' else None,
+            location_id=int(data['location_id']) if data.get('location_id') and str(data.get('location_id')).isdigit() else None
         )
         db.session.add(new_device)
         db.session.commit()
@@ -1754,7 +1755,7 @@ def handle_zkt_device(id):
         data = request.get_json()
         device.name = data.get('name', device.name)
         device.ip_address = data.get('ip_address', device.ip_address)
-        device.location_id = int(data['location_id']) if data.get('location_id') and data.get('location_id') != 'none' else None
+        device.location_id = int(data['location_id']) if data.get('location_id') and str(data.get('location_id')).isdigit() else None
         db.session.commit()
         
         user_id = get_jwt_identity()
@@ -1992,44 +1993,52 @@ def get_today_view_data():
     present_employees = Employee.query.join(Attendance).filter(Attendance.date == today, Attendance.status.in_(['Present', 'Late'])).all()
     late_employees = Employee.query.join(Attendance).filter(Attendance.date == today, Attendance.status == 'Late').all()
     
-    # Live Punches
-    employee_ids_with_punches_today = db.session.query(DeviceLog.employee_id).filter(
-        cast(DeviceLog.log_datetime, Date) == today
-    ).distinct().all()
-
-    employee_ids_with_punches_today = [eid[0] for eid in employee_ids_with_punches_today if eid[0] is not None]
-
-    employees_with_punches_today = Employee.query.filter(Employee.id.in_(employee_ids_with_punches_today)).all()
+    # Live Punches - Use Attendance records as the source of truth for who is present
+    present_attendance_records = Attendance.query.filter(
+        Attendance.date == today,
+        Attendance.status.in_(['Present', 'Late'])
+    ).options(db.joinedload(Attendance.employee).joinedload(Employee.location)).all()
 
     live_punches_data = []
-    for emp in employees_with_punches_today:
-        raw_punches = DeviceLog.query.filter(
-            DeviceLog.employee_id == emp.id,
-            cast(DeviceLog.log_datetime, Date) == today
-        ).order_by(DeviceLog.log_datetime.asc()).all()
-
-        if not raw_punches:
+    for att_record in present_attendance_records:
+        emp = att_record.employee
+        if not emp:
             continue
 
-        last_punch = raw_punches[-1]
-        last_punch_time = last_punch.log_datetime.time()
+        # Get raw punches to find the absolute last one
+        last_punch = DeviceLog.query.filter(
+            DeviceLog.employee_id == emp.id,
+            cast(DeviceLog.log_datetime, Date) == today
+        ).order_by(DeviceLog.log_datetime.desc()).first()
 
-        # Simple logic: odd number of punches means last was 'in', even means 'out'
-        last_punch_type = "دخول" if len(raw_punches) % 2 != 0 else "خروج"
-        
-        att_record = Attendance.query.filter_by(employee_id=emp.id, date=today).first()
+        # Determine last punch time and type
+        last_punch_time_str = '-'
+        last_punch_type_str = '-'
+
+        if last_punch:
+            last_punch_time_str = last_punch.log_datetime.strftime('%H:%M:%S')
+            # Determine if it was an IN or OUT punch by checking how many punches exist
+            punch_count = DeviceLog.query.filter(
+                DeviceLog.employee_id == emp.id,
+                cast(DeviceLog.log_datetime, Date) == today
+            ).count()
+            last_punch_type_str = "دخول" if punch_count % 2 != 0 else "خروج"
+        else:
+            # Fallback if no raw punch (e.g., manual entry)
+            if att_record.check_in:
+                last_punch_time_str = att_record.check_in.strftime('%H:%M:%S')
+                last_punch_type_str = "دخول"
 
         live_punches_data.append({
             'id': emp.id,
             'employee': emp.to_dict(),
-            'shift': None, # Simplified
-            'last_punch_time': last_punch_time.strftime('%H:%M:%S') if last_punch_time else '-',
-            'last_punch_type': last_punch_type,
-            'status': att_record.status if att_record else 'N/A', # Simplified
+            'shift': None, # Simplified for now
+            'last_punch_time': last_punch_time_str,
+            'last_punch_type': last_punch_type_str,
+            'status': att_record.status,
             'location': emp.location.name_ar if emp.location else None
         })
-
-
+        
     lists = {
         'present': [employee_to_dict_for_list(emp) for emp in present_employees],
         'late': [employee_to_dict_for_list(emp) for emp in late_employees],
@@ -2396,7 +2405,7 @@ def seed_document_types():
 # --- App Context and DB Initialization ---
 def init_db():
     with app.app_context():
-        # db.drop_all() # Use for clean testing
+        # This will create tables that don't exist yet, without dropping existing ones.
         app.logger.info("Ensuring all tables exist...")
         db.create_all()
         app.logger.info("Tables created or verified.")
