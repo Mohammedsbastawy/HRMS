@@ -20,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 
@@ -140,6 +140,9 @@ export function EmployeesPageClient() {
   const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const defaultTab = searchParams.get('tab') || 'active';
+
 
   useEffect(() => {
     async function fetchEmployees() {
@@ -150,7 +153,7 @@ export function EmployeesPageClient() {
           toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
           return;
         }
-        const response = await fetch('/api/employees', {
+        const response = await fetch('/api/employees/all', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.status === 401) {
@@ -241,7 +244,7 @@ export function EmployeesPageClient() {
         </div>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="active">
+        <Tabs defaultValue={defaultTab}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="active">الموظفون النشطون</TabsTrigger>
             <TabsTrigger value="new_joiners">المنضمون الجدد</TabsTrigger>
@@ -261,5 +264,3 @@ export function EmployeesPageClient() {
     </Card>
   );
 }
-
-    

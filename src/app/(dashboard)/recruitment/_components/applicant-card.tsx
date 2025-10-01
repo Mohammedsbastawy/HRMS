@@ -78,10 +78,11 @@ export function ApplicantCard({ applicant, onActionComplete, onEdit }: Applicant
       if (action === 'hire') successMessage = `تم توظيف ${applicant.full_name} بنجاح!`;
 
       toast({ title: successMessage });
-      onActionComplete();
-
+      
       if (action === 'hire') {
-        router.push('/employees'); // Navigate to employees page to see new joiner
+        router.push('/employees?tab=new_joiners'); // Navigate to employees page to see new joiner
+      } else {
+        onActionComplete();
       }
 
     } catch (error: any) {
@@ -173,5 +174,3 @@ export function ApplicantCard({ applicant, onActionComplete, onEdit }: Applicant
     </>
   );
 }
-
-    

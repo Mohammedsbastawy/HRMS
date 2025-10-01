@@ -1000,31 +1000,30 @@ def handle_employees():
                  return jsonify({"message": "البريد الإلكتروني موجود بالفعل. يرجى استخدام بريد إلكتروني فريد."}), 409
             return jsonify({"message": "حدث خطأ داخلي"}), 500
 
-    # --- GET employees ---
+    # --- GET employees (active/managers) ---
     query = Employee.query
     
-    status_filter = request.args.get('status')
-    if status_filter:
-        query = query.filter(Employee.status == status_filter)
-    else:
-        # By default, don't show terminated unless explicitly asked
-        query = query.filter(Employee.status != 'Terminated')
-
-
-    exclude_id = request.args.get('exclude_id')
-    if exclude_id:
-        query = query.filter(Employee.id != exclude_id)
-        
     is_manager = request.args.get('is_manager')
     if is_manager == 'true':
         # Find employees who are managers of other employees
         manager_ids = db.session.query(Employee.manager_id).distinct()
         query = query.filter(Employee.id.in_([mid[0] for mid in manager_ids if mid[0] is not None]))
+        exclude_id = request.args.get('exclude_id')
+        if exclude_id:
+            query = query.filter(Employee.id != exclude_id)
         employees = query.all()
         return jsonify({"employees": [{'id': e.id, 'full_name': e.full_name} for e in employees]})
 
+    query = query.filter(Employee.status == 'Active')
     employees = query.order_by(Employee.created_at.desc()).all()
     return jsonify({"employees": [e.to_dict() for e in employees]})
+
+@app.route("/api/employees/all", methods=['GET'])
+@jwt_required()
+def handle_all_employees():
+    employees = Employee.query.order_by(Employee.created_at.desc()).all()
+    return jsonify({"employees": [e.to_dict() for e in employees]})
+
 
 @app.route("/api/employees/<int:id>", methods=['GET', 'PUT'])
 @jwt_required()
@@ -2327,5 +2326,3 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-    
