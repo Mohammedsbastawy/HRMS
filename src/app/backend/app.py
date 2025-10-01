@@ -1393,6 +1393,9 @@ def handle_applicants():
         email = request.form['email']
         if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
             return jsonify({'message': 'صيغة البريد الإلكتروني غير صالحة'}), 400
+        
+        years_experience_val = request.form.get('years_experience')
+        expected_salary_val = request.form.get('expected_salary')
 
         new_applicant = Applicant(
             job_id=request.form['job_id'],
@@ -1400,10 +1403,10 @@ def handle_applicants():
             email=email,
             phone=request.form.get('phone'),
             source=request.form.get('source', 'manual'),
-            years_experience=request.form.get('years_experience'),
+            years_experience=int(years_experience_val) if years_experience_val else None,
             current_title=request.form.get('current_title'),
             current_company=request.form.get('current_company'),
-            expected_salary=request.form.get('expected_salary'),
+            expected_salary=float(expected_salary_val) if expected_salary_val else None,
             linkedin_url=request.form.get('linkedin_url'),
             portfolio_url=request.form.get('portfolio_url')
         )
@@ -1495,13 +1498,14 @@ def move_applicant_stage(id):
 @jwt_required()
 def hire_applicant(id):
     applicant = Applicant.query.get_or_404(id)
-    job = Job.query.get_or_404(applicant.job_id)
     
     if applicant.stage == 'Hired':
         return jsonify({'message': 'المتقدم تم توظيفه بالفعل'}), 409
-    
+
     if Employee.query.filter_by(email=applicant.email).first():
         return jsonify({'message': 'يوجد موظف بنفس البريد الإلكتروني بالفعل'}), 409
+    
+    job = Job.query.get_or_404(applicant.job_id)
 
     try:
         job_title = JobTitle.query.filter(JobTitle.title_ar.ilike(f'%{job.title}%'), JobTitle.department_id == job.dept_id).first()
@@ -2357,3 +2361,5 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    
