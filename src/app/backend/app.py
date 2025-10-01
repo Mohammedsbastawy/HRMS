@@ -145,7 +145,7 @@ class JobTitle(db.Model):
 
 class Employee(db.Model):
     __tablename__ = 'employees'
-    id = db.Column(db.Integer, primary_key=True, autoincrement=False)
+    id = db.Column(db.Integer, primary_key=True)
     employee_code = db.Column(db.String, unique=True, nullable=True)
     full_name = db.Column(db.String, nullable=False)
     email = db.Column(db.String, unique=True, nullable=False)
@@ -1405,10 +1405,10 @@ def handle_applicants():
                 email=email,
                 phone=request.form.get('phone'),
                 source=request.form.get('source', 'manual'),
-                years_experience=int(years_experience_val) if years_experience_val else None,
+                years_experience=int(years_experience_val) if years_experience_val and years_experience_val.isdigit() else None,
                 current_title=request.form.get('current_title'),
                 current_company=request.form.get('current_company'),
-                expected_salary=float(expected_salary_val) if expected_salary_val else None,
+                expected_salary=float(expected_salary_val) if expected_salary_val and expected_salary_val.replace('.', '', 1).isdigit() else None,
                 linkedin_url=request.form.get('linkedin_url'),
                 portfolio_url=request.form.get('portfolio_url')
             )
@@ -2373,4 +2373,5 @@ init_db()
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
 
+    
     
