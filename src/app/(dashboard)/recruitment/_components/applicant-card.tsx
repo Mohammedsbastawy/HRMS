@@ -5,7 +5,7 @@ import { useState } from 'react';
 import type { Applicant } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MoreHorizontal, Eye, Edit, Trash2, ArrowRightCircle } from 'lucide-react';
+import { MoreHorizontal, Eye, Edit, Trash2, ArrowRightCircle, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
   DropdownMenu, 
@@ -43,46 +43,54 @@ export function ApplicantCard({ applicant, onActionComplete, onEdit }: Applicant
   const { toast } = useToast();
   const router = useRouter();
 
-  const handleMove = async (newStage: string) => {
+  const handleAction = async (action: 'move' | 'delete' | 'hire', newStage?: string) => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`/api/recruitment/applicants/${applicant.id}/stage`, {
-        method: 'PUT',
+      let url = '';
+      let method = 'PUT';
+      let body: any = null;
+
+      if (action === 'move') {
+        url = `/api/recruitment/applicants/${applicant.id}/stage`;
+        body = JSON.stringify({ stage: newStage });
+      } else if (action === 'delete') {
+        url = `/api/recruitment/applicants/${applicant.id}`;
+        method = 'DELETE';
+      } else if (action === 'hire') {
+        url = `/api/recruitment/applicants/${applicant.id}/hire`;
+        method = 'POST';
+      }
+      
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ stage: newStage }),
+        body,
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.message || 'فشل نقل المتقدم');
-      
-      toast({ title: `تم نقل ${applicant.full_name} إلى مرحلة "${STAGES.find(s => s.id === newStage)?.title}"` });
-      onActionComplete();
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'خطأ', description: error.message });
-    }
-  };
 
-  const handleDelete = async () => {
-     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`/api/recruitment/applicants/${applicant.id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.message || 'فشل حذف المتقدم');
-      }
-      toast({ title: `تم حذف ${applicant.full_name}` });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || 'فشل تنفيذ الإجراء');
+      
+      let successMessage = `تم نقل ${applicant.full_name} إلى مرحلة "${STAGES.find(s => s.id === newStage)?.title}"`;
+      if (action === 'delete') successMessage = `تم حذف ${applicant.full_name}`;
+      if (action === 'hire') successMessage = `تم توظيف ${applicant.full_name} بنجاح!`;
+
+      toast({ title: successMessage });
       onActionComplete();
+
+      if (action === 'hire') {
+        router.push('/employees'); // Navigate to employees page to see new joiner
+      }
+
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'خطأ', description: error.message });
     } finally {
-      setIsDeleteAlertOpen(false);
+      if (action === 'delete') setIsDeleteAlertOpen(false);
     }
-  }
+  };
+
 
   return (
     <>
@@ -109,6 +117,10 @@ export function ApplicantCard({ applicant, onActionComplete, onEdit }: Applicant
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => handleAction('hire')}>
+                  <Briefcase className="ml-2 h-4 w-4" />
+                  توظيف
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => onEdit(applicant)}>
                   <Eye className="ml-2 h-4 w-4" />
                   عرض / تعديل التفاصيل
@@ -124,7 +136,7 @@ export function ApplicantCard({ applicant, onActionComplete, onEdit }: Applicant
                           <DropdownMenuItem 
                             key={stage.id} 
                             disabled={applicant.stage === stage.id}
-                            onSelect={() => handleMove(stage.id)}
+                            onSelect={() => handleAction('move', stage.id)}
                           >
                             {stage.title}
                           </DropdownMenuItem>
@@ -154,7 +166,7 @@ export function ApplicantCard({ applicant, onActionComplete, onEdit }: Applicant
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">تأكيد الحذف</AlertDialogAction>
+                <AlertDialogAction onClick={() => handleAction('delete')} className="bg-destructive hover:bg-destructive/90">تأكيد الحذف</AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

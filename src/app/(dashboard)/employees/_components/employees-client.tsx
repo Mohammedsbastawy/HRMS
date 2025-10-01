@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -20,135 +21,32 @@ import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { useRouter } from 'next/navigation';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-export function EmployeesPageClient() {
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
-  const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
-  const { toast } = useToast();
+
+function EmployeesTable({ employees, isLoading }: { employees: Employee[], isLoading: boolean }) {
   const router = useRouter();
 
-  useEffect(() => {
-    async function fetchEmployees() {
-      setIsLoading(true);
-      try {
-        const token = localStorage.getItem('authToken');
-        if (!token) {
-          toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
-          return;
-        }
-        const response = await fetch('/api/employees', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (response.status === 401) {
-          toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
-          return;
-        }
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'فشل في جلب بيانات الموظفين');
-        }
-        const data = await response.json();
-        setEmployees(data.employees || []);
-      } catch (error: any) {
-        toast({
-          variant: 'destructive',
-          title: 'خطأ',
-          description: error.message || 'حدث خطأ أثناء جلب البيانات.',
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    fetchEmployees();
-  }, [toast, router]);
-
-
-  const departments = [...new Set(employees.map(e => e.department?.name_en).filter(Boolean) as string[])];
-  const statuses = ['Active', 'Resigned', 'Terminated'];
   const statusTranslations: { [key: string]: string } = {
     Active: 'نشط',
     Resigned: 'مستقيل',
-    Terminated: 'منتهى خدمته'
+    Terminated: 'منتهى خدمته',
+    PendingOnboarding: 'بانتظار التأهيل'
   };
 
-  const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<string[]>>) => (item: string) => {
-    setter(prev => 
-      prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item]
-    );
-  };
-  
-  const filteredEmployees = employees.filter(employee => {
-    const matchesSearch = employee.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (employee.email && employee.email.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesStatus = statusFilter.length === 0 || (employee.status && statusFilter.includes(employee.status));
-    const matchesDepartment = departmentFilter.length === 0 || (employee.department?.name_en && departmentFilter.includes(employee.department.name_en));
-    return matchesSearch && matchesStatus && matchesDepartment;
-  });
+  const getStatusVariant = (status: string) => {
+    switch (status) {
+      case 'Active': return 'default';
+      case 'PendingOnboarding': return 'secondary';
+      case 'Resigned':
+      case 'Terminated':
+        return 'destructive';
+      default: return 'outline';
+    }
+  }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-            <div>
-                <CardTitle>قائمة الموظفين</CardTitle>
-                <CardDescription>إدارة الموظفين في مؤسستك.</CardDescription>
-            </div>
-            <Button asChild size="sm" className="gap-1">
-              <Link href="/employees/new">
-                <PlusCircle className="h-3.5 w-3.5" />
-                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">إضافة موظف</span>
-              </Link>
-            </Button>
-        </div>
-        <div className="mt-4 flex items-center gap-2">
-            <div className="relative w-full">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="ابحث بالاسم أو البريد الإلكتروني..."
-                  className="w-full appearance-none bg-background pl-8"
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                />
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 gap-1 text-sm">
-                  <ListFilter className="h-3.5 w-3.5" />
-                  <span className="sr-only sm:not-sr-only">فلتر</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>الفلترة حسب القسم</DropdownMenuLabel>
-                {departments.map(dept => (
-                    <DropdownMenuCheckboxItem
-                        key={dept}
-                        checked={departmentFilter.includes(dept)}
-                        onCheckedChange={() => handleFilterChange(setDepartmentFilter)(dept)}
-                    >
-                        {dept}
-                    </DropdownMenuCheckboxItem>
-                ))}
-                 <DropdownMenuSeparator />
-                 <DropdownMenuLabel>الفلترة حسب الحالة</DropdownMenuLabel>
-                 {statuses.map(status => (
-                    <DropdownMenuCheckboxItem
-                        key={status}
-                        checked={statusFilter.includes(status)}
-                        onCheckedChange={() => handleFilterChange(setStatusFilter)(status)}
-                    >
-                        {statusTranslations[status]}
-                    </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <Table>
+      <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="text-right">ID الموظف</TableHead>
@@ -169,8 +67,8 @@ export function EmployeesPageClient() {
                   <p>جاري تحميل البيانات...</p>
                 </TableCell>
               </TableRow>
-            ) : filteredEmployees.length > 0 ? (
-              filteredEmployees.map((employee) => (
+            ) : employees.length > 0 ? (
+              employees.map((employee) => (
                 <TableRow key={employee.id}>
                   <TableCell className="font-medium text-right">{employee.id}</TableCell>
                   <TableCell className="text-right">
@@ -187,7 +85,7 @@ export function EmployeesPageClient() {
                   <TableCell className="text-right">
                     {employee.status && (
                       <Badge 
-                        variant={employee.status === 'Active' ? 'default' : 'destructive'}
+                        variant={getStatusVariant(employee.status)}
                         className={employee.status === 'Active' ? 'bg-green-100 text-green-700' : ''}
                       >
                         {statusTranslations[employee.status] || employee.status}
@@ -224,16 +122,144 @@ export function EmployeesPageClient() {
             ) : (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center">
-                  لا يوجد موظفون حتى الآن.
-                  <Button variant="link" asChild className="mt-2 block">
-                    <Link href="/employees/new">ابدأ بإضافة موظف جديد</Link>
-                  </Button>
+                  لا يوجد موظفون لعرضهم.
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
+  )
+}
+
+
+export function EmployeesPageClient() {
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string[]>(['Active']);
+  const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
+  const { toast } = useToast();
+  const router = useRouter();
+
+  useEffect(() => {
+    async function fetchEmployees() {
+      setIsLoading(true);
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
+          return;
+        }
+        const response = await fetch('/api/employees', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.status === 401) {
+          toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
+          return;
+        }
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'فشل في جلب بيانات الموظفين');
+        }
+        const data = await response.json();
+        setAllEmployees(data.employees || []);
+      } catch (error: any) {
+        toast({
+          variant: 'destructive',
+          title: 'خطأ',
+          description: error.message || 'حدث خطأ أثناء جلب البيانات.',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchEmployees();
+  }, [toast, router]);
+
+
+  const departments = [...new Set(allEmployees.map(e => e.department?.name_en).filter(Boolean) as string[])];
+  
+  const filteredEmployees = allEmployees.filter(employee => {
+    const matchesSearch = employee.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (employee.email && employee.email.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesDepartment = departmentFilter.length === 0 || (employee.department?.name_en && departmentFilter.includes(employee.department.name_en));
+    return matchesSearch && matchesDepartment;
+  });
+
+  const activeEmployees = filteredEmployees.filter(e => e.status === 'Active');
+  const newJoiners = filteredEmployees.filter(e => e.status === 'PendingOnboarding');
+  const terminatedEmployees = filteredEmployees.filter(e => e.status === 'Terminated' || e.status === 'Resigned');
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+            <div>
+                <CardTitle>قائمة الموظفين</CardTitle>
+                <CardDescription>إدارة الموظفين في مؤسستك.</CardDescription>
+            </div>
+            <Button asChild size="sm" className="gap-1">
+              <Link href="/employees/new">
+                <PlusCircle className="h-3.5 w-3.5" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">إضافة موظف</span>
+              </Link>
+            </Button>
+        </div>
+        <div className="mt-4 flex items-center gap-2">
+            <div className="relative w-full">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="ابحث بالاسم أو البريد الإلكتروني..."
+                  className="w-full appearance-none bg-background pl-8"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                />
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 gap-1 text-sm">
+                  <ListFilter className="h-3.5 w-3.5" />
+                  <span className="sr-only sm:not-sr-only">فلترة حسب القسم</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>الفلترة حسب القسم</DropdownMenuLabel>
+                {departments.map(dept => (
+                    <DropdownMenuCheckboxItem
+                        key={dept}
+                        checked={departmentFilter.includes(dept)}
+                        onCheckedChange={() => setDepartmentFilter(prev => 
+                            prev.includes(dept) ? prev.filter(i => i !== dept) : [...prev, dept]
+                        )}
+                    >
+                        {dept}
+                    </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Tabs defaultValue="active">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="active">الموظفون النشطون</TabsTrigger>
+            <TabsTrigger value="new_joiners">المنضمون الجدد</TabsTrigger>
+            <TabsTrigger value="terminated">الأرشيف</TabsTrigger>
+          </TabsList>
+          <TabsContent value="active">
+              <EmployeesTable employees={activeEmployees} isLoading={isLoading} />
+          </TabsContent>
+           <TabsContent value="new_joiners">
+              <EmployeesTable employees={newJoiners} isLoading={isLoading} />
+          </TabsContent>
+           <TabsContent value="terminated">
+              <EmployeesTable employees={terminatedEmployees} isLoading={isLoading} />
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );
 }
+
+    

@@ -145,6 +145,7 @@ class JobTitle(db.Model):
 class Employee(db.Model):
     __tablename__ = 'employees'
     id = db.Column(db.Integer, primary_key=True, autoincrement=False)
+    employee_code = db.Column(db.String, unique=True, nullable=True)
     full_name = db.Column(db.String, nullable=False)
     email = db.Column(db.String, unique=True, nullable=False)
     phone = db.Column(db.String)
@@ -158,13 +159,14 @@ class Employee(db.Model):
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
     contract_type = db.Column(db.String)
     hire_date = db.Column(db.String)
+    probation_end_date = db.Column(db.String, nullable=True)
     manager_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
     base_salary = db.Column(db.Float)
     allowances = db.Column(db.Float)
     bank_account_number = db.Column(db.String)
     tax_number = db.Column(db.String)
     social_insurance_number = db.Column(db.String)
-    status = db.Column(db.String, default='Active')
+    status = db.Column(db.String, default='PendingOnboarding')
     avatar = db.Column(db.String)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -740,6 +742,30 @@ class EmployeeDocument(db.Model):
     doc_type = db.relationship('DocumentType')
     employee = db.relationship('Employee', backref='documents')
 
+# --- Onboarding Models ---
+class OnboardingRecord(db.Model):
+    __tablename__ = 'onboarding_records'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
+    applicant_id = db.Column(db.Integer, db.ForeignKey('applicants.id'), nullable=True)
+    assigned_hr_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    expected_start_date = db.Column(db.String)
+    status = db.Column(db.String, default='Draft') # Draft, InProgress, Completed, Cancelled
+    step = db.Column(db.String) # current wizard step
+    checklist_json = db.Column(db.Text)
+    missing_docs_count = db.Column(db.Integer, default=0)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class EmployeeEvent(db.Model):
+    __tablename__ = 'employee_events'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
+    event = db.Column(db.String, nullable=False) # 'HIRED','ONBOARDING_ASSIGNED', etc.
+    data_json = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
 
 # --- Utility Functions ---
 def log_action(action, details, username="نظام", user_id=None):
@@ -959,7 +985,7 @@ def handle_employees():
                 hire_date=data['hire_date'],
                 base_salary=float(data['base_salary']),
                 manager_id=manager_id,
-                status=data['status']
+                status=data.get('status', 'PendingOnboarding')
             )
             db.session.add(new_employee)
             db.session.commit()
@@ -974,8 +1000,18 @@ def handle_employees():
                  return jsonify({"message": "البريد الإلكتروني موجود بالفعل. يرجى استخدام بريد إلكتروني فريد."}), 409
             return jsonify({"message": "حدث خطأ داخلي"}), 500
 
-    exclude_id = request.args.get('exclude_id')
+    # --- GET employees ---
     query = Employee.query
+    
+    status_filter = request.args.get('status')
+    if status_filter:
+        query = query.filter(Employee.status == status_filter)
+    else:
+        # By default, don't show terminated unless explicitly asked
+        query = query.filter(Employee.status != 'Terminated')
+
+
+    exclude_id = request.args.get('exclude_id')
     if exclude_id:
         query = query.filter(Employee.id != exclude_id)
         
@@ -1427,6 +1463,69 @@ def move_applicant_stage(id):
     db.session.commit()
     log_action("تغيير مرحلة متقدم", f"تم نقل المتقدم {applicant.full_name} إلى مرحلة {new_stage}")
     return jsonify(applicant.to_dict())
+
+@app.route('/api/recruitment/applicants/<int:id>/hire', methods=['POST'])
+@jwt_required()
+def hire_applicant(id):
+    applicant = Applicant.query.get_or_404(id)
+    job = Job.query.get_or_404(applicant.job_id)
+    
+    # Check if already hired
+    if applicant.stage == 'Hired':
+        return jsonify({'message': 'المتقدم تم توظيفه بالفعل'}), 409
+    
+    # Check if already exists as employee
+    if Employee.query.filter_by(email=applicant.email).first():
+        return jsonify({'message': 'يوجد موظف بنفس البريد الإلكتروني بالفعل'}), 409
+
+    try:
+        new_employee = Employee(
+            full_name=applicant.full_name,
+            email=applicant.email,
+            phone=applicant.phone,
+            department_id=job.dept_id,
+            job_title_id=JobTitle.query.filter_by(title_ar=job.title, department_id=job.dept_id).first().id, # Best effort guess
+            status='PendingOnboarding'
+        )
+        db.session.add(new_employee)
+        db.session.flush() # to get the new employee id
+
+        onboarding_record = OnboardingRecord(
+            employee_id=new_employee.id,
+            applicant_id=applicant.id,
+            status='Draft'
+        )
+        db.session.add(onboarding_record)
+
+        applicant.stage = 'Hired'
+        job.hires_count = (job.hires_count or 0) + 1
+        if job.hires_count >= job.openings:
+            job.status = 'Closed'
+
+        # Optional: copy CV
+        if applicant.cv_path:
+            # This is a simplified copy. A real implementation might move the file or create a reference.
+            doc_type_cv = DocumentType.query.filter_by(code='CV').first()
+            if doc_type_cv:
+                emp_doc = EmployeeDocument(
+                    employee_id=new_employee.id,
+                    doc_type_id=doc_type_cv.id,
+                    file_path=applicant.cv_path,
+                    file_name=os.path.basename(applicant.cv_path),
+                    status='Uploaded'
+                )
+                db.session.add(emp_doc)
+        
+        db.session.commit()
+        
+        log_action("توظيف متقدم", f"تم توظيف المتقدم {applicant.full_name} وبدء عملية التأهيل.", username=get_jwt().get('username'))
+        return jsonify({'message': 'تم توظيف المتقدم بنجاح', 'employee_id': new_employee.id, 'onboarding_id': onboarding_record.id}), 201
+
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error hiring applicant: {e}")
+        return jsonify({'message': 'حدث خطأ أثناء عملية التوظيف'}), 500
+
 
 # --- Other Read-only APIs ---
 @app.route("/api/payrolls", methods=['GET'])
@@ -2228,3 +2327,5 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+    
