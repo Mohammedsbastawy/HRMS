@@ -256,18 +256,20 @@ export default function LocationsPage() {
                 ) : filteredLocations.length > 0 ? (
                   filteredLocations.map((loc) => (
                       <TableRow key={loc.id}>
-                      <TableCell>{loc.code || '-'}</TableCell>
-                      <TableCell className="font-medium">{loc.name_ar}</TableCell>
-                      <TableCell>{loc.name_en}</TableCell>
-                      <TableCell>{loc.city || '-'}</TableCell>
-                      <TableCell>{loc.manager?.full_name || 'غير محدد'}</TableCell>
-                      <TableCell className="flex justify-end gap-2">
-                          <Button variant="ghost" size="icon" onClick={() => handleEditClick(loc)}>
-                              <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeleteClick(loc)}>
-                              <Trash2 className="h-4 w-4" />
-                          </Button>
+                      <TableCell className="text-right">{loc.code || '-'}</TableCell>
+                      <TableCell className="font-medium text-right">{loc.name_ar}</TableCell>
+                      <TableCell className="text-right">{loc.name_en}</TableCell>
+                      <TableCell className="text-right">{loc.city || '-'}</TableCell>
+                      <TableCell className="text-right">{loc.manager?.full_name || 'غير محدد'}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => handleEditClick(loc)}>
+                                <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeleteClick(loc)}>
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
                       </TableCell>
                       </TableRow>
                   ))

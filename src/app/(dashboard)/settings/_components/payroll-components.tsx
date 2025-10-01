@@ -137,14 +137,14 @@ export function PayrollComponents() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>الرمز</TableHead>
-                <TableHead>الاسم</TableHead>
-                <TableHead>النوع</TableHead>
-                <TableHead>طريقة الحساب</TableHead>
-                <TableHead>خاضع للضريبة</TableHead>
-                <TableHead>قبل الضريبة</TableHead>
-                <TableHead>الحالة</TableHead>
-                <TableHead>إجراءات</TableHead>
+                <TableHead className="text-right">الرمز</TableHead>
+                <TableHead className="text-right">الاسم</TableHead>
+                <TableHead className="text-right">النوع</TableHead>
+                <TableHead className="text-right">طريقة الحساب</TableHead>
+                <TableHead className="text-right">خاضع للضريبة</TableHead>
+                <TableHead className="text-right">قبل الضريبة</TableHead>
+                <TableHead className="text-right">الحالة</TableHead>
+                <TableHead className="text-right">إجراءات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -157,24 +157,26 @@ export function PayrollComponents() {
               ) : components.length > 0 ? (
                 components.map(c => (
                   <TableRow key={c.id}>
-                    <TableCell className="font-mono">{c.code}</TableCell>
-                    <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell>{translations[c.component_type] || c.component_type}</TableCell>
-                    <TableCell>{translations[c.calculation_type] || c.calculation_type}</TableCell>
-                    <TableCell>{c.taxable ? 'نعم' : 'لا'}</TableCell>
-                    <TableCell>{c.pre_tax ? 'نعم' : 'لا'}</TableCell>
-                    <TableCell>
+                    <TableCell className="font-mono text-right">{c.code}</TableCell>
+                    <TableCell className="font-medium text-right">{c.name}</TableCell>
+                    <TableCell className="text-right">{translations[c.component_type] || c.component_type}</TableCell>
+                    <TableCell className="text-right">{translations[c.calculation_type] || c.calculation_type}</TableCell>
+                    <TableCell className="text-right">{c.taxable ? 'نعم' : 'لا'}</TableCell>
+                    <TableCell className="text-right">{c.pre_tax ? 'نعم' : 'لا'}</TableCell>
+                    <TableCell className="text-right">
                       <Badge variant={c.active ? 'default' : 'secondary'}>
                         {c.active ? 'نشط' : 'غير نشط'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditClick(c)}>
-                            <Edit className="h-4 w-4" />
-                        </Button>
-                         <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeleteClick(c)}>
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
+                    <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => handleEditClick(c)}>
+                                <Edit className="h-4 w-4" />
+                            </Button>
+                             <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeleteClick(c)}>
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
                     </TableCell>
                   </TableRow>
                 ))

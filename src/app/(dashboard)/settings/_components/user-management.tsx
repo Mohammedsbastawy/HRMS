@@ -128,9 +128,9 @@ export function UserManagement() {
                     ) : users.length > 0 ? (
                         users.map((user) => (
                         <TableRow key={user.id}>
-                            <TableCell className="font-medium">{user.username}</TableCell>
-                            <TableCell>{user.role}</TableCell>
-                            <TableCell>
+                            <TableCell className="font-medium text-right">{user.username}</TableCell>
+                            <TableCell className="text-right">{user.role}</TableCell>
+                            <TableCell className="text-right">
                                  <Badge 
                                     variant={getStatusVariant(user.account_status)}
                                     className={user.account_status === 'Active' ? 'bg-green-100 text-green-800' : ''}
@@ -138,7 +138,7 @@ export function UserManagement() {
                                     {getStatusText(user.account_status)}
                                 </Badge>
                             </TableCell>
-                            <TableCell className="flex justify-end gap-2">
+                            <TableCell className="text-right">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button aria-haspopup="true" size="icon" variant="ghost">

@@ -125,10 +125,10 @@ export function WorkSchedules() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>الاسم</TableHead>
-                <TableHead>الإجازة الأسبوعية</TableHead>
-                <TableHead>الحالة</TableHead>
-                <TableHead>إجراءات</TableHead>
+                <TableHead className="text-right">الاسم</TableHead>
+                <TableHead className="text-right">الإجازة الأسبوعية</TableHead>
+                <TableHead className="text-right">الحالة</TableHead>
+                <TableHead className="text-right">إجراءات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -141,20 +141,22 @@ export function WorkSchedules() {
               ) : schedules.length > 0 ? (
                 schedules.map(s => (
                   <TableRow key={s.id}>
-                    <TableCell className="font-medium">{s.name}</TableCell>
-                    <TableCell>{s.weekly_off_days ? JSON.parse(s.weekly_off_days).join(', ') : '-'}</TableCell>
-                    <TableCell>
+                    <TableCell className="font-medium text-right">{s.name}</TableCell>
+                    <TableCell className="text-right">{s.weekly_off_days ? JSON.parse(s.weekly_off_days).join(', ') : '-'}</TableCell>
+                    <TableCell className="text-right">
                       <Badge variant={s.active ? 'default' : 'secondary'}>
                         {s.active ? 'نشطة' : 'غير نشطة'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditClick(s)}>
-                            <Edit className="h-4 w-4" />
-                        </Button>
-                         <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeleteClick(s)}>
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
+                    <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => handleEditClick(s)}>
+                                <Edit className="h-4 w-4" />
+                            </Button>
+                             <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeleteClick(s)}>
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
                     </TableCell>
                   </TableRow>
                 ))
