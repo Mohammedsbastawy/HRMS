@@ -111,7 +111,7 @@ export function EditApplicantDialog({ open, onOpenChange, applicant, onSuccess }
         
         const result = await response.json();
         if (!response.ok) {
-            throw new Error(result.message || `فشل تعديل المتقدم`);
+            throw result;
         }
 
       toast({ title: `تم تعديل بيانات ${data.full_name} بنجاح` });
@@ -120,8 +120,8 @@ export function EditApplicantDialog({ open, onOpenChange, applicant, onSuccess }
       toast({ 
           variant: 'destructive', 
           title: 'خطأ', 
-          description: error.message,
-          details: error.details || error
+          description: error.message || 'فشل تعديل المتقدم.',
+          details: error
       });
     }
   };
@@ -186,3 +186,5 @@ export function EditApplicantDialog({ open, onOpenChange, applicant, onSuccess }
     </Dialog>
   );
 }
+
+    

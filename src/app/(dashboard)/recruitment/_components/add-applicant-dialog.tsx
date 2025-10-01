@@ -113,7 +113,7 @@ const FileUploader = ({ control, index }: { control: any, index: number }) => {
                             ) : (
                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
                                     <UploadCloud className="w-8 h-8 mb-2 text-muted-foreground" />
-                                    <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">انقر للرفع</span> أو قم بسحب الملف وإفلاته</p>
+                                    <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">انقر للرفع</span> أو قم بالسحب والافلات</p>
                                     <p className="text-xs text-muted-foreground">PDF (بحد أقصى 5 ميجا)</p>
                                 </div>
                             )}
@@ -162,11 +162,10 @@ export function AddApplicantDialog({ open, onOpenChange, jobId, onSuccess }: Add
             formData.append('phone', applicantData.phone || '');
             formData.append('source', applicantData.source || 'manual');
             
-            // Add optional fields only if they have a value
             if (applicantData.years_experience) formData.append('years_experience', String(applicantData.years_experience));
+            if (applicantData.expected_salary) formData.append('expected_salary', String(applicantData.expected_salary));
             if (applicantData.current_title) formData.append('current_title', applicantData.current_title);
             if (applicantData.current_company) formData.append('current_company', applicantData.current_company);
-            if (applicantData.expected_salary) formData.append('expected_salary', String(applicantData.expected_salary));
             if (applicantData.linkedin_url) formData.append('linkedin_url', applicantData.linkedin_url);
             if (applicantData.portfolio_url) formData.append('portfolio_url', applicantData.portfolio_url);
             
@@ -182,7 +181,7 @@ export function AddApplicantDialog({ open, onOpenChange, jobId, onSuccess }: Add
             
             const result = await response.json();
             if (!response.ok) {
-                throw new Error(result.message || `فشل إضافة المتقدم: ${applicantData.full_name}`);
+                throw result; // Throw the JSON error response from the backend
             }
             createdApplicants.push(result);
         }
@@ -195,8 +194,8 @@ export function AddApplicantDialog({ open, onOpenChange, jobId, onSuccess }: Add
       toast({
         variant: 'destructive',
         title: 'خطأ',
-        description: error.message,
-        details: error.details || error
+        description: error.message || 'فشل في إضافة متقدم أو أكثر.',
+        details: error
       });
     } finally {
       setIsSubmitting(false);
@@ -265,7 +264,7 @@ export function AddApplicantDialog({ open, onOpenChange, jobId, onSuccess }: Add
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>رقم الهاتف (اختياري)</FormLabel>
-                          <FormControl><Input {...field} /></FormControl>
+                          <FormControl><Input {...field} value={field.value ?? ''} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -299,10 +298,10 @@ export function AddApplicantDialog({ open, onOpenChange, jobId, onSuccess }: Add
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField control={form.control} name={`applicants.${index}.years_experience`} render={({ field }) => (<FormItem><FormLabel>سنوات الخبرة</FormLabel><FormControl><Input type="number" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name={`applicants.${index}.expected_salary`} render={({ field }) => (<FormItem><FormLabel>الراتب المتوقع</FormLabel><FormControl><Input type="number" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name={`applicants.${index}.current_title`} render={({ field }) => (<FormItem><FormLabel>المسمى الوظيفي الحالي</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name={`applicants.${index}.current_company`} render={({ field }) => (<FormItem><FormLabel>الشركة الحالية</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name={`applicants.${index}.linkedin_url`} render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>رابط ملف LinkedIn</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name={`applicants.${index}.portfolio_url`} render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>رابط معرض الأعمال (Portfolio)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name={`applicants.${index}.current_title`} render={({ field }) => (<FormItem><FormLabel>المسمى الوظيفي الحالي</FormLabel><FormControl><Input {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name={`applicants.${index}.current_company`} render={({ field }) => (<FormItem><FormLabel>الشركة الحالية</FormLabel><FormControl><Input {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name={`applicants.${index}.linkedin_url`} render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>رابط ملف LinkedIn</FormLabel><FormControl><Input {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name={`applicants.${index}.portfolio_url`} render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>رابط معرض الأعمال (Portfolio)</FormLabel><FormControl><Input {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
                     </div>
                 </div>
               ))}
@@ -324,3 +323,5 @@ export function AddApplicantDialog({ open, onOpenChange, jobId, onSuccess }: Add
     </Dialog>
   );
 }
+
+    
