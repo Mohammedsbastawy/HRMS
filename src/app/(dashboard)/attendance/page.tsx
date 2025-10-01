@@ -114,7 +114,7 @@ export default function AttendancePage() {
           <TabsTrigger value="exceptions">الاستثناءات</TabsTrigger>
           <TabsTrigger value="corrections">التصحيحات</TabsTrigger>
           <TabsTrigger value="overtime">الإضافي</TabsTrigger>
-          <TabsTrigger value="shifts">الورديات والجداول</TabsTrigger>
+          <TabsTrigger value="shifts">الورديات</TabsTrigger>
           <TabsTrigger value="devices">الأجهزة</TabsTrigger>
         </TabsList>
         

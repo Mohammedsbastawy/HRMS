@@ -134,7 +134,7 @@ export function WorkScheduleFormDialog({ open, onOpenChange, onSuccess, schedule
         body: JSON.stringify(payload),
       });
 
-      if (!response.ok) throw new Error(schedule ? 'فشل تحديث الجدول' : 'فشل إنشاء الجدول');
+      if (!response.ok) throw new Error(schedule ? 'فشل تحديث الوردية' : 'فشل إنشاء الوردية');
 
       toast({ title: 'تم الحفظ بنجاح' });
       onSuccess();
@@ -150,15 +150,15 @@ export function WorkScheduleFormDialog({ open, onOpenChange, onSuccess, schedule
       <DialogContent className="max-w-4xl">
         <form onSubmit={handleSubmit(onSubmit)}>
           <DialogHeader>
-            <DialogTitle>{schedule ? 'تعديل جدول عمل' : 'إضافة جدول عمل جديد'}</DialogTitle>
+            <DialogTitle>{schedule ? 'تعديل وردية' : 'إضافة وردية جديدة'}</DialogTitle>
             <DialogDescription>
-              عرف تفاصيل جدول العمل وأيام الإجازة الأسبوعية وساعات العمل.
+              عرف تفاصيل الوردية وأيام الإجازة الأسبوعية وساعات العمل.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="name">اسم الجدول</Label>
+                    <Label htmlFor="name">اسم الوردية</Label>
                     <Input id="name" {...register('name')} />
                 </div>
                  <div className="space-y-2">
@@ -217,7 +217,7 @@ export function WorkScheduleFormDialog({ open, onOpenChange, onSuccess, schedule
                                 <Label htmlFor={`days.${index}.enabled`} className="mr-2 font-medium">{WEEKDAYS_AR[dayKey]}</Label>
                             </div>
 
-                            <div className="col-span-5 grid grid-cols-[1fr_auto_1fr] items-center gap-1">
+                             <div className="col-span-5 grid grid-cols-[1fr_auto_1fr] items-center gap-1">
                                 <Controller name={`days.${index}.start_time`} control={control} render={({ field }) => <TimePicker {...field} value={field.value || '00:00'} />} />
                                 <span>-</span>
                                 <Controller name={`days.${index}.end_time`} control={control} render={({ field }) => <TimePicker {...field} value={field.value || '00:00'} />} />
@@ -235,7 +235,7 @@ export function WorkScheduleFormDialog({ open, onOpenChange, onSuccess, schedule
             
              <div className="flex items-center space-x-2 space-x-reverse pt-4">
                  <Controller name="active" control={control} render={({ field }) => <Switch id="active" checked={field.value} onCheckedChange={field.onChange} />} />
-                <Label htmlFor="active">نشط</Label>
+                <Label htmlFor="active">نشطة</Label>
             </div>
           </div>
           <DialogFooter>

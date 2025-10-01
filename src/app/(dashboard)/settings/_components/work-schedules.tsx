@@ -94,7 +94,7 @@ export function WorkSchedules() {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (!response.ok) throw new Error('فشل حذف جدول العمل');
+        if (!response.ok) throw new Error('فشل حذف الوردية');
         toast({ title: 'تم الحذف بنجاح' });
         fetchSchedules();
     } catch (error: any) {
@@ -110,14 +110,14 @@ export function WorkSchedules() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>إدارة جداول العمل</CardTitle>
+              <CardTitle>إدارة الورديات</CardTitle>
               <CardDescription>
-                تعريف وتخصيص ساعات العمل الرسمية والإجازات الأسبوعية.
+                تعريف وتخصيص الورديات وساعات العمل الرسمية والإجازات الأسبوعية.
               </CardDescription>
             </div>
             <Button size="sm" onClick={handleAddClick}>
               <PlusCircle className="ml-2 h-4 w-4" />
-              إضافة جدول عمل
+              إضافة وردية
             </Button>
           </div>
         </CardHeader>
@@ -145,7 +145,7 @@ export function WorkSchedules() {
                     <TableCell>{s.weekly_off_days ? JSON.parse(s.weekly_off_days).join(', ') : '-'}</TableCell>
                     <TableCell>
                       <Badge variant={s.active ? 'default' : 'secondary'}>
-                        {s.active ? 'نشط' : 'غير نشط'}
+                        {s.active ? 'نشطة' : 'غير نشطة'}
                       </Badge>
                     </TableCell>
                     <TableCell className="flex justify-end gap-2">
@@ -161,7 +161,7 @@ export function WorkSchedules() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={4} className="h-24 text-center">
-                    لا توجد جداول عمل. ابدأ بإضافة جدول جديد.
+                    لا توجد ورديات معرفة. ابدأ بإضافة وردية جديدة.
                   </TableCell>
                 </TableRow>
               )}
@@ -182,7 +182,7 @@ export function WorkSchedules() {
             <AlertDialogHeader>
             <AlertDialogTitle>هل أنت متأكد تمامًا؟</AlertDialogTitle>
             <AlertDialogDescription>
-                سيتم حذف جدول العمل "{selectedSchedule?.name}". لا يمكن التراجع عن هذا الإجراء.
+                سيتم حذف الوردية "{selectedSchedule?.name}". لا يمكن التراجع عن هذا الإجراء.
             </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
