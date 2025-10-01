@@ -39,7 +39,7 @@ interface RequestLeaveDialogProps {
 export function RequestLeaveDialog({ open, onOpenChange, onSuccess, employees, isManager }: RequestLeaveDialogProps) {
   const [employeeId, setEmployeeId] = useState('');
   const [leaveType, setLeaveType] = useState('');
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: new Date(), to: new Date() });
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [partDay, setPartDay] = useState('none');
   const [hours, setHours] = useState('');
   const [notes, setNotes] = useState('');
@@ -57,17 +57,24 @@ export function RequestLeaveDialog({ open, onOpenChange, onSuccess, employees, i
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!leaveType || !dateRange?.from || !dateRange?.to || (isManager && !employeeId)) {
+    
+    const finalDateRange = { ...dateRange };
+    if (finalDateRange.from && !finalDateRange.to) {
+        finalDateRange.to = finalDateRange.from;
+    }
+    
+    if (!leaveType || !finalDateRange?.from || !finalDateRange?.to || (isManager && !employeeId)) {
         toast({ variant: 'destructive', title: 'بيانات غير مكتملة', description: 'يرجى ملء جميع الحقول المطلوبة.' });
         return;
     }
+
     setIsLoading(true);
     try {
       const token = localStorage.getItem('authToken');
       const payload = {
           leave_type: leaveType,
-          start_date: format(dateRange.from, 'yyyy-MM-dd'),
-          end_date: format(dateRange.to, 'yyyy-MM-dd'),
+          start_date: format(finalDateRange.from, 'yyyy-MM-dd'),
+          end_date: format(finalDateRange.to, 'yyyy-MM-dd'),
           part_day: partDay,
           hours_count: partDay === 'hours' ? Number(hours) : null,
           notes: notes,
