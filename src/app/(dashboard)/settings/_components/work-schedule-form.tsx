@@ -25,6 +25,7 @@ import { useRouter } from 'next/navigation';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Textarea } from '@/components/ui/textarea';
+import { Separator } from '@/components/ui/separator';
 
 interface WorkScheduleFormDialogProps {
   open: boolean;
@@ -146,7 +147,7 @@ export function WorkScheduleFormDialog({ open, onOpenChange, onSuccess, schedule
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-4xl">
         <form onSubmit={handleSubmit(onSubmit)}>
           <DialogHeader>
             <DialogTitle>{schedule ? 'تعديل جدول عمل' : 'إضافة جدول عمل جديد'}</DialogTitle>
@@ -188,7 +189,12 @@ export function WorkScheduleFormDialog({ open, onOpenChange, onSuccess, schedule
             </div>
 
             <div className="space-y-4 pt-4">
-                <Label className="font-semibold">ساعات العمل اليومية</Label>
+                <Label className="font-semibold text-base">ساعات العمل اليومية</Label>
+                 <div className="grid grid-cols-12 items-center gap-x-4 gap-y-2 px-2 text-xs text-muted-foreground">
+                    <div className="col-span-2">اليوم</div>
+                    <div className="col-span-5 text-center">وقت الدوام</div>
+                    <div className="col-span-5 text-center">فترة الراحة</div>
+                </div>
                 {fields.map((field, index) => {
                     const dayKey = field.weekday as keyof typeof WEEKDAYS_AR;
                     const isOff = offDays.includes(dayKey);
@@ -211,23 +217,20 @@ export function WorkScheduleFormDialog({ open, onOpenChange, onSuccess, schedule
                                 <Label htmlFor={`days.${index}.enabled`} className="mr-2 font-medium">{WEEKDAYS_AR[dayKey]}</Label>
                             </div>
 
-                            <div className="col-span-5 grid grid-cols-2 gap-2">
+                            <div className="col-span-5 grid grid-cols-[1fr_auto_1fr] items-center gap-1">
                                 <Controller name={`days.${index}.start_time`} control={control} render={({ field }) => <TimePicker {...field} value={field.value || '00:00'} />} />
+                                <span>-</span>
                                 <Controller name={`days.${index}.end_time`} control={control} render={({ field }) => <TimePicker {...field} value={field.value || '00:00'} />} />
                             </div>
 
-                            <div className="col-span-5 grid grid-cols-2 gap-2">
+                            <div className="col-span-5 grid grid-cols-[1fr_auto_1fr] items-center gap-1">
                                 <Controller name={`days.${index}.break_start`} control={control} render={({ field }) => <TimePicker {...field} value={field.value || '00:00'} />} />
+                                <span>-</span>
                                 <Controller name={`days.${index}.break_end`} control={control} render={({ field }) => <TimePicker {...field} value={field.value || '00:00'} />} />
                             </div>
                         </div>
                     );
                 })}
-                 <div className="grid grid-cols-12 items-center gap-x-4 gap-y-2 px-2 text-xs text-muted-foreground">
-                    <div className="col-span-2">اليوم</div>
-                    <div className="col-span-5 grid grid-cols-2 gap-2"><div>وقت البدء</div><div>وقت الانتهاء</div></div>
-                    <div className="col-span-5 grid grid-cols-2 gap-2"><div>بداية الراحة</div><div>نهاية الراحة</div></div>
-                </div>
             </div>
             
              <div className="flex items-center space-x-2 space-x-reverse pt-4">
