@@ -1803,27 +1803,30 @@ def get_employee_attendance_history(employee_id):
 def get_daily_log():
     today_str = date.today().isoformat()
     
-    # Subquery for employees present today
-    present_employee_ids_sq = db.session.query(Attendance.employee_id).filter(Attendance.date == today_str).subquery()
-    
-    # Subquery for employees on leave today
-    on_leave_employee_ids_sq = db.session.query(LeaveRequest.employee_id).filter(
-        LeaveRequest.start_date <= today_str, 
-        LeaveRequest.end_date >= today_str, 
-        LeaveRequest.status.in_(['Approved', 'HRApproved'])
-    ).subquery()
+    # Get all active employees
+    active_employees = Employee.query.filter_by(status='Active').options(db.joinedload(Employee.department)).all()
+    active_employee_ids = {emp.id for emp in active_employees}
 
-    # Employees who are neither present nor on leave are absent
-    absent_employees = Employee.query.filter(
-        Employee.status == 'Active',
-        ~Employee.id.in_(present_employee_ids_sq),
-        ~Employee.id.in_(on_leave_employee_ids_sq)
-    ).options(db.joinedload(Employee.department)).all()
+    # Get attendance for today
+    todays_attendance = Attendance.query.filter(Attendance.date == today_str).all()
+    present_employee_ids = {att.employee_id for att in todays_attendance}
+
+    # Get leaves for today
+    on_leave_records = LeaveRequest.query.filter(
+        LeaveRequest.start_date <= today_str, 
+        LeaveRequest.end_date >= today_str,
+        LeaveRequest.status.in_(['Approved', 'HRApproved'])
+    ).all()
+    on_leave_employee_ids = {leave.employee_id for leave in on_leave_records}
+
+    # Determine absent employees
+    absent_employee_ids = active_employee_ids - present_employee_ids - on_leave_employee_ids
+    absent_employees = [emp for emp in active_employees if emp.id in absent_employee_ids]
 
     # KPI counts
-    present_count = db.session.query(present_employee_ids_sq).count()
-    late_count = Attendance.query.filter(Attendance.date == today_str, Attendance.status == 'Late').count()
-    absent_count = len(absent_employees)
+    present_count = len(present_employee_ids)
+    late_count = sum(1 for att in todays_attendance if att.status == 'Late')
+    absent_count = len(absent_employee_ids)
     offline_devices_count = ZktDevice.query.filter(ZktDevice.status != 'online').count()
 
     kpis = {
@@ -1834,24 +1837,24 @@ def get_daily_log():
     }
 
     # Detailed daily log table
-    daily_log_records = Attendance.query.options(db.joinedload(Attendance.employee)).filter(Attendance.date == today_str).all()
-    
-    # Add absent employees to the log for a complete view
+    daily_log_records = todays_attendance
     for emp in absent_employees:
         daily_log_records.append(Attendance(
-            id=f"absent_{emp.id}",
-            employee_id=emp.id,
-            employee=emp,
-            date=today_str,
-            check_in=None,
-            check_out=None,
-            status='Absent'
+            id=f"absent_{emp.id}", employee_id=emp.id, employee=emp,
+            date=today_str, status='Absent'
         ))
+    for leave in on_leave_records:
+         if leave.employee_id in active_employee_ids:
+            # Add On Leave employees to the log only if they are active
+            daily_log_records.append(Attendance(
+                id=f"leave_{leave.employee_id}", employee_id=leave.employee_id, employee=leave.employee,
+                date=today_str, status='On Leave'
+            ))
 
     # Modal lists
-    present_employees = Employee.query.filter(Employee.id.in_(present_employee_ids_sq)).options(db.joinedload(Employee.department)).all()
-    late_employees_ids = {a.employee_id for a in Attendance.query.filter(Attendance.date == today_str, Attendance.status == 'Late')}
-    late_employees = Employee.query.filter(Employee.id.in_(late_employees_ids)).options(db.joinedload(Employee.department)).all()
+    present_employees = [emp for emp in active_employees if emp.id in present_employee_ids]
+    late_employees_ids = {att.employee_id for att in todays_attendance if att.status == 'Late'}
+    late_employees = [emp for emp in active_employees if emp.id in late_employees_ids]
     offline_devices = ZktDevice.query.filter(ZktDevice.status != 'online').all()
 
     modal_lists = {
@@ -1863,10 +1866,14 @@ def get_daily_log():
     
     # Add employee name to each record for easy display
     final_log = []
+    processed_emp_ids = set()
     for record in daily_log_records:
+        if record.employee_id in processed_emp_ids:
+            continue
         rec_dict = record.to_dict()
         rec_dict['employee_name'] = record.employee.full_name if record.employee else 'Unknown'
         final_log.append(rec_dict)
+        processed_emp_ids.add(record.employee_id)
 
     return jsonify({
         "kpis": kpis,
@@ -2484,6 +2491,7 @@ if __name__ == '__main__':
 
     
     
+
 
 
 
