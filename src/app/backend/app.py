@@ -1006,12 +1006,13 @@ def handle_employees():
                  return jsonify({"message": "البريد الإلكتروني موجود بالفعل. يرجى استخدام بريد إلكتروني فريد."}), 409
             return jsonify({"message": "حدث خطأ داخلي"}), 500
 
-    # --- GET employees (active/managers) ---
+    # --- GET employees (filtered) ---
     query = Employee.query
     
-    is_manager = request.args.get('is_manager')
-    if is_manager == 'true':
-        # Find employees who are managers of other employees
+    is_manager_arg = request.args.get('is_manager')
+    status_arg = request.args.get('status')
+    
+    if is_manager_arg == 'true':
         manager_ids = db.session.query(Employee.manager_id).distinct()
         query = query.filter(Employee.id.in_([mid[0] for mid in manager_ids if mid[0] is not None]))
         exclude_id = request.args.get('exclude_id')
@@ -1020,9 +1021,12 @@ def handle_employees():
         employees = query.all()
         return jsonify({"employees": [{'id': e.id, 'full_name': e.full_name} for e in employees]})
 
-    query = query.filter(Employee.status == 'Active')
+    if status_arg:
+        query = query.filter(Employee.status == status_arg)
+    
     employees = query.order_by(Employee.created_at.desc()).all()
     return jsonify({"employees": [e.to_dict() for e in employees]})
+
 
 @app.route("/api/employees/all", methods=['GET'])
 @jwt_required()
@@ -1397,19 +1401,16 @@ def handle_applicants():
             if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
                 return jsonify({'message': 'صيغة البريد الإلكتروني غير صالحة'}), 400
             
-            years_experience_val = request.form.get('years_experience')
-            expected_salary_val = request.form.get('expected_salary')
-
             new_applicant = Applicant(
                 job_id=request.form['job_id'],
                 full_name=request.form['full_name'],
                 email=email,
                 phone=request.form.get('phone'),
                 source=request.form.get('source', 'manual'),
-                years_experience=int(years_experience_val) if years_experience_val and years_experience_val.isdigit() else None,
+                years_experience=int(request.form['years_experience']) if request.form.get('years_experience') else None,
                 current_title=request.form.get('current_title'),
                 current_company=request.form.get('current_company'),
-                expected_salary=float(expected_salary_val) if expected_salary_val and expected_salary_val.replace('.', '', 1).isdigit() else None,
+                expected_salary=float(request.form['expected_salary']) if request.form.get('expected_salary') else None,
                 linkedin_url=request.form.get('linkedin_url'),
                 portfolio_url=request.form.get('portfolio_url')
             )
@@ -1807,9 +1808,6 @@ def test_device_connection():
         return jsonify({"success": True, "message": "تم الاتصال بالجهاز بنجاح!"})
     except Exception as e:
         return jsonify({"success": False, "message": f"فشل الاتصال: {e}"}), 500
-    finally:
-        if conn:
-            conn.disconnect()
 
 # --- ZKTeco Devices API ---
 @app.route('/api/zkt-devices', methods=['GET', 'POST'])

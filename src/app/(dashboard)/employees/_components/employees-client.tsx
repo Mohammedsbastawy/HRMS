@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Table,
   TableBody,
@@ -24,7 +24,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 
-function EmployeesTable({ employees, isLoading }: { employees: Employee[], isLoading: boolean }) {
+function EmployeesTable({ employees, isLoading, emptyStateMessage }: { employees: Employee[], isLoading: boolean, emptyStateMessage: string }) {
   const router = useRouter();
 
   const statusTranslations: { [key: string]: string } = {
@@ -122,7 +122,7 @@ function EmployeesTable({ employees, isLoading }: { employees: Employee[], isLoa
             ) : (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center">
-                  لا يوجد موظفون لعرضهم.
+                  {emptyStateMessage}
                 </TableCell>
               </TableRow>
             )}
@@ -133,65 +133,68 @@ function EmployeesTable({ employees, isLoading }: { employees: Employee[], isLoa
 
 
 export function EmployeesPageClient() {
-  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
+  const [activeEmployees, setActiveEmployees] = useState<Employee[]>([]);
+  const [newJoiners, setNewJoiners] = useState<Employee[]>([]);
+  const [terminatedEmployees, setTerminatedEmployees] = useState<Employee[]>([]);
+  
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string[]>(['Active']);
-  const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
+  
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const defaultTab = searchParams.get('tab') || 'active';
 
-
-  useEffect(() => {
-    async function fetchEmployees() {
-      setIsLoading(true);
-      try {
-        const token = localStorage.getItem('authToken');
-        if (!token) {
-          toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
-          return;
-        }
-        const response = await fetch('/api/employees/all', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (response.status === 401) {
-          toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
-          return;
-        }
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'فشل في جلب بيانات الموظفين');
-        }
-        const data = await response.json();
-        setAllEmployees(data.employees || []);
-      } catch (error: any) {
-        toast({
-          variant: 'destructive',
-          title: 'خطأ',
-          description: error.message || 'حدث خطأ أثناء جلب البيانات.',
-        });
-      } finally {
-        setIsLoading(false);
+  const fetchEmployeesByStatus = useCallback(async (status: 'Active' | 'PendingOnboarding' | 'Terminated' | 'Resigned', setter: React.Dispatch<React.SetStateAction<Employee[]>>) => {
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
+        return;
       }
+      const response = await fetch(`/api/employees?status=${status}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.status === 401) {
+        toast({ variant: 'destructive', title: 'الجلسة منتهية', description: 'يرجى تسجيل الدخول مرة أخرى.', responseStatus: 401 });
+        return;
+      }
+      if (!response.ok) {
+        throw new Error(`فشل في جلب الموظفين (${status})`);
+      }
+      const data = await response.json();
+      setter(data.employees || []);
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'خطأ',
+        description: error.message,
+      });
+    } finally {
+      setIsLoading(false);
     }
-    fetchEmployees();
   }, [toast, router]);
 
-
-  const departments = [...new Set(allEmployees.map(e => e.department?.name_en).filter(Boolean) as string[])];
+  useEffect(() => {
+    fetchEmployeesByStatus('Active', setActiveEmployees);
+    fetchEmployeesByStatus('PendingOnboarding', setNewJoiners);
+    // Combine terminated and resigned for the archive view
+    Promise.all([
+        fetch('/api/employees?status=Terminated', { headers: { 'Authorization': `${localStorage.getItem('authToken')}` } }).then(res => res.json()),
+        fetch('/api/employees?status=Resigned', { headers: { 'Authorization': `${localStorage.getItem('authToken')}` } }).then(res => res.json())
+    ]).then(([terminatedData, resignedData]) => {
+        const combined = [...(terminatedData.employees || []), ...(resignedData.employees || [])];
+        setTerminatedEmployees(combined);
+    });
+  }, [fetchEmployeesByStatus]);
   
-  const filteredEmployees = allEmployees.filter(employee => {
-    const matchesSearch = employee.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (employee.email && employee.email.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesDepartment = departmentFilter.length === 0 || (employee.department?.name_en && departmentFilter.includes(employee.department.name_en));
-    return matchesSearch && matchesDepartment;
-  });
-
-  const activeEmployees = filteredEmployees.filter(e => e.status === 'Active');
-  const newJoiners = filteredEmployees.filter(e => e.status === 'PendingOnboarding');
-  const terminatedEmployees = filteredEmployees.filter(e => e.status === 'Terminated' || e.status === 'Resigned');
+  const filterAndSearch = (employees: Employee[]) => {
+      return employees.filter(employee => 
+        employee.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (employee.email && employee.email.toLowerCase().includes(searchTerm.toLowerCase()))
+      )
+  }
 
   return (
     <Card>
@@ -219,45 +222,23 @@ export function EmployeesPageClient() {
                   onChange={e => setSearchTerm(e.target.value)}
                 />
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 gap-1 text-sm">
-                  <ListFilter className="h-3.5 w-3.5" />
-                  <span className="sr-only sm:not-sr-only">فلترة حسب القسم</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>الفلترة حسب القسم</DropdownMenuLabel>
-                {departments.map(dept => (
-                    <DropdownMenuCheckboxItem
-                        key={dept}
-                        checked={departmentFilter.includes(dept)}
-                        onCheckedChange={() => setDepartmentFilter(prev => 
-                            prev.includes(dept) ? prev.filter(i => i !== dept) : [...prev, dept]
-                        )}
-                    >
-                        {dept}
-                    </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
         </div>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue={defaultTab}>
+        <Tabs defaultValue={defaultTab} onValueChange={(tab) => router.push(`/employees?tab=${tab}`)}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="active">الموظفون النشطون</TabsTrigger>
             <TabsTrigger value="new_joiners">المنضمون الجدد</TabsTrigger>
             <TabsTrigger value="terminated">الأرشيف</TabsTrigger>
           </TabsList>
           <TabsContent value="active">
-              <EmployeesTable employees={activeEmployees} isLoading={isLoading} />
+              <EmployeesTable employees={filterAndSearch(activeEmployees)} isLoading={isLoading} emptyStateMessage="لا يوجد موظفون نشطون لعرضهم." />
           </TabsContent>
            <TabsContent value="new_joiners">
-              <EmployeesTable employees={newJoiners} isLoading={isLoading} />
+              <EmployeesTable employees={filterAndSearch(newJoiners)} isLoading={isLoading} emptyStateMessage="لا يوجد موظفون جدد في قائمة الانتظار." />
           </TabsContent>
            <TabsContent value="terminated">
-              <EmployeesTable employees={terminatedEmployees} isLoading={isLoading} />
+              <EmployeesTable employees={filterAndSearch(terminatedEmployees)} isLoading={isLoading} emptyStateMessage="لا يوجد موظفون في الأرشيف." />
           </TabsContent>
         </Tabs>
       </CardContent>
