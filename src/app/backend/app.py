@@ -13,7 +13,7 @@ from collections import defaultdict
 from sqlalchemy import func, inspect, CheckConstraint, Time, Date, cast, text
 from werkzeug.utils import secure_filename
 import re
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -1438,6 +1438,12 @@ def handle_applicants():
             db.session.rollback()
             app.logger.error(f"Integrity error adding applicant: {e}")
             return jsonify({"message": "هذا المتقدم مسجل بالفعل في هذه الوظيفة."}), 409
+        except OperationalError as e:
+            db.session.rollback()
+            app.logger.error(f"Error adding applicant: {e}")
+            if "database is locked" in str(e):
+                return jsonify({"message": f"حدث خطأ غير متوقع: قاعدة البيانات مشغولة حاليًا، يرجى المحاولة مرة أخرى بعد لحظات."}), 503
+            return jsonify({"message": f"حدث خطأ غير متوقع: {str(e)}"}), 500
         except Exception as e:
             db.session.rollback()
             app.logger.error(f"Error adding applicant: {e}")
@@ -2374,3 +2380,4 @@ if __name__ == '__main__':
 
     
     
+
