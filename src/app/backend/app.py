@@ -1442,7 +1442,7 @@ def handle_applicants():
             db.session.rollback()
             app.logger.error(f"Error adding applicant: {e}")
             if "database is locked" in str(e):
-                return jsonify({"message": f"حدث خطأ غير متوقع: قاعدة البيانات مشغولة حاليًا، يرجى المحاولة مرة أخرى بعد لحظات."}), 503
+                return jsonify({"message": f"قاعدة البيانات مشغولة حاليًا، يرجى المحاولة مرة أخرى بعد لحظات."}), 503
             return jsonify({"message": f"حدث خطأ غير متوقع: {str(e)}"}), 500
         except Exception as e:
             db.session.rollback()
@@ -1524,18 +1524,26 @@ def hire_applicant(id):
     if Employee.query.filter_by(email=applicant.email).first():
         return jsonify({'message': 'يوجد موظف بنفس البريد الإلكتروني بالفعل'}), 409
     
-    job = Job.query.get_or_404(applicant.job_id)
+    job = Job.query.options(db.joinedload(Job.department)).get_or_404(applicant.job_id)
 
     try:
-        job_title = JobTitle.query.filter(JobTitle.title_ar.ilike(f'%{job.title}%'), JobTitle.department_id == job.dept_id).first()
-        job_title_id = job_title.id if job_title else None
+        # Find matching job title
+        job_title = JobTitle.query.filter(
+            JobTitle.title_ar.ilike(f'%{job.title}%'), 
+            JobTitle.department_id == job.dept_id
+        ).first()
+
+        # Find matching location
+        location = Location.query.filter(Location.name_ar == job.location).first()
 
         new_employee = Employee(
             full_name=applicant.full_name,
             email=applicant.email,
             phone=applicant.phone,
             department_id=job.dept_id,
-            job_title_id=job_title_id,
+            job_title_id=job_title.id if job_title else None,
+            location_id=location.id if location else None,
+            manager_id=job.department.manager_id if job.department else None,
             status='PendingOnboarding',
             hire_date=date.today().isoformat()
         )
@@ -2381,4 +2389,5 @@ if __name__ == '__main__':
 
     
     
+
 

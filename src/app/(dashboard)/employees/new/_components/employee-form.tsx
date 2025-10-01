@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -293,7 +294,7 @@ export function EmployeeForm({ departments, jobTitles, locations, managers, empl
               <FormItem>
                 <FormLabel>تاريخ التعيين</FormLabel>
                 <FormControl>
-                  <Input type="date" {...field} value={field.value || ''} />
+                  <Input type="date" {...field} value={field.value || new Date().toISOString().split('T')[0]} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
