@@ -254,6 +254,8 @@ class EmployeeWorkSchedule(db.Model):
     effective_from = db.Column(db.String, nullable=False)
     effective_to = db.Column(db.String)
     
+    schedule = db.relationship('WorkSchedule', backref='assignments')
+    
     db.UniqueConstraint('employee_id', 'schedule_id', 'effective_from')
 
 class Shift(db.Model):
@@ -1447,7 +1449,7 @@ def handle_applicants():
             db.session.rollback()
             app.logger.error(f"Error adding applicant: {e}")
             if "database is locked" in str(e):
-                return jsonify({"message": f"قاعدة البيانات مشغولة حاليًا، يرجى المحاولة مرة أخرى بعد لحظات."}), 503
+                return jsonify({"message": "قاعدة البيانات مشغولة حاليًا، يرجى المحاولة مرة أخرى بعد لحظات."}), 503
             return jsonify({"message": f"حدث خطأ غير متوقع: {str(e)}"}), 500
         except Exception as e:
             db.session.rollback()
@@ -1534,7 +1536,7 @@ def hire_applicant(id):
     try:
         # Find matching job title
         job_title = JobTitle.query.filter(
-            JobTitle.title_ar.ilike(f'%{job.title}%'), 
+            JobTitle.title_ar == job.title, 
             JobTitle.department_id == job.dept_id
         ).first()
 
@@ -1718,17 +1720,81 @@ def get_attendance():
 @app.route('/api/attendance/history/<int:employee_id>', methods=['GET'])
 @jwt_required()
 def get_employee_attendance_history(employee_id):
+    import json
     employee = Employee.query.options(
         db.joinedload(Employee.department),
         db.joinedload(Employee.job_title)
     ).get_or_404(employee_id)
     
-    # Get last 30 days of attendance
-    attendance = Attendance.query.filter_by(employee_id=employee_id).order_by(Attendance.date.desc()).limit(30).all()
+    today = date.today()
+    start_of_range = today - timedelta(days=29)
+    date_range = [start_of_range + timedelta(days=x) for x in range(30)]
+
+    # Fetch all relevant data in bulk
+    attendance_records = Attendance.query.filter(
+        Attendance.employee_id == employee_id,
+        Attendance.date >= start_of_range.isoformat()
+    ).all()
+    attendance_map = {rec.date: rec for rec in attendance_records}
+
+    leave_records = LeaveRequest.query.filter(
+        LeaveRequest.employee_id == employee_id,
+        LeaveRequest.end_date >= start_of_range.isoformat(),
+        LeaveRequest.status.in_(['Approved', 'HRApproved'])
+    ).all()
+
+    work_schedule_assignments = EmployeeWorkSchedule.query.filter(
+        EmployeeWorkSchedule.employee_id == employee_id,
+        EmployeeWorkSchedule.effective_from <= today.isoformat()
+    ).options(db.joinedload(EmployeeWorkSchedule.schedule)).order_by(EmployeeWorkSchedule.effective_from.desc()).all()
+
+    full_history = []
     
+    WEEKDAY_MAP = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+    for day in reversed(date_range):
+        day_str = day.isoformat()
+        day_weekday_str = WEEKDAY_MAP[day.weekday()]
+        
+        # Check for actual attendance record first
+        if day_str in attendance_map:
+            full_history.append(attendance_map[day_str])
+            continue
+            
+        # Check for approved leave
+        on_leave = False
+        for leave in leave_records:
+            if leave.start_date <= day_str <= leave.end_date:
+                on_leave = True
+                full_history.append(Attendance(id=f"leave_{day_str}", employee_id=employee_id, date=day_str, status='On Leave'))
+                break
+        if on_leave:
+            continue
+
+        # Find the active work schedule for the day
+        active_schedule = None
+        for assignment in work_schedule_assignments:
+            if assignment.effective_from <= day_str and (not assignment.effective_to or assignment.effective_to >= day_str):
+                active_schedule = assignment.schedule
+                break
+
+        # Check for weekly rest day
+        if active_schedule:
+            try:
+                off_days = json.loads(active_schedule.weekly_off_days)
+                if day_weekday_str in off_days:
+                    full_history.append(Attendance(id=f"rest_{day_str}", employee_id=employee_id, date=day_str, status='Weekly Rest'))
+                    continue
+            except (json.JSONDecodeError, TypeError):
+                pass # If parsing fails, treat it as a workday
+
+        # If none of the above, mark as absent (if it's a workday)
+        if active_schedule:
+             full_history.append(Attendance(id=f"absent_{day_str}", employee_id=employee_id, date=day_str, status='Absent'))
+
     return jsonify({
         'employee': employee.to_dict(full=True),
-        'attendance': [a.to_dict() for a in attendance]
+        'attendance': [a.to_dict() for a in full_history]
     })
 
 
@@ -2418,6 +2484,7 @@ if __name__ == '__main__':
 
     
     
+
 
 
 

@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CalendarOff, Bed, UserCheck, UserX } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useParams, useRouter } from 'next/navigation';
 import type { Employee, Attendance } from '@/lib/types';
@@ -57,12 +57,14 @@ export default function EmployeeAttendanceHistoryPage() {
     }, [employeeId, router, toast]);
 
     const getStatusVariant = (status: string) => {
-        switch (status) {
-            case 'Absent': return 'destructive';
-            case 'Late': return 'secondary';
-            case 'Present': return 'default';
-            default: return 'outline';
-        }
+        const map: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
+            'Absent': 'destructive',
+            'Late': 'secondary',
+            'Present': 'default',
+            'On Leave': 'outline',
+            'Weekly Rest': 'outline',
+        };
+        return map[status] || 'outline';
     };
     
     const getStatusText = (status: string) => {
@@ -70,9 +72,22 @@ export default function EmployeeAttendanceHistoryPage() {
             'Present': 'حاضر',
             'Absent': 'غائب',
             'Late': 'متأخر',
-            'On Leave': 'إجازة'
+            'On Leave': 'إجازة',
+            'Weekly Rest': 'راحة أسبوعية'
         };
         return translations[status] || status;
+    };
+    
+    const getStatusIcon = (status: string) => {
+        const map: { [key: string]: React.ElementType } = {
+            'Present': UserCheck,
+            'Late': UserCheck,
+            'Absent': UserX,
+            'On Leave': CalendarOff,
+            'Weekly Rest': Bed,
+        };
+        const Icon = map[status] || UserCheck;
+        return <Icon className="h-4 w-4" />;
     };
 
     const calculateHours = (checkIn?: string | null, checkOut?: string | null) => {
@@ -86,7 +101,10 @@ export default function EmployeeAttendanceHistoryPage() {
             const hours = Math.floor(diff / 3600000);
             const minutes = Math.floor((diff % 3600000) / 60000);
             
-            return `${hours.toString().padStart(1, '0')}:${minutes.toString().padStart(2, '0')}`;
+            const hoursFormatted = hours.toString().padStart(1, '0');
+            const minutesFormatted = minutes.toString().padStart(2, '0');
+
+            return `${hoursFormatted}:${minutesFormatted}`;
         } catch (e) {
             return '-';
         }
@@ -137,13 +155,13 @@ export default function EmployeeAttendanceHistoryPage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>التاريخ</TableHead>
-                                <TableHead>اليوم</TableHead>
-                                <TableHead>الحالة</TableHead>
-                                <TableHead>وقت الدخول</TableHead>
-                                <TableHead>وقت الخروج</TableHead>
-                                <TableHead>ساعات العمل</TableHead>
-                                <TableHead>ملاحظات</TableHead>
+                                <TableHead className="text-right">التاريخ</TableHead>
+                                <TableHead className="text-right">اليوم</TableHead>
+                                <TableHead className="text-right">الحالة</TableHead>
+                                <TableHead className="text-right">وقت الدخول</TableHead>
+                                <TableHead className="text-right">وقت الخروج</TableHead>
+                                <TableHead className="text-right">ساعات العمل</TableHead>
+                                <TableHead className="text-right">ملاحظات</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -152,7 +170,12 @@ export default function EmployeeAttendanceHistoryPage() {
                                     <TableRow key={record.id}>
                                         <TableCell>{new Date(record.date).toLocaleDateString('ar-EG')}</TableCell>
                                         <TableCell>{getDayOfWeek(record.date)}</TableCell>
-                                        <TableCell><Badge variant={getStatusVariant(record.status)}>{getStatusText(record.status)}</Badge></TableCell>
+                                        <TableCell>
+                                            <Badge variant={getStatusVariant(record.status)} className="gap-1">
+                                                {getStatusIcon(record.status)}
+                                                {getStatusText(record.status)}
+                                            </Badge>
+                                        </TableCell>
                                         <TableCell>{record.check_in || '-'}</TableCell>
                                         <TableCell>{record.check_out || '-'}</TableCell>
                                         <TableCell>{calculateHours(record.check_in, record.check_out)}</TableCell>
