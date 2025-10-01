@@ -51,6 +51,21 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+const newApplicantDefaultValues = {
+  full_name: '',
+  email: '',
+  phone: '',
+  source: 'manual',
+  linkedin_url: '',
+  portfolio_url: '',
+  years_experience: undefined,
+  current_title: '',
+  current_company: '',
+  expected_salary: undefined,
+  cvFile: undefined,
+};
+
+
 const FileUploader = ({ control, index }: { control: any, index: number }) => {
     const [fileName, setFileName] = useState<string | null>(null);
     const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -119,7 +134,7 @@ export function AddApplicantDialog({ open, onOpenChange, jobId, onSuccess }: Add
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      applicants: [{ full_name: '', email: '', phone: '', source: 'manual', linkedin_url: '', portfolio_url: '' }],
+      applicants: [newApplicantDefaultValues],
     },
   });
 
@@ -184,13 +199,13 @@ export function AddApplicantDialog({ open, onOpenChange, jobId, onSuccess }: Add
   };
 
   const handleAddNewApplicant = () => {
-    append({ full_name: '', email: '', phone: '', source: 'manual', linkedin_url: '', portfolio_url: '' });
+    append(newApplicantDefaultValues);
   };
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
         if (!isOpen) {
-            form.reset({ applicants: [{ full_name: '', email: '', phone: '', source: 'manual', linkedin_url: '', portfolio_url: '' }] });
+            form.reset({ applicants: [newApplicantDefaultValues] });
         }
         onOpenChange(isOpen);
     }}>
@@ -277,8 +292,8 @@ export function AddApplicantDialog({ open, onOpenChange, jobId, onSuccess }: Add
 
                    <h4 className="font-semibold text-lg border-b pb-2 pt-4">تفاصيل إضافية (اختياري)</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField control={form.control} name={`applicants.${index}.years_experience`} render={({ field }) => (<FormItem><FormLabel>سنوات الخبرة</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name={`applicants.${index}.expected_salary`} render={({ field }) => (<FormItem><FormLabel>الراتب المتوقع</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name={`applicants.${index}.years_experience`} render={({ field }) => (<FormItem><FormLabel>سنوات الخبرة</FormLabel><FormControl><Input type="number" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name={`applicants.${index}.expected_salary`} render={({ field }) => (<FormItem><FormLabel>الراتب المتوقع</FormLabel><FormControl><Input type="number" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name={`applicants.${index}.current_title`} render={({ field }) => (<FormItem><FormLabel>المسمى الوظيفي الحالي</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name={`applicants.${index}.current_company`} render={({ field }) => (<FormItem><FormLabel>الشركة الحالية</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name={`applicants.${index}.linkedin_url`} render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>رابط ملف LinkedIn</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
@@ -304,5 +319,3 @@ export function AddApplicantDialog({ open, onOpenChange, jobId, onSuccess }: Add
     </Dialog>
   );
 }
-
-    

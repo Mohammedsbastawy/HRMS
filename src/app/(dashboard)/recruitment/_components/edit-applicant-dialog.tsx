@@ -169,5 +169,3 @@ export function EditApplicantDialog({ open, onOpenChange, applicant, onSuccess }
     </Dialog>
   );
 }
-
-    
