@@ -4,22 +4,21 @@
 import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Search, Loader2, LayoutGrid, List } from 'lucide-react';
+import { PlusCircle, Search, Loader2, LayoutGrid, List, Archive } from 'lucide-react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
-import type { Job, Applicant, Department } from '@/lib/types';
+import type { Job, Applicant } from '@/lib/types';
 import { JobPipeline } from './_components/job-pipeline';
-import { JobsTable } from './_components/jobs-table';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { EditApplicantDialog } from './_components/edit-applicant-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ArchiveView } from './_components/archive-view';
 
 
 export default function RecruitmentPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
   const { toast } = useToast();
@@ -56,7 +55,7 @@ export default function RecruitmentPage() {
   }, []);
 
   const handleActionComplete = () => {
-    fetchData(); // Refetch all data when an action is completed
+    fetchData();
   };
 
   const handleEditApplicant = (applicant: Applicant) => {
@@ -75,14 +74,6 @@ export default function RecruitmentPage() {
                 <CardDescription>عرض وإدارة الوظائف الشاغرة والمتقدمين لها.</CardDescription>
               </div>
               <div className='flex items-center gap-2'>
-                  <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value as any)} aria-label="View mode">
-                      <ToggleGroupItem value="board" aria-label="Board view">
-                          <LayoutGrid className="h-4 w-4" />
-                      </ToggleGroupItem>
-                      <ToggleGroupItem value="list" aria-label="List view">
-                          <List className="h-4 w-4" />
-                      </ToggleGroupItem>
-                  </ToggleGroup>
                   <Button asChild size="sm">
                       <Link href="/recruitment/new-job"><PlusCircle className="ml-2 h-4 w-4" /> إضافة وظيفة</Link>
                   </Button>
@@ -91,30 +82,45 @@ export default function RecruitmentPage() {
           </CardHeader>
         </Card>
         
-        {isLoading ? (
-          <div className="flex justify-center items-center h-64">
-            <Loader2 className="mx-auto h-12 w-12 animate-spin" />
-          </div>
-        ) : viewMode === 'board' ? (
-          <div className="flex gap-6 pb-4 overflow-x-auto">
-            {jobs.filter(j => j.status === 'Open').map(job => (
-              <JobPipeline
-                key={job.id}
-                job={job}
-                applicants={applicants.filter(a => a.job_id === job.id)}
-                onActionComplete={handleActionComplete}
-                onEditApplicant={handleEditApplicant}
-              />
-            ))}
-            {jobs.filter(j => j.status === 'Open').length === 0 && (
-               <div className="w-full text-center py-10 text-muted-foreground">
-                  لا توجد وظائف مفتوحة حاليًا.
-               </div>
-            )}
-          </div>
-        ) : (
-          <JobsTable jobs={jobs} />
-        )}
+        <Tabs defaultValue="active_jobs">
+            <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="active_jobs">
+                    <LayoutGrid className="ml-2 h-4 w-4" />
+                    الوظائف النشطة
+                </TabsTrigger>
+                <TabsTrigger value="archive">
+                    <Archive className="ml-2 h-4 w-4" />
+                    الأرشيف
+                </TabsTrigger>
+            </TabsList>
+            <TabsContent value="active_jobs">
+                {isLoading ? (
+                <div className="flex justify-center items-center h-64">
+                    <Loader2 className="mx-auto h-12 w-12 animate-spin" />
+                </div>
+                ) : (
+                <div className="space-y-6">
+                    {jobs.filter(j => j.status === 'Open').map(job => (
+                    <JobPipeline
+                        key={job.id}
+                        job={job}
+                        applicants={applicants.filter(a => a.job_id === job.id)}
+                        onActionComplete={handleActionComplete}
+                        onEditApplicant={handleEditApplicant}
+                    />
+                    ))}
+                    {jobs.filter(j => j.status === 'Open').length === 0 && (
+                    <div className="w-full text-center py-10 text-muted-foreground border rounded-lg bg-card">
+                        لا توجد وظائف مفتوحة حاليًا.
+                    </div>
+                    )}
+                </div>
+                )}
+            </TabsContent>
+            <TabsContent value="archive">
+                <ArchiveView />
+            </TabsContent>
+        </Tabs>
       </div>
 
       <EditApplicantDialog
@@ -129,5 +135,3 @@ export default function RecruitmentPage() {
     </>
   );
 }
-
-    

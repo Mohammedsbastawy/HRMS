@@ -662,11 +662,11 @@ class Job(db.Model):
     external_slug = db.Column(db.Text, unique=True)
     external_url = db.Column(db.Text)
     created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
+    close_reason = db.Column(db.Text)
     
     department = db.relationship('Department', backref='jobs', lazy=True)
     applicants = db.relationship('Applicant', backref='job', lazy='dynamic')
     
-
     def to_dict(self):
         return {
             'id': self.id,
@@ -677,7 +677,8 @@ class Job(db.Model):
             'hires_count': self.hires_count,
             'status': self.status,
             'created_at': self.created_at,
-            'applicants_count': self.applicants.count()
+            'applicants_count': self.applicants.count(),
+            'close_reason': self.close_reason
         }
 
 class Applicant(db.Model):
@@ -706,7 +707,10 @@ class Applicant(db.Model):
     __table_args__ = (db.UniqueConstraint('job_id', 'email', name='_job_email_uc'),)
 
     def to_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        if self.job:
+            data['job'] = {'title': self.job.title}
+        return data
 
 class DocumentType(db.Model):
     __tablename__ = 'document_types'
@@ -1351,9 +1355,33 @@ def handle_recruitment_jobs():
         log_action("إضافة وظيفة", f"تمت إضافة وظيفة شاغرة: {new_job.title}")
         return jsonify(new_job.to_dict()), 201
     
-    jobs = Job.query.options(db.joinedload(Job.department)).order_by(Job.created_at.desc()).all()
+    status_filter = request.args.get('status')
+    query = Job.query.options(db.joinedload(Job.department)).order_by(Job.created_at.desc())
+    
+    if status_filter:
+        query = query.filter(Job.status == status_filter)
+
+    jobs = query.all()
     return jsonify({'jobs': [j.to_dict() for j in jobs]})
 
+
+@app.route("/api/recruitment/jobs/<int:id>/status", methods=['PUT'])
+@jwt_required()
+def update_job_status(id):
+    job = Job.query.get_or_404(id)
+    data = request.get_json()
+    new_status = data.get('status')
+    
+    if new_status not in ['Open', 'On-Hold', 'Closed']:
+        return jsonify({'message': 'حالة غير صالحة'}), 400
+
+    job.status = new_status
+    if new_status == 'Closed':
+        job.close_reason = data.get('close_reason', 'تم الإغلاق يدويًا')
+
+    db.session.commit()
+    log_action("تحديث حالة الوظيفة", f"تم تغيير حالة الوظيفة {job.title} إلى {new_status}")
+    return jsonify(job.to_dict())
 
 @app.route("/api/recruitment/applicants", methods=['GET', 'POST'])
 @jwt_required()
@@ -1362,7 +1390,6 @@ def handle_applicants():
         if 'full_name' not in request.form or 'email' not in request.form:
             return jsonify({'message': 'الاسم والبريد الإلكتروني مطلوبان'}), 400
         
-        # Simple validation for email format
         email = request.form['email']
         if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
             return jsonify({'message': 'صيغة البريد الإلكتروني غير صالحة'}), 400
@@ -1385,11 +1412,9 @@ def handle_applicants():
             file = request.files['cv_file']
             if file.filename != '':
                 filename = secure_filename(file.filename)
-                # Create a subdirectory for the job_id if it doesn't exist
                 job_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'applicants', str(new_applicant.job_id))
                 os.makedirs(job_upload_folder, exist_ok=True)
                 
-                # Prepend employee ID to filename to ensure uniqueness
                 unique_filename = f"{new_applicant.full_name.replace(' ', '_')}_{filename}"
                 file_path = os.path.join(job_upload_folder, unique_filename)
                 
@@ -1402,7 +1427,12 @@ def handle_applicants():
         log_action("إضافة متقدم", f"تمت إضافة متقدم جديد: {new_applicant.full_name} للوظيفة ID {new_applicant.job_id}")
         return jsonify(new_applicant.to_dict()), 201
 
-    applicants = Applicant.query.order_by(Applicant.created_at.desc()).all()
+    stage_filter = request.args.get('stage')
+    query = Applicant.query.options(db.joinedload(Applicant.job)).order_by(Applicant.created_at.desc())
+    if stage_filter:
+        query = query.filter(Applicant.stage == stage_filter)
+
+    applicants = query.all()
     return jsonify({'applicants': [a.to_dict() for a in applicants]})
 
 
@@ -1433,10 +1463,8 @@ def handle_applicant(id):
         return jsonify(applicant.to_dict())
 
     if request.method == 'DELETE':
-        # Optional: Delete CV file from disk
         if applicant.cv_path:
             try:
-                # Use a safe path join and ensure it's within the upload folder
                 full_path = os.path.abspath(os.path.join(app.config['UPLOAD_FOLDER'], applicant.cv_path))
                 if full_path.startswith(os.path.abspath(app.config['UPLOAD_FOLDER'])):
                     os.remove(full_path)
@@ -1469,25 +1497,26 @@ def hire_applicant(id):
     applicant = Applicant.query.get_or_404(id)
     job = Job.query.get_or_404(applicant.job_id)
     
-    # Check if already hired
     if applicant.stage == 'Hired':
         return jsonify({'message': 'المتقدم تم توظيفه بالفعل'}), 409
     
-    # Check if already exists as employee
     if Employee.query.filter_by(email=applicant.email).first():
         return jsonify({'message': 'يوجد موظف بنفس البريد الإلكتروني بالفعل'}), 409
 
     try:
+        job_title = JobTitle.query.filter(JobTitle.title_ar.ilike(f'%{job.title}%'), JobTitle.department_id == job.dept_id).first()
+        job_title_id = job_title.id if job_title else None
+
         new_employee = Employee(
             full_name=applicant.full_name,
             email=applicant.email,
             phone=applicant.phone,
             department_id=job.dept_id,
-            job_title_id=JobTitle.query.filter_by(title_ar=job.title, department_id=job.dept_id).first().id, # Best effort guess
+            job_title_id=job_title_id,
             status='PendingOnboarding'
         )
         db.session.add(new_employee)
-        db.session.flush() # to get the new employee id
+        db.session.flush()
 
         onboarding_record = OnboardingRecord(
             employee_id=new_employee.id,
@@ -1500,10 +1529,9 @@ def hire_applicant(id):
         job.hires_count = (job.hires_count or 0) + 1
         if job.hires_count >= job.openings:
             job.status = 'Closed'
+            job.close_reason = 'تم ملء جميع الشواغر'
 
-        # Optional: copy CV
         if applicant.cv_path:
-            # This is a simplified copy. A real implementation might move the file or create a reference.
             doc_type_cv = DocumentType.query.filter_by(code='CV').first()
             if doc_type_cv:
                 emp_doc = EmployeeDocument(
@@ -1514,6 +1542,9 @@ def hire_applicant(id):
                     status='Uploaded'
                 )
                 db.session.add(emp_doc)
+        
+        event = EmployeeEvent(employee_id=new_employee.id, event='HIRED', created_by=int(get_jwt_identity()))
+        db.session.add(event)
         
         db.session.commit()
         

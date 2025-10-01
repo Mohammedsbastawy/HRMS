@@ -3,6 +3,7 @@
 
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -52,7 +53,7 @@ export type Employee = {
   bank_account_number?: string | null;
   tax_number?: string | null;
   social_insurance_number?: string | null;
-  status?: 'Active' | 'Resigned' | 'Terminated';
+  status?: 'Active' | 'Resigned' | 'Terminated' | 'PendingOnboarding';
   avatar?: string;
   department?: Partial<Department>; // For UI display
   jobTitle?: Partial<JobTitle>; // For UI display
@@ -143,6 +144,7 @@ export type Job = {
   created_at: string;
   department?: { name_ar: string }; // For UI
   applicants_count?: number; // For UI
+  close_reason?: string;
 };
 
 
@@ -343,5 +345,17 @@ export type WorkSchedule = {
     active: boolean;
     created_at?: string;
     days?: WorkScheduleDay[];
+};
+
+export type OnboardingRecord = {
+    id: number;
+    employee_id: number;
+    status: 'Draft' | 'InProgress' | 'Completed' | 'Cancelled';
+};
+
+export type EmployeeEvent = {
+    id: number;
+    employee_id: number;
+    event: string;
 };
 
