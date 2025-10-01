@@ -192,8 +192,22 @@ export function WorkScheduleFormDialog({ open, onOpenChange, onSuccess, schedule
                 <Label className="font-semibold text-base">ساعات العمل اليومية</Label>
                  <div className="grid grid-cols-12 items-center gap-x-4 gap-y-2 px-2 text-xs text-muted-foreground">
                     <div className="col-span-2">اليوم</div>
-                    <div className="col-span-5 text-center">وقت الدوام</div>
-                    <div className="col-span-5 text-center">فترة الراحة</div>
+                    <div className="col-span-5 text-center">
+                        <p>وقت الدوام</p>
+                        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1">
+                           <span className="text-center">من</span>
+                           <span></span>
+                           <span className="text-center">إلى</span>
+                        </div>
+                    </div>
+                    <div className="col-span-5 text-center">
+                        <p>فترة الراحة</p>
+                         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1">
+                           <span className="text-center">من</span>
+                           <span></span>
+                           <span className="text-center">إلى</span>
+                        </div>
+                    </div>
                 </div>
                 {fields.map((field, index) => {
                     const dayKey = field.weekday as keyof typeof WEEKDAYS_AR;
@@ -218,15 +232,15 @@ export function WorkScheduleFormDialog({ open, onOpenChange, onSuccess, schedule
                             </div>
 
                              <div className="col-span-5 grid grid-cols-[1fr_auto_1fr] items-center gap-1">
-                                <Controller name={`days.${index}.start_time`} control={control} render={({ field }) => <TimePicker {...field} value={field.value || '00:00'} />} />
+                                <Controller name={`days.${index}.start_time`} control={control} render={({ field }) => <TimePicker {...field} value={field.value || '00:00'} disabled={isOff} />} />
                                 <span>-</span>
-                                <Controller name={`days.${index}.end_time`} control={control} render={({ field }) => <TimePicker {...field} value={field.value || '00:00'} />} />
+                                <Controller name={`days.${index}.end_time`} control={control} render={({ field }) => <TimePicker {...field} value={field.value || '00:00'} disabled={isOff} />} />
                             </div>
 
                             <div className="col-span-5 grid grid-cols-[1fr_auto_1fr] items-center gap-1">
-                                <Controller name={`days.${index}.break_start`} control={control} render={({ field }) => <TimePicker {...field} value={field.value || '00:00'} />} />
+                                <Controller name={`days.${index}.break_start`} control={control} render={({ field }) => <TimePicker {...field} value={field.value || '00:00'} disabled={isOff} />} />
                                 <span>-</span>
-                                <Controller name={`days.${index}.break_end`} control={control} render={({ field }) => <TimePicker {...field} value={field.value || '00:00'} />} />
+                                <Controller name={`days.${index}.break_end`} control={control} render={({ field }) => <TimePicker {...field} value={field.value || '00:00'} disabled={isOff} />} />
                             </div>
                         </div>
                     );
