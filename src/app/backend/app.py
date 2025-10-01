@@ -12,6 +12,7 @@ from collections import defaultdict
 from sqlalchemy import func, inspect, CheckConstraint, Time, Date, cast, text
 from werkzeug.utils import secure_filename
 import re
+from sqlalchemy.exc import IntegrityError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -1387,48 +1388,58 @@ def update_job_status(id):
 @jwt_required()
 def handle_applicants():
     if request.method == 'POST':
-        if 'full_name' not in request.form or 'email' not in request.form:
-            return jsonify({'message': 'الاسم والبريد الإلكتروني مطلوبان'}), 400
-        
-        email = request.form['email']
-        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-            return jsonify({'message': 'صيغة البريد الإلكتروني غير صالحة'}), 400
-        
-        years_experience_val = request.form.get('years_experience')
-        expected_salary_val = request.form.get('expected_salary')
+        try:
+            if 'full_name' not in request.form or 'email' not in request.form:
+                return jsonify({'message': 'الاسم والبريد الإلكتروني مطلوبان'}), 400
+            
+            email = request.form['email']
+            if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+                return jsonify({'message': 'صيغة البريد الإلكتروني غير صالحة'}), 400
+            
+            years_experience_val = request.form.get('years_experience')
+            expected_salary_val = request.form.get('expected_salary')
 
-        new_applicant = Applicant(
-            job_id=request.form['job_id'],
-            full_name=request.form['full_name'],
-            email=email,
-            phone=request.form.get('phone'),
-            source=request.form.get('source', 'manual'),
-            years_experience=int(years_experience_val) if years_experience_val else None,
-            current_title=request.form.get('current_title'),
-            current_company=request.form.get('current_company'),
-            expected_salary=float(expected_salary_val) if expected_salary_val else None,
-            linkedin_url=request.form.get('linkedin_url'),
-            portfolio_url=request.form.get('portfolio_url')
-        )
+            new_applicant = Applicant(
+                job_id=request.form['job_id'],
+                full_name=request.form['full_name'],
+                email=email,
+                phone=request.form.get('phone'),
+                source=request.form.get('source', 'manual'),
+                years_experience=int(years_experience_val) if years_experience_val else None,
+                current_title=request.form.get('current_title'),
+                current_company=request.form.get('current_company'),
+                expected_salary=float(expected_salary_val) if expected_salary_val else None,
+                linkedin_url=request.form.get('linkedin_url'),
+                portfolio_url=request.form.get('portfolio_url')
+            )
 
-        if 'cv_file' in request.files:
-            file = request.files['cv_file']
-            if file.filename != '':
-                filename = secure_filename(file.filename)
-                job_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'applicants', str(new_applicant.job_id))
-                os.makedirs(job_upload_folder, exist_ok=True)
-                
-                unique_filename = f"{new_applicant.full_name.replace(' ', '_')}_{filename}"
-                file_path = os.path.join(job_upload_folder, unique_filename)
-                
-                file.save(file_path)
-                new_applicant.cv_path = os.path.join('applicants', str(new_applicant.job_id), unique_filename)
+            if 'cv_file' in request.files:
+                file = request.files['cv_file']
+                if file.filename != '':
+                    filename = secure_filename(file.filename)
+                    job_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'applicants', str(new_applicant.job_id))
+                    os.makedirs(job_upload_folder, exist_ok=True)
+                    
+                    unique_filename = f"{new_applicant.full_name.replace(' ', '_')}_{filename}"
+                    file_path = os.path.join(job_upload_folder, unique_filename)
+                    
+                    file.save(file_path)
+                    new_applicant.cv_path = os.path.join('applicants', str(new_applicant.job_id), unique_filename)
 
 
-        db.session.add(new_applicant)
-        db.session.commit()
-        log_action("إضافة متقدم", f"تمت إضافة متقدم جديد: {new_applicant.full_name} للوظيفة ID {new_applicant.job_id}")
-        return jsonify(new_applicant.to_dict()), 201
+            db.session.add(new_applicant)
+            db.session.commit()
+            log_action("إضافة متقدم", f"تمت إضافة متقدم جديد: {new_applicant.full_name} للوظيفة ID {new_applicant.job_id}")
+            return jsonify(new_applicant.to_dict()), 201
+
+        except IntegrityError as e:
+            db.session.rollback()
+            app.logger.error(f"Integrity error adding applicant: {e}")
+            return jsonify({"message": "هذا المتقدم مسجل بالفعل في هذه الوظيفة."}), 409
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error adding applicant: {e}")
+            return jsonify({"message": f"حدث خطأ غير متوقع: {str(e)}"}), 500
 
     stage_filter = request.args.get('stage')
     query = Applicant.query.options(db.joinedload(Applicant.job)).order_by(Applicant.created_at.desc())
