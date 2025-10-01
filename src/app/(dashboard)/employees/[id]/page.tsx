@@ -169,11 +169,11 @@ export default function EmployeeProfilePage() {
                              <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>النوع</TableHead>
-                                        <TableHead>التاريخ</TableHead>
-                                        <TableHead>المدة</TableHead>
-                                        <TableHead>السبب/الملاحظات</TableHead>
-                                        <TableHead>الحالة</TableHead>
+                                        <TableHead className="text-right">النوع</TableHead>
+                                        <TableHead className="text-right">التاريخ</TableHead>
+                                        <TableHead className="text-right">المدة</TableHead>
+                                        <TableHead className="text-right">السبب/الملاحظات</TableHead>
+                                        <TableHead className="text-right">الحالة</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
