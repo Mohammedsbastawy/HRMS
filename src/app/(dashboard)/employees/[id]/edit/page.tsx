@@ -13,15 +13,9 @@ import { EmployeeForm } from "../../new/_components/employee-form";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 
-interface EditEmployeePageProps {
-    params: {
-        id: string;
-    }
-}
-
-export default function EditEmployeePage({ params }: EditEmployeePageProps) {
+export default function EditEmployeePage() {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [jobTitles, setJobTitles] = useState<JobTitle[]>([]);
@@ -30,8 +24,11 @@ export default function EditEmployeePage({ params }: EditEmployeePageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const router = useRouter();
+  const params = useParams();
+  const id = params.id as string;
   
   const fetchFormData = useCallback(async () => {
+    if (!id) return;
     setIsLoading(true);
     try {
         const token = localStorage.getItem('authToken');
@@ -42,11 +39,11 @@ export default function EditEmployeePage({ params }: EditEmployeePageProps) {
         const headers = { 'Authorization': `Bearer ${token}` };
 
         const [employeeRes, deptsRes, jobsRes, locsRes, mgrsRes] = await Promise.all([
-            fetch(`/api/employees/${params.id}`, { headers }),
+            fetch(`/api/employees/${id}`, { headers }),
             fetch('/api/departments', { headers }),
             fetch('/api/job-titles', { headers }),
             fetch('/api/locations', { headers }),
-            fetch(`/api/employees?is_manager=true&exclude_id=${params.id}`, { headers }),
+            fetch(`/api/employees?is_manager=true&exclude_id=${id}`, { headers }),
         ]);
 
         const responses = [employeeRes, deptsRes, jobsRes, locsRes, mgrsRes];
@@ -81,7 +78,7 @@ export default function EditEmployeePage({ params }: EditEmployeePageProps) {
       } finally {
         setIsLoading(false);
       }
-  }, [params.id, toast, router]);
+  }, [id, toast, router]);
 
   useEffect(() => {
     fetchFormData();
