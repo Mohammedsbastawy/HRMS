@@ -12,7 +12,7 @@ import { MonthlyCalendar } from './_components/monthly-calendar';
 import { ExceptionsQueue } from './_components/exceptions-queue';
 import { CorrectionsView } from './_components/corrections-view';
 import { OvertimeView } from './_components/overtime-view';
-import { ShiftsRostering } from './_components/shifts-rostering';
+import { ShiftsAndRostering } from './_components/shifts-rostering';
 import { DevicesImport } from './_components/devices-import';
 import { useToast } from '@/components/ui/use-toast';
 import { useRouter } from 'next/navigation';
@@ -114,7 +114,7 @@ export default function AttendancePage() {
           <TabsTrigger value="exceptions">الاستثناءات</TabsTrigger>
           <TabsTrigger value="corrections">التصحيحات</TabsTrigger>
           <TabsTrigger value="overtime">الإضافي</TabsTrigger>
-          <TabsTrigger value="shifts">الورديات</TabsTrigger>
+          <TabsTrigger value="shifts">الورديات والجداول</TabsTrigger>
           <TabsTrigger value="devices">الأجهزة</TabsTrigger>
         </TabsList>
         
@@ -137,7 +137,7 @@ export default function AttendancePage() {
           <OvertimeView />
         </TabsContent>
         <TabsContent value="shifts">
-          <ShiftsRostering />
+          <ShiftsAndRostering />
         </TabsContent>
         <TabsContent value="devices">
           <DevicesImport />

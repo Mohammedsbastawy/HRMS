@@ -11,10 +11,11 @@ import { useToast } from '@/components/ui/use-toast';
 import { useRouter } from 'next/navigation';
 import { ShiftFormDialog } from './shift-form-dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import type { Shift } from '@/lib/types';
+import type { Shift, WorkSchedule } from '@/lib/types';
+import { WorkSchedules } from '../../settings/_components/work-schedules';
 
 
-export function ShiftsRostering() {
+function ShiftsCatalog() {
     const [shifts, setShifts] = useState<Shift[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -98,6 +99,20 @@ export function ShiftsRostering() {
       const [hours, minutes] = timeStr.split(':');
       return `${hours}:${minutes}`;
     }
+    
+    const getTimeDisplay = (shift: Shift) => {
+        if (shift.type === 'fixed' || shift.type === 'night') {
+            return `${formatTime(shift.start_time)} - ${formatTime(shift.end_time)}`;
+        }
+        if (shift.type === 'flex') {
+            return `${shift.total_hours} ساعات`;
+        }
+        if (shift.type === 'split' && shift.periods && shift.periods.length > 0) {
+            return shift.periods.map(p => `${formatTime(p.start_time)}-${formatTime(p.end_time)}`).join(' | ');
+        }
+        return '-';
+    }
+
 
     return (
         <>
@@ -106,7 +121,7 @@ export function ShiftsRostering() {
                     <div className="flex items-center justify-between">
                         <div>
                             <CardTitle>كتالوج الورديات</CardTitle>
-                            <CardDescription>إدارة الورديات (صباحي، مسائي، ليلي...) وتعيينها للموظفين.</CardDescription>
+                            <CardDescription>إدارة الورديات (صباحي، مسائي، مرنة...) وتعيينها للموظفين.</CardDescription>
                         </div>
                         <Button size="sm" onClick={handleAddClick}>
                             <PlusCircle className="ml-2 h-4 w-4" />
@@ -120,7 +135,7 @@ export function ShiftsRostering() {
                             <TableRow>
                                 <TableHead>الاسم</TableHead>
                                 <TableHead>النوع</TableHead>
-                                <TableHead>الوقت</TableHead>
+                                <TableHead>الوقت / المدة</TableHead>
                                 <TableHead>الراحة (د)</TableHead>
                                 <TableHead>الحالة</TableHead>
                                 <TableHead>إجراءات</TableHead>
@@ -136,7 +151,7 @@ export function ShiftsRostering() {
                                     <TableRow key={shift.id}>
                                         <TableCell className="font-medium">{shift.name}</TableCell>
                                         <TableCell>{typeTranslations[shift.type] || shift.type}</TableCell>
-                                        <TableCell dir="ltr" className="text-right">{formatTime(shift.start_time)} - {formatTime(shift.end_time)}</TableCell>
+                                        <TableCell dir="ltr" className="text-right">{getTimeDisplay(shift)}</TableCell>
                                         <TableCell>{shift.break_minutes}</TableCell>
                                         <TableCell>
                                             <Badge variant={shift.active ? 'default' : 'secondary'}>
@@ -186,4 +201,14 @@ export function ShiftsRostering() {
             </AlertDialog>
         </>
     );
+}
+
+
+export function ShiftsAndRostering() {
+    return (
+        <div className="space-y-8">
+            <ShiftsCatalog />
+            <WorkSchedules />
+        </div>
+    )
 }
