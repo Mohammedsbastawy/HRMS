@@ -13,24 +13,28 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { Loader2, PlusCircle, Edit, Trash2, Users } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import type { WorkSchedule } from '@/lib/types';
+import type { Employee, WorkSchedule } from '@/lib/types';
 import { WorkScheduleFormDialog } from './work-schedule-form';
 import { useRouter } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { EmployeeAssignmentDialog } from './employee-assignment-dialog';
+
 
 export function WorkSchedules() {
   const [schedules, setSchedules] = useState<WorkSchedule[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const router = useRouter();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
+  const [isAssignmentOpen, setIsAssignmentOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<WorkSchedule | null>(null);
 
-  const fetchSchedules = async () => {
+  const fetchData = async () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('authToken');
@@ -38,17 +42,24 @@ export function WorkSchedules() {
         router.push('/login');
         return;
       }
-      const response = await fetch('/api/work-schedules', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.status === 401) {
+      const headers = { 'Authorization': `Bearer ${token}` };
+      const [schedulesRes, employeesRes] = await Promise.all([
+        fetch('/api/work-schedules', { headers }),
+        fetch('/api/employees?status=Active', { headers })
+      ]);
+      
+      if (schedulesRes.status === 401 || employeesRes.status === 401) {
         toast({ variant: 'destructive', title: 'الجلسة منتهية' });
         router.push('/login');
         return;
       }
-      if (!response.ok) throw new Error('فشل في جلب جداول العمل');
-      const data = await response.json();
-      setSchedules(data || []);
+      if (!schedulesRes.ok) throw new Error('فشل في جلب جداول العمل');
+      if (!employeesRes.ok) throw new Error('فشل في جلب الموظفين');
+
+      const schedulesData = await schedulesRes.json();
+      const employeesData = await employeesRes.json();
+      setSchedules(schedulesData || []);
+      setEmployees(employeesData.employees || []);
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'خطأ', description: error.message });
     } finally {
@@ -57,7 +68,7 @@ export function WorkSchedules() {
   };
 
   useEffect(() => {
-    fetchSchedules();
+    fetchData();
   }, []);
 
   const handleAddClick = () => {
@@ -66,7 +77,6 @@ export function WorkSchedules() {
   };
   
   const handleEditClick = async (schedule: WorkSchedule) => {
-    // Fetch full schedule with days
      const token = localStorage.getItem('authToken');
      const response = await fetch(`/api/work-schedules/${schedule.id}`, {
          headers: { 'Authorization': `Bearer ${token}` }
@@ -80,10 +90,16 @@ export function WorkSchedules() {
     setSelectedSchedule(schedule);
     setIsDeleteAlertOpen(true);
   };
+  
+  const handleAssignClick = (schedule: WorkSchedule) => {
+    setSelectedSchedule(schedule);
+    setIsAssignmentOpen(true);
+  };
 
   const handleFormSuccess = () => {
     setIsFormOpen(false);
-    fetchSchedules();
+    setIsAssignmentOpen(false);
+    fetchData();
   };
   
   const confirmDelete = async () => {
@@ -96,13 +112,27 @@ export function WorkSchedules() {
         });
         if (!response.ok) throw new Error('فشل حذف الوردية');
         toast({ title: 'تم الحذف بنجاح' });
-        fetchSchedules();
+        fetchData();
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'خطأ', description: error.message });
     } finally {
         setIsDeleteAlertOpen(false);
     }
   };
+
+  const WEEKDAYS_AR: { [key: string]: string } = {
+    Sat: 'السبت', Sun: 'الأحد', Mon: 'الاثنين', Tue: 'الثلاثاء', 
+    Wed: 'الأربعاء', Thu: 'الخميس', Fri: 'الجمعة'
+  };
+
+  const formatOffDays = (daysJson: string) => {
+    try {
+      const days: string[] = JSON.parse(daysJson);
+      return days.map(day => WEEKDAYS_AR[day] || day).join('، ');
+    } catch (e) {
+      return '-';
+    }
+  }
 
   return (
     <>
@@ -127,6 +157,7 @@ export function WorkSchedules() {
               <TableRow>
                 <TableHead className="text-right">الاسم</TableHead>
                 <TableHead className="text-right">الإجازة الأسبوعية</TableHead>
+                <TableHead className="text-right">الموظفون المسكنون</TableHead>
                 <TableHead className="text-right">الحالة</TableHead>
                 <TableHead className="text-right">إجراءات</TableHead>
               </TableRow>
@@ -134,22 +165,27 @@ export function WorkSchedules() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center">
                     <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                   </TableCell>
                 </TableRow>
               ) : schedules.length > 0 ? (
                 schedules.map(s => (
                   <TableRow key={s.id}>
-                    <TableCell className="font-medium text-right">{s.name}</TableCell>
-                    <TableCell className="text-right">{s.weekly_off_days ? JSON.parse(s.weekly_off_days).join(', ') : '-'}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="font-medium">{s.name}</TableCell>
+                    <TableCell>{formatOffDays(s.weekly_off_days)}</TableCell>
+                    <TableCell>{s.assigned_employees_count ?? 0}</TableCell>
+                    <TableCell>
                       <Badge variant={s.active ? 'default' : 'secondary'}>
                         {s.active ? 'نشطة' : 'غير نشطة'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                    <TableCell>
+                        <div className="flex justify-end gap-1">
+                             <Button variant="outline" size="sm" onClick={() => handleAssignClick(s)}>
+                                <Users className="ml-2 h-4 w-4" />
+                                تسكين
+                            </Button>
                             <Button variant="ghost" size="icon" onClick={() => handleEditClick(s)}>
                                 <Edit className="h-4 w-4" />
                             </Button>
@@ -162,7 +198,7 @@ export function WorkSchedules() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center">
                     لا توجد ورديات معرفة. ابدأ بإضافة وردية جديدة.
                   </TableCell>
                 </TableRow>
@@ -179,6 +215,16 @@ export function WorkSchedules() {
         schedule={selectedSchedule}
       />
       
+      {selectedSchedule && (
+        <EmployeeAssignmentDialog
+          open={isAssignmentOpen}
+          onOpenChange={setIsAssignmentOpen}
+          onSuccess={handleFormSuccess}
+          schedule={selectedSchedule}
+          employees={employees}
+        />
+      )}
+
       <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
         <AlertDialogContent>
             <AlertDialogHeader>

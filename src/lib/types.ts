@@ -4,6 +4,7 @@
 
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -345,6 +346,7 @@ export type WorkSchedule = {
     active: boolean;
     created_at?: string;
     days?: WorkScheduleDay[];
+    assigned_employees_count?: number;
 };
 
 export type OnboardingRecord = {
@@ -359,3 +361,10 @@ export type EmployeeEvent = {
     event: string;
 };
 
+export type EmployeeWorkSchedule = {
+    id: number;
+    employee_id: number;
+    schedule_id: number;
+    effective_from: string;
+    effective_to?: string | null;
+};

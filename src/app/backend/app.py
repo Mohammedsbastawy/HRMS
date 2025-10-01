@@ -219,6 +219,7 @@ class WorkSchedule(db.Model):
 
     def to_dict(self, include_days=False):
         d = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        d['assigned_employees_count'] = EmployeeWorkSchedule.query.filter_by(schedule_id=self.id).count()
         if isinstance(d.get('created_at'), datetime):
             d['created_at'] = d['created_at'].isoformat()
         if include_days:
@@ -680,7 +681,8 @@ class Job(db.Model):
             'status': self.status,
             'created_at': self.created_at,
             'applicants_count': self.applicants.count(),
-            'close_reason': self.close_reason
+            'close_reason': self.close_reason,
+            'location': self.location,
         }
 
 class Applicant(db.Model):
@@ -1022,7 +1024,10 @@ def handle_employees():
         return jsonify({"employees": [{'id': e.id, 'full_name': e.full_name} for e in employees]})
 
     if status_arg:
-        query = query.filter(Employee.status == status_arg)
+        if status_arg == "TerminatedOrResigned":
+            query = query.filter(Employee.status.in_(['Terminated', 'Resigned']))
+        else:
+            query = query.filter(Employee.status == status_arg)
     
     employees = query.order_by(Employee.created_at.desc()).all()
     return jsonify({"employees": [e.to_dict() for e in employees]})
@@ -2351,7 +2356,31 @@ def handle_work_schedule(id):
         log_action("حذف جدول عمل", f"تم حذف جدول العمل: {schedule.name}")
         return jsonify({'message': 'Work schedule deleted successfully'})
 
+@app.route('/api/employee-work-schedules/assign', methods=['POST'])
+@jwt_required()
+def assign_employee_schedules():
+    data = request.get_json()
+    schedule_id = data.get('schedule_id')
+    employee_ids = data.get('employee_ids')
+    effective_from = data.get('effective_from')
+    effective_to = data.get('effective_to')
 
+    if not all([schedule_id, employee_ids, effective_from]):
+        return jsonify({"message": "بيانات غير مكتملة"}), 400
+
+    for emp_id in employee_ids:
+        # A more robust implementation would check for overlapping schedules
+        assignment = EmployeeWorkSchedule(
+            employee_id=emp_id,
+            schedule_id=schedule_id,
+            effective_from=effective_from,
+            effective_to=effective_to if effective_to else None
+        )
+        db.session.add(assignment)
+    
+    db.session.commit()
+    log_action("تسكين موظفين على وردية", f"تم تسكين {len(employee_ids)} موظف/موظفين على الوردية ID {schedule_id}")
+    return jsonify({"message": "تم تسكين الموظفين بنجاح."}), 201
 
 # --- App Context and DB Initialization ---
 def create_initial_admin_user():
@@ -2389,5 +2418,6 @@ if __name__ == '__main__':
 
     
     
+
 
 
