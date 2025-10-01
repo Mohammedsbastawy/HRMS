@@ -32,13 +32,13 @@ interface EditApplicantDialogProps {
 const applicantSchema = z.object({
   full_name: z.string().min(2, { message: 'الاسم الكامل مطلوب' }),
   email: z.string().email({ message: 'بريد إلكتروني غير صالح' }),
-  phone: z.string().optional(),
+  phone: z.string().optional().or(z.literal('')),
   source: z.string().default('manual'),
   linkedin_url: z.string().url({ message: 'رابط LinkedIn غير صالح' }).optional().or(z.literal('')),
   portfolio_url: z.string().url({ message: 'رابط معرض الأعمال غير صالح' }).optional().or(z.literal('')),
   years_experience: z.coerce.number().optional(),
-  current_title: z.string().optional(),
-  current_company: z.string().optional(),
+  current_title: z.string().optional().or(z.literal('')),
+  current_company: z.string().optional().or(z.literal('')),
   expected_salary: z.coerce.number().optional(),
   cvFile: z.instanceof(File).optional(),
 });
@@ -50,6 +50,18 @@ export function EditApplicantDialog({ open, onOpenChange, applicant, onSuccess }
 
   const form = useForm<FormValues>({
     resolver: zodResolver(applicantSchema),
+    defaultValues: {
+        full_name: '',
+        email: '',
+        phone: '',
+        source: 'manual',
+        linkedin_url: '',
+        portfolio_url: '',
+        years_experience: undefined,
+        current_title: '',
+        current_company: '',
+        expected_salary: undefined,
+      },
   });
 
   useEffect(() => {
@@ -82,7 +94,7 @@ export function EditApplicantDialog({ open, onOpenChange, applicant, onSuccess }
         const formData = new FormData();
         // Append all form data fields
         Object.entries(data).forEach(([key, value]) => {
-            if (value !== undefined && value !== null && key !== 'cvFile') {
+            if (value !== undefined && value !== null && value !== '' && key !== 'cvFile') {
                 formData.append(key, String(value));
             }
         });
@@ -105,7 +117,12 @@ export function EditApplicantDialog({ open, onOpenChange, applicant, onSuccess }
       toast({ title: `تم تعديل بيانات ${data.full_name} بنجاح` });
       onSuccess();
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'خطأ', description: error.message });
+      toast({ 
+          variant: 'destructive', 
+          title: 'خطأ', 
+          description: error.message,
+          details: error.details || error
+      });
     }
   };
 

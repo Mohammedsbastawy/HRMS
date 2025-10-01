@@ -51,7 +51,7 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-const newApplicantDefaultValues = {
+const newApplicantDefaultValues: z.infer<typeof applicantSchema> = {
   full_name: '',
   email: '',
   phone: '',
@@ -162,7 +162,7 @@ export function AddApplicantDialog({ open, onOpenChange, jobId, onSuccess }: Add
             formData.append('phone', applicantData.phone || '');
             formData.append('source', applicantData.source || 'manual');
             
-            // Add optional fields
+            // Add optional fields only if they have a value
             if (applicantData.years_experience) formData.append('years_experience', String(applicantData.years_experience));
             if (applicantData.current_title) formData.append('current_title', applicantData.current_title);
             if (applicantData.current_company) formData.append('current_company', applicantData.current_company);
@@ -192,7 +192,12 @@ export function AddApplicantDialog({ open, onOpenChange, jobId, onSuccess }: Add
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'خطأ', description: error.message });
+      toast({
+        variant: 'destructive',
+        title: 'خطأ',
+        description: error.message,
+        details: error.details || error
+      });
     } finally {
       setIsSubmitting(false);
     }

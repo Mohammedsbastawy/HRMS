@@ -86,7 +86,12 @@ export function ApplicantCard({ applicant, onActionComplete, onEdit }: Applicant
       }
 
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'خطأ', description: error.message });
+      toast({ 
+          variant: 'destructive',
+          title: 'خطأ',
+          description: error.message,
+          details: error.details || error
+      });
     } finally {
       if (action === 'delete') setIsDeleteAlertOpen(false);
     }
