@@ -2,6 +2,7 @@
 
 
 
+
 // Base types derived from the SQLite schema
 
 export type Department = {
@@ -323,3 +324,24 @@ export type Shift = {
     active: boolean;
     periods?: ShiftPeriod[];
 };
+
+export type WorkScheduleDay = {
+    id?: number;
+    weekday: string;
+    enabled: boolean;
+    start_time: string | null;
+    end_time: string | null;
+    break_start: string | null;
+    break_end: string | null;
+};
+
+export type WorkSchedule = {
+    id: number;
+    name: string;
+    description: string | null;
+    weekly_off_days: string; // JSON array of weekdays
+    active: boolean;
+    created_at?: string;
+    days?: WorkScheduleDay[];
+};
+

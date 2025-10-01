@@ -203,6 +203,54 @@ class Employee(db.Model):
 
 # --- Attendance & Timesheets Models ---
 
+class WorkSchedule(db.Model):
+    __tablename__ = 'work_schedules'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, unique=True, nullable=False)
+    description = db.Column(db.Text)
+    weekly_off_days = db.Column(db.String) # JSON array
+    active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    days = db.relationship('WorkScheduleDay', backref='schedule', lazy='dynamic', cascade="all, delete-orphan")
+
+    def to_dict(self, include_days=False):
+        d = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        if isinstance(d.get('created_at'), datetime):
+            d['created_at'] = d['created_at'].isoformat()
+        if include_days:
+            d['days'] = [day.to_dict() for day in self.days.all()]
+        return d
+        
+class WorkScheduleDay(db.Model):
+    __tablename__ = 'work_schedule_days'
+    id = db.Column(db.Integer, primary_key=True)
+    schedule_id = db.Column(db.Integer, db.ForeignKey('work_schedules.id', ondelete='CASCADE'), nullable=False)
+    weekday = db.Column(db.String, nullable=False) # e.g., 'Sat', 'Sun'
+    enabled = db.Column(db.Boolean, default=True)
+    start_time = db.Column(db.Time)
+    end_time = db.Column(db.Time)
+    break_start = db.Column(db.Time)
+    break_end = db.Column(db.Time)
+    
+    db.UniqueConstraint('schedule_id', 'weekday')
+
+    def to_dict(self):
+        d = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        for key in ['start_time', 'end_time', 'break_start', 'break_end']:
+            if isinstance(d.get(key), time):
+                d[key] = d[key].strftime('%H:%M') if d[key] else None
+        return d
+
+class EmployeeWorkSchedule(db.Model):
+    __tablename__ = 'employee_work_schedules'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
+    schedule_id = db.Column(db.Integer, db.ForeignKey('work_schedules.id', ondelete='CASCADE'), nullable=False)
+    effective_from = db.Column(db.String, nullable=False)
+    effective_to = db.Column(db.String)
+    
+    db.UniqueConstraint('employee_id', 'schedule_id', 'effective_from')
+
 class Shift(db.Model):
     __tablename__ = 'shifts'
     id = db.Column(db.Integer, primary_key=True)
@@ -2079,6 +2127,74 @@ def get_reports_data():
     return jsonify(report_data)
 
 
+# --- Work Schedules API ---
+
+@app.route('/api/work-schedules', methods=['GET', 'POST'])
+@jwt_required()
+def handle_work_schedules():
+    if request.method == 'POST':
+        data = request.get_json()
+        # You might want to add validation here
+        new_schedule = WorkSchedule(
+            name=data['name'],
+            description=data.get('description'),
+            weekly_off_days=data.get('weekly_off_days') # Expecting a JSON string
+        )
+        db.session.add(new_schedule)
+        db.session.commit()
+        log_action("إضافة جدول عمل", f"تمت إضافة جدول عمل جديد: {new_schedule.name}")
+        return jsonify(new_schedule.to_dict()), 201
+
+    schedules = WorkSchedule.query.order_by(WorkSchedule.name).all()
+    return jsonify([s.to_dict() for s in schedules])
+
+
+@app.route('/api/work-schedules/<int:id>', methods=['GET', 'PUT', 'DELETE'])
+@jwt_required()
+def handle_work_schedule(id):
+    schedule = WorkSchedule.query.get_or_404(id)
+
+    if request.method == 'GET':
+        return jsonify(schedule.to_dict(include_days=True))
+
+    if request.method == 'PUT':
+        data = request.get_json()
+        schedule.name = data.get('name', schedule.name)
+        schedule.description = data.get('description', schedule.description)
+        schedule.weekly_off_days = data.get('weekly_off_days', schedule.weekly_off_days)
+        schedule.active = data.get('active', schedule.active)
+        
+        # Handle days
+        if 'days' in data:
+            # Simple delete and recreate for days
+            WorkScheduleDay.query.filter_by(schedule_id=id).delete()
+            for day_data in data['days']:
+                if not day_data.get('weekday'): continue
+                
+                day_entry = WorkScheduleDay(
+                    schedule_id=id,
+                    weekday=day_data['weekday'],
+                    enabled=day_data.get('enabled', False),
+                    start_time=datetime.strptime(day_data['start_time'], '%H:%M').time() if day_data.get('start_time') else None,
+                    end_time=datetime.strptime(day_data['end_time'], '%H:%M').time() if day_data.get('end_time') else None,
+                    break_start=datetime.strptime(day_data['break_start'], '%H:%M').time() if day_data.get('break_start') else None,
+                    break_end=datetime.strptime(day_data['break_end'], '%H:%M').time() if day_data.get('break_end') else None,
+                )
+                db.session.add(day_entry)
+
+        db.session.commit()
+        log_action("تحديث جدول عمل", f"تم تحديث جدول العمل: {schedule.name}")
+        return jsonify(schedule.to_dict(include_days=True))
+
+    if request.method == 'DELETE':
+        schedule.active = False # Soft delete
+        # db.session.delete(schedule) # Hard delete
+        db.session.commit()
+        log_action("حذف جدول عمل", f"تم حذف جدول العمل: {schedule.name}")
+        return jsonify({'message': 'Work schedule deleted successfully'})
+
+
+
 # --- App Context and DB Initialization ---
 def create_initial_admin_user():
     with app.app_context():
@@ -2112,7 +2228,3 @@ init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-    
-
-    
