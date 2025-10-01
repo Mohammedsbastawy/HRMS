@@ -104,7 +104,7 @@ export default function RecruitmentPage() {
                     <JobPipeline
                         key={job.id}
                         job={job}
-                        applicants={applicants.filter(a => a.job_id === job.id)}
+                        applicants={applicants.filter(a => a.job_id === job.id && a.stage !== 'Hired')}
                         onActionComplete={handleActionComplete}
                         onEditApplicant={handleEditApplicant}
                     />
