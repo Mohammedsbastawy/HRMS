@@ -1536,7 +1536,8 @@ def hire_applicant(id):
             phone=applicant.phone,
             department_id=job.dept_id,
             job_title_id=job_title_id,
-            status='PendingOnboarding'
+            status='PendingOnboarding',
+            hire_date=date.today().isoformat()
         )
         db.session.add(new_employee)
         db.session.flush()

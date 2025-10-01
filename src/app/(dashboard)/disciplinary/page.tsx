@@ -139,12 +139,12 @@ export default function DisciplinaryPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>الموظف</TableHead>
-                <TableHead>نوع الإجراء</TableHead>
-                <TableHead>الخطورة</TableHead>
-                <TableHead>الحالة</TableHead>
-                <TableHead>تاريخ الإصدار</TableHead>
-                <TableHead>الإجراءات</TableHead>
+                <TableHead className="text-right">الموظف</TableHead>
+                <TableHead className="text-right">نوع الإجراء</TableHead>
+                <TableHead className="text-right">الخطورة</TableHead>
+                <TableHead className="text-right">الحالة</TableHead>
+                <TableHead className="text-right">تاريخ الإصدار</TableHead>
+                <TableHead className="text-right">الإجراءات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
